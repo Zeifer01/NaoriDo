@@ -26,7 +26,7 @@
 {
 	# E-mail para Let's Encrypt avisar sobre problemas com SSL.
 	# Troque por um e-mail real seu.
-	email seu-email@exemplo.com
+	email ivanseifert02@gmail.com
 
 	# Em produção use Let's Encrypt staging só se for testar emissão sem
 	# atingir rate limits. Descomente a linha abaixo SOMENTE em testes:

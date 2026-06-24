@@ -56,8 +56,8 @@ fi
 
 OS_ID=$(lsb_release -is)
 OS_VER=$(lsb_release -rs)
-if [[ "${OS_ID}" != "Ubuntu" ]] || [[ ! "${OS_VER}" =~ ^(22\.04|24\.04)$ ]]; then
-  warn "Detectado ${OS_ID} ${OS_VER}. Script é testado em Ubuntu 22.04/24.04."
+if [[ "${OS_ID}" != "Ubuntu" ]] || [[ ! "${OS_VER}" =~ ^(20\.04|22\.04|24\.04)$ ]]; then
+  warn "Detectado ${OS_ID} ${OS_VER}. Script é testado em Ubuntu 20.04/22.04/24.04."
   warn "Pode funcionar, mas sem garantia. Continuando em 5s..."
   sleep 5
 else
@@ -174,6 +174,12 @@ ok "Atualizações de segurança automáticas habilitadas."
 
 # ── 8. Hardening SSH ────────────────────────────────────────────────────────
 title "8. Endurecendo configuração do SSH"
+# Ubuntu 20.04 pode não ter o Include no sshd_config principal
+if ! grep -qE "^Include\s+/etc/ssh/sshd_config\.d" /etc/ssh/sshd_config; then
+  sed -i '1s/^/Include \/etc\/ssh\/sshd_config.d\/*.conf\n/' /etc/ssh/sshd_config
+  ok "Include sshd_config.d adicionado ao sshd_config principal."
+fi
+mkdir -p /etc/ssh/sshd_config.d
 SSHD_CONF="/etc/ssh/sshd_config.d/99-naori-hardening.conf"
 cat > "${SSHD_CONF}" <<EOF
 # Naori VPS hardening
@@ -318,7 +324,7 @@ ${B}Próximos passos (execute como ${DEPLOY_USER}, NÃO como root):${N}
 
   ${C}# Clone o projeto:${N}
   cd ${APP_DIR}
-  git clone <SEU-REPO-DO-NAORI> .
+  git clone https://github.com/Zeifer01/NaoriDo.git .
 
   ${C}# Configure o .env de produção:${N}
   cp deploy/.env.production.example .env
