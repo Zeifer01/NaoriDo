@@ -1,0 +1,719 @@
+import { Hono } from "hono";
+import type { AppEnv } from "../types.js";
+import { zValidator } from "@hono/zod-validator";
+import { eq, and, desc, lt, sql, inArray } from "drizzle-orm";
+import { db, schema } from "@restai/db";
+import {
+  createInventoryItemSchema,
+  createInventoryMovementSchema,
+  idParamSchema,
+  movementQuerySchema,
+} from "@restai/validators";
+import { z } from "zod";
+import { authMiddleware } from "../middleware/auth.js";
+import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
+import { requirePermission } from "../middleware/rbac.js";
+import { requireFeature } from "../middleware/feature.js";
+import { requireActivePlan } from "../middleware/active-plan.js";
+import { recordMovement, InventoryItemNotFoundError, getPurchaseProjection } from "../services/inventory.service.js";
+
+const inventory = new Hono<AppEnv>();
+
+inventory.use("*", authMiddleware);
+inventory.use("*", tenantMiddleware);
+inventory.use("*", requireBranch);
+inventory.use("*", requireActivePlan);
+inventory.use("*", requireFeature("inventory"));
+
+// --- Alerts ---
+
+// GET /alerts - Items where current_stock < min_stock
+inventory.get("/alerts", requirePermission("inventory:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+
+  const result = await db
+    .select({
+      id: schema.inventoryItems.id,
+      name: schema.inventoryItems.name,
+      unit: schema.inventoryItems.unit,
+      current_stock: schema.inventoryItems.current_stock,
+      min_stock: schema.inventoryItems.min_stock,
+      cost_per_unit: schema.inventoryItems.cost_per_unit,
+    })
+    .from(schema.inventoryItems)
+    .where(
+      and(
+        eq(schema.inventoryItems.branch_id, tenant.branchId),
+        eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        sql`${schema.inventoryItems.current_stock}::numeric < ${schema.inventoryItems.min_stock}::numeric`,
+      ),
+    );
+
+  return c.json({ success: true, data: result });
+});
+
+// GET /projection - Purchase projection from stock levels and recent sales
+inventory.get("/projection", requirePermission("inventory:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+
+  const result = await getPurchaseProjection({
+    branchId: tenant.branchId,
+    organizationId: tenant.organizationId,
+  });
+
+  return c.json({ success: true, data: result });
+});
+
+// --- Product links (menu product → stock item) ---
+
+const productLinkSchema = z.object({
+  menuItemId: z.string().uuid(),
+  inventoryItemId: z.string().uuid(),
+  quantityPerUnit: z.number().positive(),
+});
+
+// GET /product-links - All menu products with optional stock linkage
+inventory.get("/product-links", requirePermission("inventory:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+
+  const menuItems = await db
+    .select({
+      id: schema.menuItems.id,
+      name: schema.menuItems.name,
+      price: schema.menuItems.price,
+      is_available: schema.menuItems.is_available,
+    })
+    .from(schema.menuItems)
+    .where(
+      and(
+        eq(schema.menuItems.branch_id, tenant.branchId),
+        eq(schema.menuItems.organization_id, tenant.organizationId),
+      ),
+    );
+
+  if (menuItems.length === 0) {
+    return c.json({ success: true, data: [] });
+  }
+
+  const menuItemIds = menuItems.map((m) => m.id);
+
+  const links = await db
+    .select({
+      menu_item_id: schema.recipeIngredients.menu_item_id,
+      inventory_item_id: schema.recipeIngredients.inventory_item_id,
+      quantity_per_unit: schema.recipeIngredients.quantity_used,
+      stock_name: schema.inventoryItems.name,
+      stock_unit: schema.inventoryItems.unit,
+    })
+    .from(schema.recipeIngredients)
+    .innerJoin(
+      schema.inventoryItems,
+      eq(schema.recipeIngredients.inventory_item_id, schema.inventoryItems.id),
+    )
+    .where(inArray(schema.recipeIngredients.menu_item_id, menuItemIds));
+
+  const linkByMenuItem = new Map(links.map((l) => [l.menu_item_id, l]));
+
+  const result = menuItems.map((item) => {
+    const link = linkByMenuItem.get(item.id);
+    return {
+      menu_item_id: item.id,
+      menu_item_name: item.name,
+      menu_item_price: item.price,
+      is_available: item.is_available,
+      inventory_item_id: link?.inventory_item_id ?? null,
+      quantity_per_unit: link ? parseFloat(link.quantity_per_unit) : null,
+      stock_name: link?.stock_name ?? null,
+      stock_unit: link?.stock_unit ?? null,
+    };
+  });
+
+  return c.json({ success: true, data: result });
+});
+
+// POST /product-links - Link a menu product to a stock item
+inventory.post(
+  "/product-links",
+  requirePermission("inventory:create"),
+  zValidator("json", productLinkSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    const [menuItem] = await db
+      .select({ id: schema.menuItems.id })
+      .from(schema.menuItems)
+      .where(
+        and(
+          eq(schema.menuItems.id, body.menuItemId),
+          eq(schema.menuItems.branch_id, tenant.branchId),
+          eq(schema.menuItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!menuItem) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Produto do cardápio não encontrado" } },
+        404,
+      );
+    }
+
+    const [stockItem] = await db
+      .select({ id: schema.inventoryItems.id })
+      .from(schema.inventoryItems)
+      .where(
+        and(
+          eq(schema.inventoryItems.id, body.inventoryItemId),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+          eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!stockItem) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item de estoque não encontrado" } },
+        404,
+      );
+    }
+
+    await db
+      .delete(schema.recipeIngredients)
+      .where(eq(schema.recipeIngredients.menu_item_id, body.menuItemId));
+
+    const [link] = await db
+      .insert(schema.recipeIngredients)
+      .values({
+        menu_item_id: body.menuItemId,
+        inventory_item_id: body.inventoryItemId,
+        quantity_used: String(body.quantityPerUnit),
+      })
+      .returning();
+
+    return c.json({ success: true, data: link }, 201);
+  },
+);
+
+// DELETE /product-links/:menuItemId
+inventory.delete(
+  "/product-links/:menuItemId",
+  requirePermission("inventory:update"),
+  zValidator("param", z.object({ menuItemId: z.string().uuid() })),
+  async (c) => {
+    const { menuItemId } = c.req.valid("param");
+    const tenant = c.get("tenant") as any;
+
+    const [menuItem] = await db
+      .select({ id: schema.menuItems.id })
+      .from(schema.menuItems)
+      .where(
+        and(
+          eq(schema.menuItems.id, menuItemId),
+          eq(schema.menuItems.branch_id, tenant.branchId),
+        ),
+      )
+      .limit(1);
+
+    if (!menuItem) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Produto do cardápio não encontrado" } },
+        404,
+      );
+    }
+
+    await db
+      .delete(schema.recipeIngredients)
+      .where(eq(schema.recipeIngredients.menu_item_id, menuItemId));
+
+    return c.json({ success: true, data: { menuItemId } });
+  },
+);
+
+// --- Recipes (legacy API, still used internally) ---
+
+// POST /recipes - Create/update recipe for a menu item
+inventory.post(
+  "/recipes",
+  requirePermission("inventory:create"),
+  zValidator(
+    "json",
+    z.object({
+      menuItemId: z.string().uuid(),
+      ingredients: z.array(
+        z.object({
+          inventoryItemId: z.string().uuid(),
+          quantityUsed: z.number().positive(),
+        }),
+      ).min(1),
+    }),
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    const [menuItem] = await db
+      .select({ id: schema.menuItems.id })
+      .from(schema.menuItems)
+      .where(
+        and(
+          eq(schema.menuItems.id, body.menuItemId),
+          eq(schema.menuItems.branch_id, tenant.branchId),
+          eq(schema.menuItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!menuItem) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item do cardápio não encontrado" } },
+        404,
+      );
+    }
+
+    const inventoryItemIds = body.ingredients.map((ing) => ing.inventoryItemId);
+    const inventoryItems = await db
+      .select({ id: schema.inventoryItems.id })
+      .from(schema.inventoryItems)
+      .where(
+        and(
+          inArray(schema.inventoryItems.id, inventoryItemIds),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+          eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        ),
+      );
+
+    if (inventoryItems.length !== inventoryItemIds.length) {
+      return c.json(
+        {
+          success: false,
+          error: { code: "BAD_REQUEST", message: "Há ingredientes que não pertencem à filial" },
+        },
+        400,
+      );
+    }
+
+    // Delete existing recipe ingredients for this menu item
+    await db
+      .delete(schema.recipeIngredients)
+      .where(eq(schema.recipeIngredients.menu_item_id, body.menuItemId));
+
+    // Insert new recipe ingredients
+    const values = body.ingredients.map((ing) => ({
+      menu_item_id: body.menuItemId,
+      inventory_item_id: ing.inventoryItemId,
+      quantity_used: String(ing.quantityUsed),
+    }));
+
+    const result = await db
+      .insert(schema.recipeIngredients)
+      .values(values)
+      .returning();
+
+    return c.json({ success: true, data: result }, 201);
+  },
+);
+
+// GET /recipes/:menuItemId - Get recipe ingredients for a menu item
+inventory.get(
+  "/recipes/:menuItemId",
+  requirePermission("inventory:read"),
+  zValidator("param", z.object({ menuItemId: z.string().uuid() })),
+  async (c) => {
+    const { menuItemId } = c.req.valid("param");
+    const tenant = c.get("tenant") as any;
+
+    const [menuItem] = await db
+      .select({ id: schema.menuItems.id })
+      .from(schema.menuItems)
+      .where(
+        and(
+          eq(schema.menuItems.id, menuItemId),
+          eq(schema.menuItems.branch_id, tenant.branchId),
+          eq(schema.menuItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!menuItem) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item do cardápio não encontrado" } },
+        404,
+      );
+    }
+
+    const result = await db
+      .select({
+        menu_item_id: schema.recipeIngredients.menu_item_id,
+        inventory_item_id: schema.recipeIngredients.inventory_item_id,
+        quantity_used: schema.recipeIngredients.quantity_used,
+        item_name: schema.inventoryItems.name,
+        item_unit: schema.inventoryItems.unit,
+        current_stock: schema.inventoryItems.current_stock,
+      })
+      .from(schema.recipeIngredients)
+      .innerJoin(
+        schema.inventoryItems,
+        eq(schema.recipeIngredients.inventory_item_id, schema.inventoryItems.id),
+      )
+      .where(
+        and(
+          eq(schema.recipeIngredients.menu_item_id, menuItemId),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+          eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        ),
+      );
+
+    return c.json({ success: true, data: result });
+  },
+);
+
+// --- Items ---
+
+// GET /items
+inventory.get("/items", requirePermission("inventory:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+
+  const result = await db
+    .select()
+    .from(schema.inventoryItems)
+    .where(
+      and(
+        eq(schema.inventoryItems.branch_id, tenant.branchId),
+        eq(schema.inventoryItems.organization_id, tenant.organizationId),
+      ),
+    );
+
+  return c.json({ success: true, data: result });
+});
+
+// POST /items
+inventory.post(
+  "/items",
+  requirePermission("inventory:create"),
+  zValidator("json", createInventoryItemSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    if (body.categoryId) {
+      const [category] = await db
+        .select({ id: schema.inventoryCategories.id })
+        .from(schema.inventoryCategories)
+        .where(
+          and(
+            eq(schema.inventoryCategories.id, body.categoryId),
+            eq(schema.inventoryCategories.branch_id, tenant.branchId),
+            eq(schema.inventoryCategories.organization_id, tenant.organizationId),
+          ),
+        )
+        .limit(1);
+
+      if (!category) {
+        return c.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Categoria de inventário não encontrada" } },
+          404,
+        );
+      }
+    }
+
+    const [item] = await db
+      .insert(schema.inventoryItems)
+      .values({
+        branch_id: tenant.branchId,
+        organization_id: tenant.organizationId,
+        category_id: body.categoryId,
+        name: body.name,
+        unit: body.unit,
+        current_stock: String(body.currentStock),
+        min_stock: String(body.minStock),
+        cost_per_unit: body.costPerUnit,
+      })
+      .returning();
+
+    return c.json({ success: true, data: item }, 201);
+  },
+);
+
+// PATCH /items/:id
+inventory.patch(
+  "/items/:id",
+  requirePermission("inventory:update"),
+  zValidator("param", idParamSchema),
+  zValidator(
+    "json",
+    z.object({
+      name: z.string().min(1).max(255).optional(),
+      unit: z.string().min(1).max(50).optional(),
+      minStock: z.number().min(0).optional(),
+      costPerUnit: z.number().int().min(0).optional(),
+      categoryId: z.string().uuid().optional().nullable(),
+    }),
+  ),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    if (body.categoryId !== undefined && body.categoryId !== null) {
+      const [category] = await db
+        .select({ id: schema.inventoryCategories.id })
+        .from(schema.inventoryCategories)
+        .where(
+          and(
+            eq(schema.inventoryCategories.id, body.categoryId),
+            eq(schema.inventoryCategories.branch_id, tenant.branchId),
+            eq(schema.inventoryCategories.organization_id, tenant.organizationId),
+          ),
+        )
+        .limit(1);
+
+      if (!category) {
+        return c.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Categoria de inventário não encontrada" } },
+          404,
+        );
+      }
+    }
+
+    const updateData: Record<string, any> = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.unit !== undefined) updateData.unit = body.unit;
+    if (body.minStock !== undefined) updateData.min_stock = String(body.minStock);
+    if (body.costPerUnit !== undefined) updateData.cost_per_unit = body.costPerUnit;
+    if (body.categoryId !== undefined) updateData.category_id = body.categoryId;
+
+    const [updated] = await db
+      .update(schema.inventoryItems)
+      .set(updateData)
+      .where(
+        and(
+          eq(schema.inventoryItems.id, id),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+        ),
+      )
+      .returning();
+
+    if (!updated) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item de inventário não encontrado" } },
+        404,
+      );
+    }
+
+    return c.json({ success: true, data: updated });
+  },
+);
+
+// DELETE /items/:id
+inventory.delete(
+  "/items/:id",
+  requirePermission("inventory:update"),
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const tenant = c.get("tenant") as any;
+
+    const [item] = await db
+      .select({ id: schema.inventoryItems.id })
+      .from(schema.inventoryItems)
+      .where(
+        and(
+          eq(schema.inventoryItems.id, id),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+          eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!item) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item de inventário não encontrado" } },
+        404,
+      );
+    }
+
+    await db.delete(schema.inventoryItems).where(eq(schema.inventoryItems.id, id));
+
+    return c.json({ success: true, data: { id } });
+  },
+);
+
+// --- Movements ---
+
+// POST /movements
+inventory.post(
+  "/movements",
+  requirePermission("inventory:create"),
+  zValidator("json", createInventoryMovementSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const user = c.get("user") as any;
+    const tenant = c.get("tenant") as any;
+
+    const [item] = await db
+      .select({ id: schema.inventoryItems.id })
+      .from(schema.inventoryItems)
+      .where(
+        and(
+          eq(schema.inventoryItems.id, body.itemId),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+          eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!item) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item não encontrado" } },
+        404,
+      );
+    }
+
+    try {
+      const movement = await recordMovement({
+        itemId: body.itemId,
+        type: body.type,
+        quantity: body.quantity,
+        reference: body.reference,
+        notes: body.notes,
+        createdBy: user.sub,
+      });
+
+      return c.json({ success: true, data: movement }, 201);
+    } catch (err) {
+      if (err instanceof InventoryItemNotFoundError) {
+        return c.json(
+          { success: false, error: { code: "NOT_FOUND", message: "Item não encontrado" } },
+          404,
+        );
+      }
+      throw err;
+    }
+  },
+);
+
+// GET /movements
+inventory.get("/movements", requirePermission("inventory:read"), zValidator("query", movementQuerySchema), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const { itemId } = c.req.valid("query");
+
+  // Get items for this branch first
+  const branchItems = await db
+    .select({ id: schema.inventoryItems.id })
+    .from(schema.inventoryItems)
+    .where(eq(schema.inventoryItems.branch_id, tenant.branchId));
+
+  const itemIds = branchItems.map((i) => i.id);
+  if (itemIds.length === 0) {
+    return c.json({ success: true, data: [] });
+  }
+
+  if (itemId) {
+    const [item] = await db
+      .select({ id: schema.inventoryItems.id })
+      .from(schema.inventoryItems)
+      .where(
+        and(
+          eq(schema.inventoryItems.id, itemId),
+          eq(schema.inventoryItems.branch_id, tenant.branchId),
+          eq(schema.inventoryItems.organization_id, tenant.organizationId),
+        ),
+      )
+      .limit(1);
+
+    if (!item) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item não encontrado" } },
+        404,
+      );
+    }
+
+    const result = await db
+      .select({
+        id: schema.inventoryMovements.id,
+        item_id: schema.inventoryMovements.item_id,
+        type: schema.inventoryMovements.type,
+        quantity: schema.inventoryMovements.quantity,
+        reference: schema.inventoryMovements.reference,
+        notes: schema.inventoryMovements.notes,
+        created_at: schema.inventoryMovements.created_at,
+        item_name: schema.inventoryItems.name,
+      })
+      .from(schema.inventoryMovements)
+      .innerJoin(
+        schema.inventoryItems,
+        eq(schema.inventoryMovements.item_id, schema.inventoryItems.id),
+      )
+      .where(eq(schema.inventoryMovements.item_id, itemId))
+      .orderBy(desc(schema.inventoryMovements.created_at))
+      .limit(50);
+    return c.json({ success: true, data: result });
+  }
+
+  // All movements for branch items
+  const result = await db
+    .select({
+      id: schema.inventoryMovements.id,
+      item_id: schema.inventoryMovements.item_id,
+      type: schema.inventoryMovements.type,
+      quantity: schema.inventoryMovements.quantity,
+      reference: schema.inventoryMovements.reference,
+      notes: schema.inventoryMovements.notes,
+      created_at: schema.inventoryMovements.created_at,
+      item_name: schema.inventoryItems.name,
+    })
+    .from(schema.inventoryMovements)
+    .innerJoin(
+      schema.inventoryItems,
+      eq(schema.inventoryMovements.item_id, schema.inventoryItems.id),
+    )
+    .where(inArray(schema.inventoryMovements.item_id, itemIds))
+    .orderBy(desc(schema.inventoryMovements.created_at))
+    .limit(50);
+
+  return c.json({ success: true, data: result });
+});
+
+// --- Categories ---
+
+// GET /categories
+inventory.get("/categories", requirePermission("inventory:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+
+  const result = await db
+    .select()
+    .from(schema.inventoryCategories)
+    .where(
+      and(
+        eq(schema.inventoryCategories.branch_id, tenant.branchId),
+        eq(schema.inventoryCategories.organization_id, tenant.organizationId),
+      ),
+    );
+
+  return c.json({ success: true, data: result });
+});
+
+// POST /categories
+inventory.post(
+  "/categories",
+  requirePermission("inventory:create"),
+  zValidator("json", z.object({ name: z.string().min(1).max(255) })),
+  async (c) => {
+    const { name } = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    const [category] = await db
+      .insert(schema.inventoryCategories)
+      .values({
+        branch_id: tenant.branchId,
+        organization_id: tenant.organizationId,
+        name,
+      })
+      .returning();
+
+    return c.json({ success: true, data: category }, 201);
+  },
+);
+
+export { inventory };

@@ -1,0 +1,114 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Naori — Caddyfile de produção
+# ─────────────────────────────────────────────────────────────────────────────
+#  Caddy faz tudo automaticamente:
+#    - Emissão e renovação de certificados SSL via Let's Encrypt
+#    - Redirecionamento HTTP → HTTPS
+#    - Reverse proxy para os containers
+#    - Compressão gzip/zstd
+#    - Headers de segurança básicos
+#
+#  Pré-requisitos:
+#    1. DNS de naorido.com.br e api.naorido.com.br apontando para o IP da VPS
+#       (mode DNS only no Cloudflare — nuvem CINZA, não laranja, na primeira vez)
+#    2. Portas 80 e 443 abertas no ufw (o setup-vps.sh já faz isso)
+#    3. Containers Docker rodando (web em :3000, api em :3001)
+#
+#  Como instalar:
+#       sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#       sudo systemctl reload caddy
+#       sudo journalctl -u caddy -f       # acompanhe a emissão do SSL
+#
+#  Depois que o SSL estiver emitido (1-2 min), você pode ligar o proxy do
+#  Cloudflare (nuvem LARANJA) se quiser CDN + DDoS protection.
+# ─────────────────────────────────────────────────────────────────────────────
+
+{
+	# E-mail para Let's Encrypt avisar sobre problemas com SSL.
+	# Troque por um e-mail real seu.
+	email seu-email@exemplo.com
+
+	# Em produção use Let's Encrypt staging só se for testar emissão sem
+	# atingir rate limits. Descomente a linha abaixo SOMENTE em testes:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# ─── Frontend (Next.js) ─────────────────────────────────────────────────────
+naorido.com.br, www.naorido.com.br {
+	encode zstd gzip
+
+	# Headers de segurança
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Remove o Server: Caddy default por discrição
+		-Server
+	}
+
+	# WebSocket precisa passar (notificações realtime do painel)
+	@websockets {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websockets 127.0.0.1:3000
+
+	# Tudo mais: Next.js
+	reverse_proxy 127.0.0.1:3000 {
+		# Timeout generoso para SSR de página de relatórios pesados
+		transport http {
+			read_timeout 60s
+			write_timeout 60s
+		}
+		# Repassa o IP real do cliente (Next.js lê de X-Forwarded-For)
+		header_up X-Real-IP {remote_host}
+	}
+
+	log {
+		output file /var/log/caddy/naorido-web.log {
+			roll_size 50mb
+			roll_keep 5
+		}
+		format console
+	}
+}
+
+# ─── Backend (Bun + Hono) ──────────────────────────────────────────────────
+api.naorido.com.br {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# CORS é tratado pela própria API (header CORS_ORIGINS do .env),
+	# não precisamos duplicar aqui.
+
+	# WebSocket de cozinha/pedidos
+	@websockets {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websockets 127.0.0.1:3001
+
+	# REST API
+	reverse_proxy 127.0.0.1:3001 {
+		transport http {
+			read_timeout 60s
+			write_timeout 60s
+		}
+		header_up X-Real-IP {remote_host}
+	}
+
+	log {
+		output file /var/log/caddy/naorido-api.log {
+			roll_size 50mb
+			roll_keep 5
+		}
+		format console
+	}
+}

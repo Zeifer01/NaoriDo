@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Naori — Override de produção
+# ─────────────────────────────────────────────────────────────────────────────
+#  Aplica em cima do docker-compose.yml base. Mudanças:
+#    1. Postgres e Redis NÃO expõem portas no host (só em rede interna do Docker).
+#       Em dev expomos pra você se conectar com DBeaver. Em prod, fica isolado.
+#    2. API e Web só escutam em 127.0.0.1 (Caddy faz o proxy SSL).
+#    3. Evolution API só escuta em 127.0.0.1 também (acesso só interno).
+#    4. Limites de memória para evitar um container engolir toda a RAM.
+#
+#  Requer Docker Compose v2.24+ (o setup-vps.sh instala via repo oficial,
+#  que sempre vem com versão recente).
+#
+#  Como usar:
+#       docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    # NUNCA expor Postgres na internet em produção.
+    ports: !override []
+    # Tuning básico para 8GB de RAM total (Postgres ganha ~1.5GB de teto).
+    command: >
+      postgres
+        -c max_connections=100
+        -c shared_buffers=512MB
+        -c effective_cache_size=2GB
+        -c work_mem=8MB
+        -c maintenance_work_mem=128MB
+        -c wal_buffers=16MB
+        -c log_min_duration_statement=500ms
+    deploy:
+      resources:
+        limits:
+          memory: 1500M
+
+  redis:
+    ports: !override []
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  evolution-api:
+    # Só acessível no host local (não exposto na internet pública).
+    ports: !override
+      - "127.0.0.1:8085:8080"
+    environment:
+      LOG_LEVEL: "ERROR,WARN"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  api:
+    # Caddy faz proxy de api.naorido.com.br -> 127.0.0.1:3001
+    ports: !override
+      - "127.0.0.1:3001:3001"
+    deploy:
+      resources:
+        limits:
+          memory: 600M
+
+  web:
+    # Caddy faz proxy de naorido.com.br -> 127.0.0.1:3000
+    ports: !override
+      - "127.0.0.1:3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 800M

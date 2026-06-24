@@ -1,0 +1,41 @@
+{
+  "name": "restai",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo test",
+    "clean": "turbo clean",
+    "db:generate": "bun run --filter @restai/db generate",
+    "db:migrate": "bun run --filter @restai/db migrate",
+    "db:push": "bun run --filter @restai/db push",
+    "db:seed": "bun run --filter @restai/db seed",
+    "db:studio": "bun run --filter @restai/db studio",
+    "db:import-feira": "bun run --filter @restai/db import-feira",
+    "db:import-inventory": "bun run --filter @restai/db import-inventory",
+    "db:import-payments": "bun run --filter @restai/db import-payments",
+    "db:promote-super-admin": "bun run --filter @restai/db promote-super-admin",
+    "tunnel:up": "docker compose --profile tunnel up -d evolution-api cloudflared",
+    "tunnel:down": "docker compose --profile tunnel stop cloudflared",
+    "tunnel:logs": "docker compose --profile tunnel logs -f cloudflared",
+    "tunnel:url": "powershell -ExecutionPolicy Bypass -File ./scripts/tunnel-url.ps1",
+    "tunnel:apply": "powershell -ExecutionPolicy Bypass -File ./scripts/tunnel-up.ps1 -Apply"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "prettier": "^3.0.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "packageManager": "bun@1.3.8"
+}
