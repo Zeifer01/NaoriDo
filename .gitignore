@@ -75,6 +75,6 @@ docker-compose.override.yml
 .cache/
 apps/api/uploads/
 
-# Database dumps
-*.sql
-*.sql.gz
+# Database dumps (root level only — não afeta migrations do Drizzle)
+/*.sql
+/*.sql.gz
