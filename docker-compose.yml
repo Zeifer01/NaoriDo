@@ -138,6 +138,8 @@ services:
       context: .
       dockerfile: Dockerfile.api
     restart: unless-stopped
+    volumes:
+      - api_uploads:/app/apps/api/uploads
     environment:
       API_PORT: "3001"
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/restai
@@ -191,3 +193,4 @@ volumes:
   pgdata:
   redisdata:
   evolution_instances:
+  api_uploads:

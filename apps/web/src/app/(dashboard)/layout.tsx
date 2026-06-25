@@ -187,6 +187,21 @@ export default function DashboardLayout({
     }
   }, [availableBranches, selectedBranchId, setSelectedBranch, queryClient]);
 
+  useEffect(() => {
+    const name = org?.name;
+    const logoUrl = resolveUploadUrl(org?.logo_url);
+    if (name) document.title = name;
+    if (logoUrl) {
+      let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = logoUrl;
+    }
+  }, [org]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
