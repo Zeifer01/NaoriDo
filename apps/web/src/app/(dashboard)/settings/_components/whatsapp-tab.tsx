@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@restai/ui/components/card";
 import { Button } from "@restai/ui/components/button";
 import { Badge } from "@restai/ui/components/badge";
-import { Loader2, MessageCircle, Pencil, QrCode, Unplug } from "lucide-react";
+import { Loader2, MessageCircle, Megaphone, Pencil, QrCode, Send, Unplug, Webhook } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -12,6 +12,8 @@ import {
   useDisconnectWhatsApp,
   useUpdateWhatsAppSettings,
   useWhatsAppStatus,
+  useSetupWhatsAppWebhook,
+  useSendCampaign,
 } from "@/hooks/use-whatsapp";
 import { WhatsAppMessagesDialog, DEFAULT_WHATSAPP_TEMPLATES } from "./whatsapp-messages-dialog";
 
@@ -27,11 +29,15 @@ export function WhatsAppTab() {
   const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [pollConnecting, setPollConnecting] = useState(false);
   const [messagesDialogOpen, setMessagesDialogOpen] = useState(false);
+  const [campaignMessage, setCampaignMessage] = useState("");
+  const [campaignResult, setCampaignResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
 
   const { data: status, isLoading, isError, error } = useWhatsAppStatus({ pollWhileConnecting: pollConnecting });
   const connect = useConnectWhatsApp();
   const disconnect = useDisconnectWhatsApp();
   const updateSettings = useUpdateWhatsAppSettings();
+  const setupWebhook = useSetupWhatsAppWebhook();
+  const sendCampaign = useSendCampaign();
 
   useEffect(() => {
     if (status?.connected) {
@@ -97,6 +103,41 @@ export function WhatsAppTab() {
       );
     } catch (err: any) {
       toast.error(err.message || "Erro ao salvar preferência");
+    }
+  };
+
+  const handleToggleAutoReply = async () => {
+    if (!status) return;
+    try {
+      await updateSettings.mutateAsync({ autoReplyEnabled: !status.autoReplyEnabled });
+      toast.success(
+        status.autoReplyEnabled ? "Resposta automática desativada" : "Resposta automática ativada",
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar preferência");
+    }
+  };
+
+  const handleSetupWebhook = async () => {
+    try {
+      const result = await setupWebhook.mutateAsync();
+      toast.success(`Webhook configurado: ${result.webhookUrl}`);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao configurar webhook");
+    }
+  };
+
+  const handleSendCampaign = async () => {
+    if (!campaignMessage.trim()) {
+      toast.error("Digite uma mensagem antes de enviar");
+      return;
+    }
+    try {
+      const result = await sendCampaign.mutateAsync({ message: campaignMessage });
+      setCampaignResult(result);
+      toast.success(`Campanha enviada: ${result.sent} mensagens enviadas`);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar campanha");
     }
   };
 
@@ -329,6 +370,150 @@ export function WhatsAppTab() {
               onOpenChange={setMessagesDialogOpen}
               templates={status.messageTemplates ?? DEFAULT_WHATSAPP_TEMPLATES}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {status?.configured && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageCircle className="h-4 w-4" />
+              Resposta automática
+            </CardTitle>
+            <CardDescription>
+              Quando um cliente enviar mensagem para o número, responde automaticamente com o link do cardápio.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={status.autoReplyEnabled}
+                onClick={handleToggleAutoReply}
+                disabled={updateSettings.isPending}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  status.autoReplyEnabled ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition",
+                    status.autoReplyEnabled ? "translate-x-5" : "translate-x-0",
+                  )}
+                />
+              </button>
+              <span className="text-sm">
+                {status.autoReplyEnabled ? "Ativada" : "Desativada"}
+              </span>
+            </div>
+
+            {status.autoReplyEnabled && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-400">
+                A Evolution API precisa estar configurada para receber eventos. Clique em{" "}
+                <strong>Configurar Webhook</strong> uma vez após conectar o WhatsApp.
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSetupWebhook}
+                disabled={setupWebhook.isPending || !status.connected}
+                title={!status.connected ? "Conecte o WhatsApp primeiro" : ""}
+              >
+                {setupWebhook.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Webhook className="h-4 w-4 mr-2" />
+                )}
+                Configurar Webhook
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setMessagesDialogOpen(true)}
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Editar mensagem
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A resposta é enviada apenas uma vez por contato a cada 5 minutos (anti-spam).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {status?.configured && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Megaphone className="h-4 w-4" />
+              Campanhas
+            </CardTitle>
+            <CardDescription>
+              Envie uma mensagem para todos os clientes cadastrados com telefone. Use para promoções, anúncios e lembretes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Mensagem da campanha</label>
+              <textarea
+                value={campaignMessage}
+                onChange={(e) => {
+                  setCampaignMessage(e.target.value);
+                  setCampaignResult(null);
+                }}
+                placeholder={"Olá, {nome}! 👋\n\nTemos novidades para você. Confira nosso cardápio:\n{link_cardapio}"}
+                rows={6}
+                className={cn(
+                  "flex w-full rounded-md border border-input bg-background px-3 py-2",
+                  "text-sm ring-offset-background placeholder:text-muted-foreground",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  "resize-y",
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                Variáveis:{" "}
+                <code className="bg-muted px-1 rounded">{"{nome}"}</code> nome do cliente ·{" "}
+                <code className="bg-muted px-1 rounded">{"{link_cardapio}"}</code> link do cardápio ·{" "}
+                <code className="bg-muted px-1 rounded">{"{estabelecimento}"}</code> nome da filial
+              </p>
+            </div>
+
+            {campaignResult && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                <p className="font-medium">Resultado do envio</p>
+                <p className="text-muted-foreground">
+                  Total: <strong>{campaignResult.total}</strong> · Enviados:{" "}
+                  <strong className="text-emerald-600">{campaignResult.sent}</strong>
+                  {campaignResult.failed > 0 && (
+                    <> · Falhas: <strong className="text-destructive">{campaignResult.failed}</strong></>
+                  )}
+                </p>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              onClick={handleSendCampaign}
+              disabled={sendCampaign.isPending || !campaignMessage.trim() || !status.connected}
+              title={!status.connected ? "Conecte o WhatsApp primeiro" : ""}
+            >
+              {sendCampaign.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {sendCampaign.isPending ? "Enviando..." : "Enviar campanha"}
+            </Button>
           </CardContent>
         </Card>
       )}

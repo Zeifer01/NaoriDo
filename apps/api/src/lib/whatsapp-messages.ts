@@ -5,6 +5,7 @@ export const WHATSAPP_MESSAGE_KEYS = [
   "status_ready",
   "status_completed",
   "status_cancelled",
+  "auto_reply",
 ] as const;
 
 export type WhatsAppMessageKey = (typeof WHATSAPP_MESSAGE_KEYS)[number];
@@ -17,6 +18,7 @@ export const WHATSAPP_MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   status_ready: "Pronto para entrega",
   status_completed: "Pedido entregue",
   status_cancelled: "Pedido cancelado",
+  auto_reply: "Resposta automática",
 };
 
 export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
@@ -70,6 +72,14 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "",
     "Acompanhe: {link}",
   ].join("\n"),
+  auto_reply: [
+    "Olá! 👋 Obrigado por entrar em contato com *{estabelecimento}*!",
+    "",
+    "Confira nosso cardápio e faça seu pedido:",
+    "{link_cardapio}",
+    "",
+    "Em breve um atendente irá te responder. 🙏",
+  ].join("\n"),
 };
 
 export const WHATSAPP_TEMPLATE_VARIABLES = [
@@ -78,6 +88,9 @@ export const WHATSAPP_TEMPLATE_VARIABLES = [
   "{total}",
   "{endereco_bloco}",
   "{link}",
+  "{estabelecimento}",
+  "{link_cardapio}",
+  "{nome}",
 ] as const;
 
 const STATUS_KEY_BY_ORDER_STATUS: Partial<Record<string, WhatsAppMessageKey>> = {

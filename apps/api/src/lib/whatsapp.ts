@@ -294,6 +294,20 @@ export async function logoutInstance(instanceName: string): Promise<void> {
   }
 }
 
+export async function setupWebhook(instanceName: string, webhookUrl: string): Promise<void> {
+  await evolutionFetch(`/webhook/set/${encodeURIComponent(instanceName)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      url: webhookUrl,
+      enabled: true,
+      webhookByEvents: false,
+      webhookBase64: false,
+      events: ["MESSAGES_UPSERT"],
+    }),
+  });
+  logger.info({ instanceName, webhookUrl }, "Evolution API webhook configured");
+}
+
 export async function sendWhatsAppText(
   instanceName: string,
   phone: string,

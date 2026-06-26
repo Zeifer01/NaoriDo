@@ -13,6 +13,9 @@ import {
   sendWhatsAppText,
   type WhatsAppConnectionState,
 } from "../lib/whatsapp.js";
+import { redis } from "../lib/redis.js";
+import { db, schema } from "@restai/db";
+import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 
 export { getWhatsAppMessageTemplates, type WhatsAppMessageTemplates };
@@ -26,6 +29,7 @@ type BranchLike = {
   id: string;
   slug: string;
   name: string;
+  organization_id?: string;
   settings?: unknown;
   currency?: string;
 };
@@ -64,10 +68,13 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
   state: WhatsAppConnectionState;
   instanceName: string;
   notificationsEnabled: boolean;
+  autoReplyEnabled: boolean;
   messageTemplates: WhatsAppMessageTemplates;
 }> {
   const instanceName = getBranchInstanceName(branch);
   const notificationsEnabled = branchNotificationsEnabled(branch);
+  const settings = (branch.settings || {}) as Record<string, unknown>;
+  const autoReplyEnabled = settings.whatsapp_auto_reply_enabled === true;
   const messageTemplates = getWhatsAppMessageTemplates(branch.settings);
 
   if (!isWhatsAppConfigured()) {
@@ -77,6 +84,7 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
       state: "unknown",
       instanceName,
       notificationsEnabled,
+      autoReplyEnabled,
       messageTemplates,
     };
   }
@@ -88,6 +96,7 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
     state,
     instanceName,
     notificationsEnabled,
+    autoReplyEnabled,
     messageTemplates,
   };
 }
@@ -142,6 +151,94 @@ export async function notifyDeliveryOrderCreated(
   });
 
   await sendDeliveryMessage(branch, order, message);
+}
+
+export async function handleIncomingWebhook(
+  instanceName: string,
+  event: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  const ev = event.toUpperCase().replace(".", "_");
+  if (ev !== "MESSAGES_UPSERT") return;
+
+  const key = data.key as Record<string, unknown> | undefined;
+  if (!key || key.fromMe === true) return;
+
+  const remoteJid = (key.remoteJid as string) || "";
+  if (!remoteJid || remoteJid.includes("@g.us")) return;
+
+  const phone = remoteJid.replace(/@s\.whatsapp\.net$/, "").replace(/@c\.us$/, "");
+  if (!phone) return;
+
+  const allBranches = await db.select().from(schema.branches);
+  const branch = allBranches.find((b) => getBranchInstanceName(b) === instanceName);
+  if (!branch) {
+    logger.warn({ instanceName }, "Webhook: unknown instance");
+    return;
+  }
+
+  const settings = (branch.settings || {}) as Record<string, unknown>;
+  if (!settings.whatsapp_auto_reply_enabled) return;
+
+  const dedupeKey = `wa:auto_reply:${instanceName}:${phone}`;
+  const alreadyReplied = await redis.get(dedupeKey);
+  if (alreadyReplied) return;
+  await redis.setex(dedupeKey, 300, "1");
+
+  const templates = getWhatsAppMessageTemplates(branch.settings);
+  const menuUrl = `${APP_URL.replace(/\/$/, "")}/delivery/${branch.slug}/menu`;
+
+  const message = renderWhatsAppTemplate(templates.auto_reply, {
+    estabelecimento: branch.name,
+    link_cardapio: menuUrl,
+  });
+
+  try {
+    await sendWhatsAppText(instanceName, phone, message);
+    logger.info({ instanceName, phone }, "Auto-reply sent");
+  } catch (err) {
+    logger.error({ err: (err as Error).message, instanceName, phone }, "Auto-reply failed");
+  }
+}
+
+export async function sendCampaignMessage(
+  branch: BranchLike & { organization_id: string },
+  messageTemplate: string,
+): Promise<{ sent: number; failed: number; total: number }> {
+  if (!isWhatsAppConfigured()) {
+    throw new Error("WhatsApp não configurado");
+  }
+
+  const customers = await db
+    .select({ name: schema.customers.name, phone: schema.customers.phone })
+    .from(schema.customers)
+    .where(and(
+      eq(schema.customers.organization_id, branch.organization_id),
+      isNotNull(schema.customers.phone),
+    ));
+
+  const instanceName = getBranchInstanceName(branch);
+  const menuUrl = `${APP_URL.replace(/\/$/, "")}/delivery/${branch.slug}/menu`;
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const customer of customers) {
+    if (!customer.phone) continue;
+    const rendered = renderWhatsAppTemplate(messageTemplate, {
+      nome: customer.name || "Cliente",
+      estabelecimento: branch.name,
+      link_cardapio: menuUrl,
+    });
+    try {
+      await sendWhatsAppText(instanceName, customer.phone, rendered);
+      sent++;
+    } catch {
+      failed++;
+    }
+  }
+
+  return { sent, failed, total: customers.length };
 }
 
 export async function notifyDeliveryOrderStatusUpdated(

@@ -27,6 +27,7 @@ const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   status_ready: "Pronto para entrega",
   status_completed: "Pedido entregue",
   status_cancelled: "Pedido cancelado",
+  auto_reply: "Resposta automática",
 };
 
 const MESSAGE_KEYS: WhatsAppMessageKey[] = [
@@ -36,6 +37,7 @@ const MESSAGE_KEYS: WhatsAppMessageKey[] = [
   "status_ready",
   "status_completed",
   "status_cancelled",
+  "auto_reply",
 ];
 
 export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
@@ -88,6 +90,14 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Seu pedido foi *cancelado*. Entre em contato conosco se precisar de ajuda.",
     "",
     "Acompanhe: {link}",
+  ].join("\n"),
+  auto_reply: [
+    "Olá! 👋 Obrigado por entrar em contato com *{estabelecimento}*!",
+    "",
+    "Confira nosso cardápio e faça seu pedido:",
+    "{link_cardapio}",
+    "",
+    "Em breve um atendente irá te responder. 🙏",
   ].join("\n"),
 };
 
@@ -196,16 +206,25 @@ export function WhatsAppMessagesDialog({
             />
             <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
               <p className="font-medium text-foreground">Variáveis disponíveis</p>
-              <p>
-                <code className="bg-muted px-1 rounded">{"{cliente}"}</code> nome do cliente ·{" "}
-                <code className="bg-muted px-1 rounded">{"{pedido}"}</code> número do pedido ·{" "}
-                <code className="bg-muted px-1 rounded">{"{total}"}</code> valor total
-              </p>
-              <p>
-                <code className="bg-muted px-1 rounded">{"{endereco_bloco}"}</code> endereço (só no
-                pedido recebido) · <code className="bg-muted px-1 rounded">{"{link}"}</code> link de
-                acompanhamento
-              </p>
+              {activeKey === "auto_reply" ? (
+                <p>
+                  <code className="bg-muted px-1 rounded">{"{estabelecimento}"}</code> nome da filial ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{link_cardapio}"}</code> link do cardápio online
+                </p>
+              ) : (
+                <>
+                  <p>
+                    <code className="bg-muted px-1 rounded">{"{cliente}"}</code> nome do cliente ·{" "}
+                    <code className="bg-muted px-1 rounded">{"{pedido}"}</code> número do pedido ·{" "}
+                    <code className="bg-muted px-1 rounded">{"{total}"}</code> valor total
+                  </p>
+                  <p>
+                    <code className="bg-muted px-1 rounded">{"{endereco_bloco}"}</code> endereço (só no
+                    pedido recebido) · <code className="bg-muted px-1 rounded">{"{link}"}</code> link de
+                    acompanhamento
+                  </p>
+                </>
+              )}
               <p>Deixe uma linha em branco entre os blocos para criar espaçamento no WhatsApp.</p>
             </div>
           </div>

@@ -15,16 +15,42 @@ import {
   getBranchInstanceName,
   isWhatsAppConfigured,
   logoutInstance,
+  setupWebhook,
   WhatsAppError,
 } from "../lib/whatsapp.js";
-import { getWhatsAppStatusForBranch } from "../services/whatsapp.service.js";
+import {
+  getWhatsAppStatusForBranch,
+  handleIncomingWebhook,
+  sendCampaignMessage,
+} from "../services/whatsapp.service.js";
+import { logger } from "../lib/logger.js";
 import {
   DEFAULT_WHATSAPP_MESSAGE_TEMPLATES,
   WHATSAPP_MESSAGE_KEYS,
   type WhatsAppMessageKey,
 } from "../lib/whatsapp-messages.js";
 
+const API_PUBLIC_URL = (process.env.API_PUBLIC_URL || "https://api.naorido.com.br").replace(/\/$/, "");
+
 const whatsapp = new Hono<AppEnv>();
+
+// ── Public endpoints (before auth middleware) ──────────────────────────────
+
+// POST /webhook — Evolution API calls this when messages arrive
+whatsapp.post("/webhook", async (c) => {
+  try {
+    const body = await c.req.json<Record<string, unknown>>();
+    const instanceName = (body.instance as string) || "";
+    const event = (body.event as string) || "";
+    const data = (body.data as Record<string, unknown>) || {};
+    await handleIncomingWebhook(instanceName, event, data);
+  } catch (err) {
+    logger.error("Webhook error", { err: (err as Error).message });
+  }
+  return c.json({ success: true });
+});
+
+// ── Protected endpoints ────────────────────────────────────────────────────
 whatsapp.use("*", authMiddleware, tenantMiddleware);
 whatsapp.use("*", requireActivePlan);
 whatsapp.use("*", requireFeature("whatsapp"));
@@ -141,10 +167,14 @@ const messageTemplatesSchema = z.object(
 const updateSettingsSchema = z
   .object({
     notificationsEnabled: z.boolean().optional(),
+    autoReplyEnabled: z.boolean().optional(),
     messageTemplates: messageTemplatesSchema.partial().optional(),
   })
   .refine(
-    (data) => data.notificationsEnabled !== undefined || data.messageTemplates !== undefined,
+    (data) =>
+      data.notificationsEnabled !== undefined ||
+      data.autoReplyEnabled !== undefined ||
+      data.messageTemplates !== undefined,
     { message: "Informe ao menos uma configuração para atualizar" },
   );
 
@@ -180,6 +210,9 @@ whatsapp.patch(
       ...(body.notificationsEnabled !== undefined
         ? { whatsapp_notifications_enabled: body.notificationsEnabled }
         : {}),
+      ...(body.autoReplyEnabled !== undefined
+        ? { whatsapp_auto_reply_enabled: body.autoReplyEnabled }
+        : {}),
       ...(body.messageTemplates ? { whatsapp_message_templates: mergedTemplates } : {}),
     };
 
@@ -195,12 +228,68 @@ whatsapp.patch(
       success: true,
       data: {
         notificationsEnabled: updatedSettings.whatsapp_notifications_enabled !== false,
+        autoReplyEnabled: updatedSettings.whatsapp_auto_reply_enabled === true,
         messageTemplates: {
           ...DEFAULT_WHATSAPP_MESSAGE_TEMPLATES,
           ...((updatedSettings.whatsapp_message_templates as Record<string, string>) || {}),
         },
       },
     });
+  },
+);
+
+// POST /webhook/setup — configure Evolution API to call our webhook
+whatsapp.post("/webhook/setup", requirePermission("settings:*"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const branch = await getBranchForTenant(tenant);
+
+  if (!branch) {
+    return c.json({ success: false, error: { code: "BAD_REQUEST", message: "Filial não selecionada" } }, 400);
+  }
+
+  if (!isWhatsAppConfigured()) {
+    return c.json({ success: false, error: { code: "NOT_CONFIGURED", message: "WhatsApp não configurado na API" } }, 503);
+  }
+
+  try {
+    const instanceName = getBranchInstanceName(branch);
+    const webhookUrl = `${API_PUBLIC_URL}/api/whatsapp/webhook`;
+    await setupWebhook(instanceName, webhookUrl);
+    return c.json({ success: true, data: { webhookUrl } });
+  } catch (err) {
+    const message = err instanceof WhatsAppError ? err.message : "Erro ao configurar webhook";
+    return c.json({ success: false, error: { code: "WHATSAPP_ERROR", message } }, 502);
+  }
+});
+
+// POST /campaigns/send — broadcast message to org customers with phone
+whatsapp.post(
+  "/campaigns/send",
+  requirePermission("settings:*"),
+  zValidator("json", z.object({ message: z.string().min(1).max(4000) })),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { message } = c.req.valid("json");
+    const branch = await getBranchForTenant(tenant);
+
+    if (!branch) {
+      return c.json({ success: false, error: { code: "BAD_REQUEST", message: "Filial não selecionada" } }, 400);
+    }
+
+    if (!isWhatsAppConfigured()) {
+      return c.json({ success: false, error: { code: "NOT_CONFIGURED", message: "WhatsApp não configurado" } }, 503);
+    }
+
+    try {
+      const result = await sendCampaignMessage(
+        { ...branch, organization_id: tenant.organizationId },
+        message,
+      );
+      return c.json({ success: true, data: result });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao enviar campanha";
+      return c.json({ success: false, error: { code: "CAMPAIGN_ERROR", message: msg } }, 502);
+    }
   },
 );
 
