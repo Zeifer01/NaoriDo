@@ -204,14 +204,20 @@ export async function handleIncomingWebhook(
   }
 
   const remoteJid = (key.remoteJid as string) || "";
+  const remoteJidAlt = (key.remoteJidAlt as string) || "";
 
-  // Only process real individual contacts — skip groups (@g.us), status (@broadcast), linked-device IDs (@lid)
-  if (!remoteJid.endsWith("@s.whatsapp.net")) {
-    logger.info("Webhook: skipped (not @s.whatsapp.net)", { remoteJid });
+  // Evolution API v2 uses LID addressing: real phone is in remoteJidAlt when remoteJid ends with @lid
+  const effectiveJid = remoteJid.endsWith("@lid") && remoteJidAlt.endsWith("@s.whatsapp.net")
+    ? remoteJidAlt
+    : remoteJid;
+
+  // Only process real individual contacts — skip groups (@g.us), status (@broadcast)
+  if (!effectiveJid.endsWith("@s.whatsapp.net")) {
+    logger.info("Webhook: skipped (not @s.whatsapp.net)", { remoteJid, remoteJidAlt });
     return;
   }
 
-  const phone = remoteJid.replace("@s.whatsapp.net", "");
+  const phone = effectiveJid.replace("@s.whatsapp.net", "");
   if (!phone) return;
 
   const allBranches = await db.select().from(schema.branches);
