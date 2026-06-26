@@ -22,6 +22,7 @@ import {
 
 const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   order_created: "Pedido recebido",
+  order_edited: "Pedido editado",
   status_confirmed: "Pedido confirmado",
   status_preparing: "Em preparo",
   status_ready: "Pronto para entrega",
@@ -32,6 +33,7 @@ const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
 
 const MESSAGE_KEYS: WhatsAppMessageKey[] = [
   "order_created",
+  "order_edited",
   "status_confirmed",
   "status_preparing",
   "status_ready",
@@ -90,6 +92,15 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Seu pedido foi *cancelado*. Entre em contato conosco se precisar de ajuda.",
     "",
     "Acompanhe: {link}",
+  ].join("\n"),
+  order_edited: [
+    "Olá, {cliente}!",
+    "",
+    "Seu pedido *#{pedido}* foi atualizado pela nossa equipe.",
+    "Novo total: *{total}*",
+    "",
+    "Acompanhe o status aqui:",
+    "{link}",
   ].join("\n"),
   auto_reply: [
     "Olá! 👋 Obrigado por entrar em contato com *{estabelecimento}*!",
@@ -210,6 +221,13 @@ export function WhatsAppMessagesDialog({
                 <p>
                   <code className="bg-muted px-1 rounded">{"{estabelecimento}"}</code> nome da filial ·{" "}
                   <code className="bg-muted px-1 rounded">{"{link_cardapio}"}</code> link do cardápio online
+                </p>
+              ) : activeKey === "order_edited" ? (
+                <p>
+                  <code className="bg-muted px-1 rounded">{"{cliente}"}</code> nome do cliente ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{pedido}"}</code> número do pedido ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{total}"}</code> novo valor total ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{link}"}</code> link de acompanhamento
                 </p>
               ) : (
                 <>

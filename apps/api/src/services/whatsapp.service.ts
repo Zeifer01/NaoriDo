@@ -38,6 +38,7 @@ type OrderLike = {
   id: string;
   order_number: string;
   status: string;
+  type?: string | null;
   total: number;
   delivery_phone?: string | null;
   delivery_address?: string | null;
@@ -128,6 +129,34 @@ async function sendDeliveryMessage(
       "Failed to send WhatsApp message",
     );
   }
+}
+
+export async function notifyOrderEdited(
+  branchId: string,
+  order: OrderLike,
+): Promise<void> {
+  if (order.type !== "delivery" || !order.delivery_phone) return;
+
+  const [branch] = await db
+    .select()
+    .from(schema.branches)
+    .where(eq(schema.branches.id, branchId))
+    .limit(1);
+  if (!branch) return;
+
+  const templates = getWhatsAppMessageTemplates(branch.settings);
+  const customer = order.customer_name?.trim() || "Cliente";
+  const total = formatMoney(order.total, branch.currency || "BRL");
+  const link = trackingUrl(branch.slug, order.id);
+
+  const message = renderWhatsAppTemplate(templates.order_edited, {
+    cliente: customer,
+    pedido: order.order_number,
+    total,
+    link,
+  });
+
+  await sendDeliveryMessage(branch, order, message);
 }
 
 export async function notifyDeliveryOrderCreated(

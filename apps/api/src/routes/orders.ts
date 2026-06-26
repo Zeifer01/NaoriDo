@@ -30,7 +30,7 @@ import {
   updateOrderItem,
   removeOrderItem,
 } from "../services/order.service.js";
-import { notifyDeliveryOrderStatusUpdated } from "../services/whatsapp.service.js";
+import { notifyDeliveryOrderStatusUpdated, notifyOrderEdited } from "../services/whatsapp.service.js";
 import { restoreForOrder } from "../services/inventory.service.js";
 import { logger } from "../lib/logger.js";
 
@@ -474,6 +474,8 @@ orders.post(
         table_session_id: result.order.table_session_id,
       });
 
+      void notifyOrderEdited(tenant.branchId, result.order);
+
       return c.json({ success: true, data: { ...result.order, items: result.items, payment_status: result.paymentStatus, total_paid: result.totalPaid } });
     } catch (err) {
       if (err instanceof OrderNotFoundError) {
@@ -514,6 +516,8 @@ orders.patch(
         table_session_id: result.order.table_session_id,
       });
 
+      void notifyOrderEdited(tenant.branchId, result.order);
+
       return c.json({ success: true, data: { ...result.order, items: result.items, payment_status: result.paymentStatus, total_paid: result.totalPaid } });
     } catch (err) {
       if (err instanceof OrderNotFoundError) {
@@ -549,6 +553,8 @@ orders.delete(
         status: result.order.status,
         table_session_id: result.order.table_session_id,
       });
+
+      void notifyOrderEdited(tenant.branchId, result.order);
 
       return c.json({ success: true, data: { ...result.order, items: result.items, payment_status: result.paymentStatus, total_paid: result.totalPaid } });
     } catch (err) {

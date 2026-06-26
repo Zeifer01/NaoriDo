@@ -1,5 +1,6 @@
 export const WHATSAPP_MESSAGE_KEYS = [
   "order_created",
+  "order_edited",
   "status_confirmed",
   "status_preparing",
   "status_ready",
@@ -13,6 +14,7 @@ export type WhatsAppMessageTemplates = Record<WhatsAppMessageKey, string>;
 
 export const WHATSAPP_MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   order_created: "Pedido recebido",
+  order_edited: "Pedido editado",
   status_confirmed: "Pedido confirmado",
   status_preparing: "Em preparo",
   status_ready: "Pronto para entrega",
@@ -22,6 +24,15 @@ export const WHATSAPP_MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
 };
 
 export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
+  order_edited: [
+    "Olá, {cliente}!",
+    "",
+    "Seu pedido *#{pedido}* foi atualizado pela nossa equipe.",
+    "Novo total: *{total}*",
+    "",
+    "Acompanhe o status aqui:",
+    "{link}",
+  ].join("\n"),
   order_created: [
     "Olá, {cliente}! 👋",
     "",
