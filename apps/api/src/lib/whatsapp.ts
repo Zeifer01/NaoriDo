@@ -298,11 +298,13 @@ export async function setupWebhook(instanceName: string, webhookUrl: string): Pr
   await evolutionFetch(`/webhook/set/${encodeURIComponent(instanceName)}`, {
     method: "POST",
     body: JSON.stringify({
-      url: webhookUrl,
-      enabled: true,
-      webhookByEvents: false,
-      webhookBase64: false,
-      events: ["MESSAGES_UPSERT"],
+      webhook: {
+        url: webhookUrl,
+        enabled: true,
+        webhookByEvents: false,
+        webhookBase64: false,
+        events: ["MESSAGES_UPSERT"],
+      },
     }),
   });
   logger.info({ instanceName, webhookUrl }, "Evolution API webhook configured");
