@@ -135,6 +135,7 @@ export const createDeliveryOrderSchema = createOrderSchema
     deliveryPhone: z.string().min(8, "Informe um telefone válido").max(20),
     deliveryAddress: z.string().max(500).optional(),
     deliveryReference: z.string().max(255).optional(),
+    paymentMethod: z.enum(["cash", "card", "pix"]).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.fulfillment === "delivery") {

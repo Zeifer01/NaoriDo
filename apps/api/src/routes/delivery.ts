@@ -198,6 +198,7 @@ delivery.post(
         deliveryReference: orderType === "delivery" ? body.deliveryReference : null,
         couponCode: body.couponCode || null,
         redemptionId: body.redemptionId || null,
+        paymentMethod: body.paymentMethod || null,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

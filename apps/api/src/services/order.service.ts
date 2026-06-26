@@ -42,6 +42,7 @@ interface CreateOrderParams {
   deliveryPhone?: string | null;
   deliveryAddress?: string | null;
   deliveryReference?: string | null;
+  paymentMethod?: string | null;
 }
 
 interface CreateOrderResult {
@@ -68,6 +69,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     deliveryPhone,
     deliveryAddress,
     deliveryReference,
+    paymentMethod,
   } = params;
 
   // Get menu items for price calculation
@@ -212,6 +214,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
         tax,
         discount,
         total,
+        payment_method: paymentMethod || null,
         notes: notes || null,
       })
       .returning();

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { createDeliveryOrderSchema } from "@restai/validators";
-import { Bike, Loader2, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { Banknote, Bike, CreditCard, Loader2, Minus, Plus, QrCode, ShoppingBag, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useDeliveryCartStore } from "@/stores/delivery-cart-store";
 import { useDeliveryStore } from "@/stores/delivery-store";
@@ -47,6 +47,7 @@ export default function DeliveryCartPage({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "pix" | null>(null);
 
   const {
     register,
@@ -70,6 +71,11 @@ export default function DeliveryCartPage({
   const onSubmit = (form: CheckoutForm) => {
     if (items.length === 0) return;
 
+    if (!paymentMethod) {
+      setError("Selecione uma forma de pagamento");
+      return;
+    }
+
     const payload = {
       fulfillment,
       customerName: form.customerName,
@@ -79,6 +85,7 @@ export default function DeliveryCartPage({
         ? undefined
         : form.deliveryReference || undefined,
       notes: form.notes || undefined,
+      paymentMethod,
       items: items.map((item) => ({
         menuItemId: item.menuItemId,
         quantity: item.quantity,
@@ -257,6 +264,34 @@ export default function DeliveryCartPage({
         <div className="flex justify-between border-t border-[#F0EBE3] pt-2 text-base font-semibold text-[#2F342E]">
           <span>Total</span>
           <span>{formatCurrency(total, currency)}</span>
+        </div>
+      </div>
+
+      {/* Payment method */}
+      <div className={`${deliveryClasses.cardInner} space-y-3`}>
+        <p className="text-sm font-semibold text-[#2F342E]">Forma de pagamento</p>
+        <div className="grid grid-cols-3 gap-2">
+          {(
+            [
+              { value: "cash", label: "Dinheiro", Icon: Banknote },
+              { value: "card", label: "Cartão", Icon: CreditCard },
+              { value: "pix", label: "PIX", Icon: QrCode },
+            ] as const
+          ).map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => { setPaymentMethod(value); setError(null); }}
+              className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-sm transition ${
+                paymentMethod === value
+                  ? "border-[#5C7A5F] bg-[#EDF3E8] text-[#2F342E]"
+                  : "border-[#E5DFD4] bg-white text-[#6B7268]"
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="font-medium">{label}</span>
+            </button>
+          ))}
         </div>
       </div>
 

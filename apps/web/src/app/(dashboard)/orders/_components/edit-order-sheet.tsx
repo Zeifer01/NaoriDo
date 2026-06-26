@@ -147,6 +147,17 @@ function EditOrderContent({ order }: { order: any }) {
         <AddItemPicker orderId={order.id} branchId={order.branch_id} />
       )}
 
+      {order.payment_method && (
+        <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Pagamento preferido</span>
+          <span className="font-medium">
+            {order.payment_method === "cash" ? "💵 Dinheiro" :
+             order.payment_method === "card" ? "💳 Cartão" :
+             order.payment_method === "pix"  ? "PIX" : order.payment_method}
+          </span>
+        </div>
+      )}
+
       <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
         <div className="flex justify-between text-muted-foreground">
           <span>Subtotal</span>

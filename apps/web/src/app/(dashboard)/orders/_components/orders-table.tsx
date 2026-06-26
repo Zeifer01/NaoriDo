@@ -191,14 +191,23 @@ export function OrdersTable({
                           <Badge variant={config.variant}>{config.label}</Badge>
                         </td>
                         <td className="p-3 hidden sm:table-cell">
-                          <Badge variant={payConfig.variant} className={payConfig.className}>
-                            {payConfig.label}
-                          </Badge>
-                          {paymentStatus === "partial" && order.total_paid != null && (
-                            <span className="text-[10px] text-muted-foreground ml-1">
-                              {formatCurrency(order.total_paid)}
-                            </span>
-                          )}
+                          <div className="flex flex-col gap-1">
+                            <Badge variant={payConfig.variant} className={payConfig.className}>
+                              {payConfig.label}
+                            </Badge>
+                            {paymentStatus === "partial" && order.total_paid != null && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {formatCurrency(order.total_paid)}
+                              </span>
+                            )}
+                            {order.payment_method && paymentStatus !== "paid" && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {order.payment_method === "cash" ? "Dinheiro" :
+                                 order.payment_method === "card" ? "Cartão" :
+                                 order.payment_method === "pix"  ? "PIX" : order.payment_method}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground hidden md:table-cell">
                           {itemCount} itens

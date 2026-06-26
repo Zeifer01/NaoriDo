@@ -46,6 +46,7 @@ export const orders = pgTable("orders", {
   tax: integer("tax").notNull().default(0),
   discount: integer("discount").notNull().default(0),
   total: integer("total").notNull().default(0),
+  payment_method: varchar("payment_method", { length: 20 }),
   notes: text("notes"),
   inventory_deducted: boolean("inventory_deducted").default(false).notNull(),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
