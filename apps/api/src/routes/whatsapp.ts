@@ -40,6 +40,7 @@ const whatsapp = new Hono<AppEnv>();
 whatsapp.post("/webhook", async (c) => {
   try {
     const body = await c.req.json<Record<string, unknown>>();
+    logger.info("Webhook body", { body: JSON.stringify(body).slice(0, 500) });
     const instanceName = (body.instance as string) || "";
     const event = (body.event as string) || "";
     const data = (body.data as Record<string, unknown>) || {};

@@ -187,16 +187,16 @@ export async function handleIncomingWebhook(
   event: string,
   data: Record<string, unknown>,
 ): Promise<void> {
-  logger.info({ instanceName, event, dataKeys: Object.keys(data) }, "Webhook received");
+  logger.info("Webhook received", { instanceName, event, dataKeys: Object.keys(data) });
 
   const ev = event.toUpperCase().replace(".", "_");
   if (ev !== "MESSAGES_UPSERT") {
-    logger.info({ ev }, "Webhook: skipped (not MESSAGES_UPSERT)");
+    logger.info("Webhook: skipped (not MESSAGES_UPSERT)", { ev });
     return;
   }
 
   const key = data.key as Record<string, unknown> | undefined;
-  logger.info({ key, fromMe: key?.fromMe }, "Webhook: message key");
+  logger.info("Webhook: message key", { fromMe: key?.fromMe, remoteJid: key?.remoteJid });
 
   if (!key || key.fromMe === true) {
     logger.info("Webhook: skipped (fromMe or no key)");
@@ -204,11 +204,10 @@ export async function handleIncomingWebhook(
   }
 
   const remoteJid = (key.remoteJid as string) || "";
-  logger.info({ remoteJid }, "Webhook: remoteJid");
 
   // Only process real individual contacts — skip groups (@g.us), status (@broadcast), linked-device IDs (@lid)
   if (!remoteJid.endsWith("@s.whatsapp.net")) {
-    logger.info({ remoteJid }, "Webhook: skipped (not @s.whatsapp.net)");
+    logger.info("Webhook: skipped (not @s.whatsapp.net)", { remoteJid });
     return;
   }
 
