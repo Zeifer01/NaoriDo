@@ -135,7 +135,7 @@ export async function notifyOrderEdited(
   branchId: string,
   order: OrderLike,
 ): Promise<void> {
-  if (order.type !== "delivery" || !order.delivery_phone) return;
+  if (!order.delivery_phone) return;
 
   const [branch] = await db
     .select()
