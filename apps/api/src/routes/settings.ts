@@ -75,7 +75,8 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.inventoryEnabled !== undefined ||
     body.waiterTableAssignmentEnabled !== undefined ||
     body.deliveryEnabled !== undefined ||
-    body.deliveryFeeCents !== undefined
+    body.deliveryFeeCents !== undefined ||
+    body.tablesEnabled !== undefined
   ) {
     // Fetch current settings to merge
     const [existing] = await db.select({ settings: schema.branches.settings })
@@ -90,6 +91,7 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     }
     if (body.deliveryEnabled !== undefined) merged.delivery_enabled = body.deliveryEnabled;
     if (body.deliveryFeeCents !== undefined) merged.delivery_fee_cents = body.deliveryFeeCents;
+    if (body.tablesEnabled !== undefined) merged.tables_enabled = body.tablesEnabled;
     updateData.settings = merged;
   }
 

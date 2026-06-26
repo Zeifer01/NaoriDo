@@ -20,13 +20,15 @@ const PAGE_SIZE = 20;
 export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [page, setPage] = useState(1);
   const [chargeOrderId, setChargeOrderId] = useState<string | null>(null);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<any | null>(null);
   const [resetSequenceOpen, setResetSequenceOpen] = useState(false);
 
-  const { data, isLoading, error, refetch } = useOrders({ status: statusFilter, page, limit: PAGE_SIZE });
+  const { data, isLoading, error, refetch } = useOrders({ status: statusFilter, page, limit: PAGE_SIZE, startDate: startDate || undefined, endDate: endDate || undefined });
   const updateStatus = useUpdateOrderStatus();
   const deleteOrder = useDeleteOrder();
   const resetSequence = useResetOrderSequence();
@@ -79,6 +81,16 @@ export default function OrdersPage() {
 
   const handleStatusFilter = (status: string) => {
     setStatusFilter(status);
+    setPage(1);
+  };
+
+  const handleStartDateChange = (date: string) => {
+    setStartDate(date);
+    setPage(1);
+  };
+
+  const handleEndDateChange = (date: string) => {
+    setEndDate(date);
     setPage(1);
   };
 
@@ -141,6 +153,10 @@ export default function OrdersPage() {
         onSearchChange={setSearch}
         statusFilter={statusFilter}
         onStatusFilterChange={handleStatusFilter}
+        startDate={startDate}
+        endDate={endDate}
+        onStartDateChange={handleStartDateChange}
+        onEndDateChange={handleEndDateChange}
       />
 
       <OrdersTable

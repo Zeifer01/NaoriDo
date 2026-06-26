@@ -10,13 +10,14 @@ import {
   ClipboardList,
   DollarSign,
   TrendingUp,
-  Grid3X3,
+  Receipt,
   RefreshCw,
+  Trophy,
 } from "lucide-react";
 import { Button } from "@restai/ui/components/button";
 import { formatCurrency } from "@/lib/utils";
 import { useDashboardStats, useRecentOrders } from "@/hooks/use-dashboard";
-import { useTables } from "@/hooks/use-tables";
+import { useTopItems } from "@/hooks/use-reports";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -40,10 +41,15 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-muted rounded ${className ?? ""}`} />;
 }
 
+function getTodayDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function DashboardPage() {
+  const today = getTodayDate();
   const { data: dashboardStats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useDashboardStats();
   const { data: recentOrders, isLoading: ordersLoading, error: ordersError, refetch: refetchOrders } = useRecentOrders();
-  const { data: tables, isLoading: tablesLoading } = useTables();
+  const { data: topItemsData, isLoading: topItemsLoading } = useTopItems(today, today, 5);
 
   const stats = dashboardStats
     ? [
@@ -57,35 +63,34 @@ export default function DashboardPage() {
           title: "Receita Hoje",
           value: dashboardStats.totalRevenue ?? 0,
           icon: DollarSign,
-          description: dashboardStats.averageOrderValue
-            ? `Ticket médio: ${formatCurrency(dashboardStats.averageOrderValue)}`
-            : "",
+          description: "",
           isCurrency: true,
         },
         {
           title: "Pedidos Ativos",
           value: dashboardStats.activeOrders ?? 0,
           icon: TrendingUp,
-          description: "",
+          description: "Em aberto agora",
         },
         {
-          title: "Mesas Ocupadas",
-          value: `${dashboardStats.occupiedTables ?? 0}/${dashboardStats.totalTables ?? 0}`,
-          icon: Grid3X3,
-          description: `${dashboardStats.totalTables ?? 0} mesas no total`,
+          title: "Ticket Médio",
+          value: dashboardStats.averageOrderValue ?? 0,
+          icon: Receipt,
+          description: "Por pedido hoje",
+          isCurrency: true,
         },
       ]
     : [];
 
   const orders: any[] = recentOrders ?? [];
-  const tableList: any[] = tables ?? [];
+  const topItems: any[] = topItemsData ?? [];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="text-2xl font-bold">Painel</h1>
         <p className="text-muted-foreground">
-          Resumo do dia do seu restaurante
+          Visão geral do dia
         </p>
       </div>
 
@@ -182,10 +187,10 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <div>
                         <p className="font-medium text-sm">
-                          {order.orderNumber || order.order_number || order.id}
+                          #{order.orderNumber || order.order_number || order.id}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {order.table_number ? `Mesa ${order.table_number}` : ""}
+                          {order.customer_name || (order.table_number ? `Mesa ${order.table_number}` : "—")}
                         </p>
                       </div>
                     </div>
@@ -206,44 +211,50 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Table Activity */}
+        {/* Top Items Today */}
         <Card>
-          <CardHeader>
-            <CardTitle>Atividade das Mesas</CardTitle>
+          <CardHeader className="flex flex-row items-center gap-2 pb-2">
+            <Trophy className="h-5 w-5 text-amber-500" />
+            <CardTitle>Mais Vendidos Hoje</CardTitle>
           </CardHeader>
           <CardContent>
-            {tablesLoading ? (
-              <div className="grid grid-cols-4 gap-3">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <Skeleton key={i} className="aspect-square rounded-lg" />
+            {topItemsLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                    <Skeleton className="h-4 w-16" />
+                  </div>
                 ))}
               </div>
-            ) : tableList.length === 0 ? (
+            ) : topItems.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhuma mesa configurada
+                Nenhuma venda registrada hoje
               </p>
             ) : (
-              <div className="grid grid-cols-4 gap-3">
-                {tableList.map((table: any) => {
-                  const occupied = table.status === "occupied";
-                  return (
-                    <div
-                      key={table.id}
-                      className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm font-medium border-2 transition-colors ${
-                        occupied
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border bg-muted/50 text-muted-foreground"
-                      }`}
-                    >
-                      <span className="text-lg font-bold">
-                        {table.number ?? table.table_number}
+              <div className="space-y-3">
+                {topItems.map((item: any, index: number) => (
+                  <div key={item.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        index === 0 ? "bg-amber-100 text-amber-700" :
+                        index === 1 ? "bg-gray-100 text-gray-600" :
+                        index === 2 ? "bg-orange-100 text-orange-700" :
+                        "bg-muted text-muted-foreground"
+                      }`}>
+                        {index + 1}
                       </span>
-                      <span className="text-[10px]">
-                        {occupied ? "Ocupada" : "Livre"}
-                      </span>
+                      <p className="text-sm font-medium truncate max-w-[180px]">{item.name}</p>
                     </div>
-                  );
-                })}
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold">{formatCurrency(item.totalRevenue)}</p>
+                      <p className="text-xs text-muted-foreground">{item.totalQuantity} un.</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

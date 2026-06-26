@@ -20,7 +20,7 @@ const COLUMN_CONFIG: Record<
   { icon: React.ComponentType<{ className?: string }>; label: string; emptyLabel: string }
 > = {
   pending: { icon: Clock, label: "Pendentes", emptyLabel: "Sem pedidos pendentes" },
-  preparing: { icon: ChefHat, label: "En Preparacion", emptyLabel: "Nada en preparacion" },
+  preparing: { icon: ChefHat, label: "Em Preparação", emptyLabel: "Sem pedidos em preparação" },
   ready: { icon: CheckCircle, label: "Prontos", emptyLabel: "Sem pedidos prontos" },
 };
 

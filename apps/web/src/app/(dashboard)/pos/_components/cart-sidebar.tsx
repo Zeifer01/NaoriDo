@@ -51,8 +51,7 @@ export function CartSidebar({
     const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
     return sum + (item.unitPrice + modTotal) * item.quantity;
   }, 0);
-  const tax = Math.round((subtotal * 1800) / 10000); // 18% IGV
-  const total = subtotal + tax;
+  const total = subtotal;
   const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -60,7 +59,7 @@ export function CartSidebar({
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-bold flex items-center gap-2">
           <ShoppingCart className="h-5 w-5" />
-          Orden
+          Pedido
           {totalQty > 0 && (
             <Badge variant="secondary" className="text-xs">
               {totalQty}
@@ -221,15 +220,7 @@ export function CartSidebar({
       {/* Totals */}
       {cart.length > 0 && (
         <div className="border-t pt-3 space-y-1 mb-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Subtotal</span>
-            <span>{formatCurrency(subtotal)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">IGV (18%)</span>
-            <span>{formatCurrency(tax)}</span>
-          </div>
-          <div className="flex justify-between font-bold text-lg pt-1.5 border-t">
+          <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
             <span className="text-primary">{formatCurrency(total)}</span>
           </div>

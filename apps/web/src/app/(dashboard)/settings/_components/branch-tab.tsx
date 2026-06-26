@@ -42,6 +42,7 @@ export function BranchTab() {
     waiterTableAssignmentEnabled: boolean;
     deliveryEnabled: boolean;
     deliveryFee: string;
+    tablesEnabled: boolean;
   }>({
     name: "",
     address: "",
@@ -53,6 +54,7 @@ export function BranchTab() {
     waiterTableAssignmentEnabled: false,
     deliveryEnabled: true,
     deliveryFee: "12.00",
+    tablesEnabled: true,
   });
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export function BranchTab() {
           branchData.settings?.waiter_table_assignment_enabled ?? false,
         deliveryEnabled: branchData.settings?.delivery_enabled !== false,
         deliveryFee: (getDeliveryFeeCents(branchData.settings) / 100).toFixed(2),
+        tablesEnabled: branchData.settings?.tables_enabled !== false,
       });
     }
   }, [branchData]);
@@ -89,6 +92,7 @@ export function BranchTab() {
         waiterTableAssignmentEnabled: branchForm.waiterTableAssignmentEnabled,
         deliveryEnabled: branchForm.deliveryEnabled,
         deliveryFeeCents,
+        tablesEnabled: branchForm.tablesEnabled,
       });
       toast.success("Filial atualizada com sucesso");
     } catch (err: any) {
@@ -265,6 +269,36 @@ export function BranchTab() {
                   className={cn(
                     "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
                     branchForm.inventoryEnabled ? "translate-x-5" : "translate-x-0",
+                  )}
+                />
+              </button>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div>
+                <p className="text-sm font-medium">Usar mesas</p>
+                <p className="text-xs text-muted-foreground">
+                  Exibe o módulo de mesas na navegação lateral. Desative se o seu estabelecimento não usa mesas (ex: delivery, balcão).
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={branchForm.tablesEnabled}
+                onClick={() =>
+                  setBranchForm({
+                    ...branchForm,
+                    tablesEnabled: !branchForm.tablesEnabled,
+                  })
+                }
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  branchForm.tablesEnabled ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                    branchForm.tablesEnabled ? "translate-x-5" : "translate-x-0",
                   )}
                 />
               </button>

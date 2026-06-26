@@ -51,13 +51,17 @@ export default function ConnectionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Conexões</h1>
-          <p className="text-muted-foreground">Gerencie as sessões de clientes</p>
+          <h1 className="text-2xl font-bold">Sessões de Mesa</h1>
+          <p className="text-muted-foreground">Sessões abertas por clientes via QR Code nas mesas</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Atualizar
         </Button>
+      </div>
+
+      <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        <strong className="text-foreground">Como funciona:</strong> quando um cliente escaneia o QR Code de uma mesa, uma sessão é criada aqui com status "Pendente". O atendente aprova ou recusa. Sessões aprovadas ficam ativas até serem encerradas. Esta tela só é útil em estabelecimentos com mesas e atendimento presencial.
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>

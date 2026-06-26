@@ -31,7 +31,7 @@ import {
 import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
 import { cn, resolveUploadUrl } from "@/lib/utils";
-import { useOrgSettings, useBranches } from "@/hooks/use-settings";
+import { useOrgSettings, useBranches, useBranchSettings } from "@/hooks/use-settings";
 import { useFeatures } from "@/hooks/use-features";
 import { NotificationBell } from "@/components/notification-bell";
 import { PlanStatusBanner } from "@/components/plan-status-banner";
@@ -59,7 +59,7 @@ interface Branch {
 
 const navGroups: NavGroup[] = [
   {
-    label: "General",
+    label: "Geral",
     items: [
       { href: "/", label: "Painel", icon: LayoutDashboard },
     ],
@@ -67,7 +67,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Operações",
     items: [
-      { href: "/pos", label: "POS", icon: Smartphone },
+      { href: "/pos", label: "Caixa", icon: Smartphone },
       { href: "/orders", label: "Pedidos", icon: ClipboardList },
       { href: "/tables", label: "Mesas", icon: Grid3X3 },
       { href: "/kitchen", label: "Cozinha", icon: ChefHat },
@@ -80,11 +80,11 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/inventory", label: "Inventário", icon: Package, feature: "inventory" },
       { href: "/staff", label: "Equipe", icon: Users },
-      { href: "/payments", label: "Pagos", icon: CreditCard },
+      { href: "/payments", label: "Pagamentos", icon: CreditCard },
     ],
   },
   {
-    label: "Negocio",
+    label: "Negócio",
     items: [
       { href: "/loyalty", label: "Fidelidade", icon: Heart, feature: "loyalty" },
       { href: "/reports", label: "Relatórios", icon: BarChart3, feature: "reports" },
@@ -153,6 +153,7 @@ export default function DashboardLayout({
 
   const { data: org } = useOrgSettings();
   const { data: branches } = useBranches();
+  const { data: branchSettings } = useBranchSettings();
   const { has: hasFeature } = useFeatures();
   const availableBranches = branches ?? [];
   const canSwitchBranch = availableBranches.length > 1;
@@ -218,7 +219,13 @@ export default function DashboardLayout({
   const orgName = org?.name || "RestAI";
   const orgLogoUrl = resolveUploadUrl(org?.logo_url);
 
-  const filteredNavGroups = getFilteredNavGroups(user.role, hasFeature);
+  const tablesEnabled = (branchSettings as any)?.settings?.tables_enabled !== false;
+  const baseNavGroups = getFilteredNavGroups(user.role, hasFeature);
+  const filteredNavGroups = tablesEnabled
+    ? baseNavGroups
+    : baseNavGroups
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/tables") }))
+        .filter((g) => g.items.length > 0);
   const allFilteredItems = filteredNavGroups.flatMap((g) => g.items);
   const mobileNavItems = allFilteredItems.slice(0, 5);
 
@@ -250,7 +257,7 @@ export default function DashboardLayout({
                 {orgName}
               </p>
               <p className="text-[11px] text-muted-foreground truncate leading-tight">
-                Gestão de restaurante
+                Gestão do negócio
               </p>
             </div>
           )}

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, sql, getTableColumns } from "drizzle-orm";
+import { eq, and, desc, sql, getTableColumns, gte, lt } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   createOrderSchema,
@@ -44,7 +44,7 @@ orders.use("*", requireActivePlan);
 // GET / - List orders
 orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuerySchema), async (c) => {
   const tenant = c.get("tenant") as any;
-  const { status, page, limit } = c.req.valid("query");
+  const { status, page, limit, startDate, endDate } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
   const conditions = [
@@ -54,6 +54,16 @@ orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuery
 
   if (status) {
     conditions.push(eq(schema.orders.status, status as any));
+  }
+
+  if (startDate) {
+    conditions.push(gte(schema.orders.created_at, new Date(`${startDate}T00:00:00`)));
+  }
+
+  if (endDate) {
+    const end = new Date(`${endDate}T00:00:00`);
+    end.setDate(end.getDate() + 1);
+    conditions.push(lt(schema.orders.created_at, end));
   }
 
   const whereClause = and(...conditions);

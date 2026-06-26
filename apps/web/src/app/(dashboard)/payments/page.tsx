@@ -39,7 +39,7 @@ export default function PaymentsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Pagos</h1>
+          <h1 className="text-2xl font-bold">Pagamentos</h1>
         </div>
         <div className="p-4 rounded-lg border border-destructive/50 bg-destructive/5 flex items-center justify-between">
           <p className="text-sm text-destructive">Erro ao carregar pagamentos: {(error as Error).message}</p>
@@ -55,7 +55,7 @@ export default function PaymentsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Pagos"
+        title="Pagamentos"
         description={isLoading ? "Carregando..." : `${payments.length} pagamentos registrados`}
         actions={
           <Button onClick={() => setPaymentDialogOpen(true)}>

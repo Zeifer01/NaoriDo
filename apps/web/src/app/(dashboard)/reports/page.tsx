@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@restai/ui/components/button";
 import { DatePicker } from "@restai/ui/components/date-picker";
 import { Label } from "@restai/ui/components/label";
-import { Check, RefreshCw } from "lucide-react";
+import { Check, Download, RefreshCw } from "lucide-react";
 import {
   useSalesReport,
   useTopItems,
@@ -59,6 +59,36 @@ function getCurrentMonthRange() {
     start: start.toISOString().split("T")[0],
     end: now.toISOString().split("T")[0],
   };
+}
+
+function exportToCSV(
+  days: SalesReportDay[],
+  topItems: TopItemReport[],
+  startDate: string,
+  endDate: string,
+) {
+  const rows: string[] = [];
+
+  rows.push(`Relatório de Vendas — ${startDate} a ${endDate}`);
+  rows.push("");
+  rows.push("Data,Pedidos,Receita (R$)");
+  for (const d of days) {
+    rows.push(`${d.date},${d.orders},${(d.revenue / 100).toFixed(2)}`);
+  }
+
+  rows.push("");
+  rows.push("Produto,Quantidade,Receita (R$)");
+  for (const item of topItems) {
+    rows.push(`"${item.name}",${item.totalQuantity},${(item.totalRevenue / 100).toFixed(2)}`);
+  }
+
+  const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `relatorio-${startDate}-${endDate}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function ReportsPage() {
@@ -187,6 +217,16 @@ export default function ReportsPage() {
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             Atualizar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 active:translate-y-px active:scale-[0.98]"
+            disabled={isLoading || days.length === 0}
+            onClick={() => exportToCSV(days, topItems, startDate, endDate)}
+          >
+            <Download className="h-4 w-4" />
+            Exportar CSV
           </Button>
         </div>
       </div>

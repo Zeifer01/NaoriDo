@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@restai/ui/components/card";
 import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
-import { ChevronLeft, ChevronRight, DollarSign, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, DollarSign, Eye, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -131,7 +131,7 @@ export function OrdersTable({
                     Hora
                   </th>
                   <th className="text-center p-3 text-sm font-medium text-muted-foreground hidden md:table-cell">
-                    Accion
+                    Ações
                   </th>
                 </tr>
               </thead>
@@ -201,7 +201,7 @@ export function OrdersTable({
                           )}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground hidden md:table-cell">
-                          {itemCount} items
+                          {itemCount} itens
                         </td>
                         <td className="p-3 text-sm font-medium text-right">
                           {formatCurrency(order.total ?? 0)}
@@ -235,7 +235,7 @@ export function OrdersTable({
                                 onClick={() => onCharge(order)}
                               >
                                 {isOpeningCharge ? (
-                                  <InlineActionLoading label="Abriendo..." />
+                                  <InlineActionLoading label="Abrindo..." />
                                 ) : (
                                   <>
                                     <DollarSign className="h-3 w-3 mr-1" />
@@ -244,15 +244,19 @@ export function OrdersTable({
                                 )}
                               </Button>
                             )}
-                            {onEdit && !NON_EDITABLE.has(order.status) && (
+                            {onEdit && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0"
                                 onClick={() => onEdit(order)}
-                                title="Editar itens"
+                                title={NON_EDITABLE.has(order.status) ? "Ver itens" : "Editar itens"}
                               >
-                                <Pencil className="h-4 w-4" />
+                                {NON_EDITABLE.has(order.status) ? (
+                                  <Eye className="h-4 w-4" />
+                                ) : (
+                                  <Pencil className="h-4 w-4" />
+                                )}
                               </Button>
                             )}
                             <Button
@@ -308,7 +312,7 @@ export function OrdersTable({
               Anterior
             </Button>
             <span className="text-sm text-muted-foreground">
-              Pagina {pagination.page} de {pagination.totalPages}
+              Página {pagination.page} de {pagination.totalPages}
             </span>
             <Button
               variant="outline"
@@ -316,7 +320,7 @@ export function OrdersTable({
               disabled={page >= pagination.totalPages}
               onClick={() => onPageChange(page + 1)}
             >
-              Siguiente
+              Próximo
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
