@@ -194,9 +194,10 @@ export async function handleIncomingWebhook(
   if (!key || key.fromMe === true) return;
 
   const remoteJid = (key.remoteJid as string) || "";
-  if (!remoteJid || remoteJid.includes("@g.us")) return;
+  // Only process real individual contacts — skip groups (@g.us), status (@broadcast), linked-device IDs (@lid)
+  if (!remoteJid.endsWith("@s.whatsapp.net")) return;
 
-  const phone = remoteJid.replace(/@s\.whatsapp\.net$/, "").replace(/@c\.us$/, "");
+  const phone = remoteJid.replace("@s.whatsapp.net", "");
   if (!phone) return;
 
   const allBranches = await db.select().from(schema.branches);
@@ -226,7 +227,7 @@ export async function handleIncomingWebhook(
     await sendWhatsAppText(instanceName, phone, message);
     logger.info({ instanceName, phone }, "Auto-reply sent");
   } catch (err) {
-    logger.error({ err: (err as Error).message, instanceName, phone }, "Auto-reply failed");
+    logger.error({ err: err instanceof Error ? err.message : String(err), instanceName, phone }, "Auto-reply failed");
   }
 }
 
