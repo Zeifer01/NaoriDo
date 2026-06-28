@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, and, inArray, or, isNotNull, sql, getTableColumns } from "drizzle-orm";
+import { eq, and, inArray, or, isNotNull, sql, ne } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { getDeliveryFeeCents } from "@restai/config";
 import {
@@ -74,25 +74,37 @@ delivery.get("/:branchSlug/menu", async (c) => {
       ),
     );
 
-  const items = await db
-    .select({
-      ...getTableColumns(schema.menuItems),
-      total_sold: sql<number>`(
-        SELECT COALESCE(SUM(oi.quantity), 0)::int
-        FROM order_items oi
-        JOIN orders o ON o.id = oi.order_id
-        WHERE oi.menu_item_id = ${schema.menuItems.id}
-          AND o.branch_id = ${branch.id}
-          AND o.status != 'cancelled'
-      )`,
-    })
-    .from(schema.menuItems)
-    .where(
-      and(
-        eq(schema.menuItems.branch_id, branch.id),
-        eq(schema.menuItems.is_available, true),
+  const [items, salesRows] = await Promise.all([
+    db
+      .select()
+      .from(schema.menuItems)
+      .where(
+        and(
+          eq(schema.menuItems.branch_id, branch.id),
+          eq(schema.menuItems.is_available, true),
+        ),
       ),
-    );
+    db
+      .select({
+        menu_item_id: schema.orderItems.menu_item_id,
+        total_sold: sql<number>`COALESCE(SUM(${schema.orderItems.quantity}), 0)::int`,
+      })
+      .from(schema.orderItems)
+      .innerJoin(schema.orders, eq(schema.orders.id, schema.orderItems.order_id))
+      .where(
+        and(
+          eq(schema.orders.branch_id, branch.id),
+          ne(schema.orders.status, "cancelled"),
+        ),
+      )
+      .groupBy(schema.orderItems.menu_item_id),
+  ]);
+
+  const salesMap = new Map(salesRows.map((r) => [r.menu_item_id, r.total_sold]));
+  const itemsWithSales = items.map((item) => ({
+    ...item,
+    total_sold: salesMap.get(item.id) ?? 0,
+  }));
 
   return c.json({
     success: true,
@@ -115,7 +127,7 @@ delivery.get("/:branchSlug/menu", async (c) => {
         button_url: (settings.landing_button_url as string) || null,
       },
       categories,
-      items,
+      items: itemsWithSales,
     },
   });
 });
