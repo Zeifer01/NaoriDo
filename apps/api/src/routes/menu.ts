@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
+import { eq, and, inArray, isNotNull, or, gte } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   createCategorySchema,
@@ -300,6 +300,7 @@ menu.patch(
 
         if (affectedLinks.length > 0) {
           const orderIds = affectedLinks.map((l) => l.order_id);
+          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
           affectedOrders = await db
             .select()
             .from(schema.orders)
@@ -313,6 +314,7 @@ menu.patch(
                   eq(schema.orders.status, "preparing"),
                 ),
                 isNotNull(schema.orders.delivery_phone),
+                gte(schema.orders.created_at, sevenDaysAgo),
               ),
             );
         }

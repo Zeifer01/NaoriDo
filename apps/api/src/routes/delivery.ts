@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, inArray, or } from "drizzle-orm";
+import { eq, and, inArray, or, isNotNull } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { getDeliveryFeeCents } from "@restai/config";
 import {
@@ -269,9 +269,15 @@ delivery.get(
         order_number: schema.orders.order_number,
         status: schema.orders.status,
         type: schema.orders.type,
+        subtotal: schema.orders.subtotal,
+        tax: schema.orders.tax,
+        discount: schema.orders.discount,
         total: schema.orders.total,
         delivery_phone: schema.orders.delivery_phone,
         delivery_fee: schema.orders.delivery_fee,
+        delivery_address: schema.orders.delivery_address,
+        delivery_reference: schema.orders.delivery_reference,
+        customer_name: schema.orders.customer_name,
         created_at: schema.orders.created_at,
       })
       .from(schema.orders)
@@ -301,7 +307,108 @@ delivery.get(
       );
     }
 
-    return c.json({ success: true, data: order });
+    const items = await db
+      .select({
+        id: schema.orderItems.id,
+        name: schema.orderItems.name,
+        quantity: schema.orderItems.quantity,
+        total: schema.orderItems.total,
+      })
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.order_id, orderId));
+
+    return c.json({ success: true, data: { ...order, items } });
+  },
+);
+
+delivery.delete(
+  "/:branchSlug/orders/:orderId/items/:itemId",
+  zValidator("query", deliveryOrderStatusQuerySchema),
+  async (c) => {
+    const branchSlug = c.req.param("branchSlug");
+    const orderId = c.req.param("orderId");
+    const itemId = c.req.param("itemId");
+    const { phone } = c.req.valid("query");
+    const branch = await getActiveBranch(branchSlug);
+
+    if (!branch) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } },
+        404,
+      );
+    }
+
+    const [order] = await db
+      .select()
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.id, orderId),
+          eq(schema.orders.branch_id, branch.id),
+          or(eq(schema.orders.type, "delivery"), eq(schema.orders.type, "takeout")),
+        ),
+      )
+      .limit(1);
+
+    if (!order) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Pedido não encontrado" } },
+        404,
+      );
+    }
+
+    if (!order.delivery_phone || normalizePhone(order.delivery_phone) !== normalizePhone(phone)) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Pedido não encontrado" } },
+        404,
+      );
+    }
+
+    if (!["pending", "confirmed"].includes(order.status)) {
+      return c.json(
+        { success: false, error: { code: "ORDER_NOT_EDITABLE", message: "Este pedido não pode mais ser editado" } },
+        422,
+      );
+    }
+
+    const allItems = await db
+      .select({ id: schema.orderItems.id, total: schema.orderItems.total })
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.order_id, orderId));
+
+    if (allItems.length <= 1) {
+      return c.json(
+        { success: false, error: { code: "CANNOT_REMOVE_LAST_ITEM", message: "Não é possível remover o único item do pedido" } },
+        422,
+      );
+    }
+
+    const target = allItems.find((i) => i.id === itemId);
+    if (!target) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Item não encontrado" } },
+        404,
+      );
+    }
+
+    await db.delete(schema.orderItems).where(eq(schema.orderItems.id, itemId));
+
+    const newSubtotal = Math.max(0, order.subtotal - target.total);
+    const newTax = order.subtotal > 0 ? Math.round((newSubtotal / order.subtotal) * order.tax) : 0;
+    const newTotal = Math.max(0, newSubtotal + order.delivery_fee - order.discount + newTax);
+
+    const [updatedOrder] = await db
+      .update(schema.orders)
+      .set({ subtotal: newSubtotal, tax: newTax, total: newTotal, updated_at: new Date() })
+      .where(eq(schema.orders.id, orderId))
+      .returning();
+
+    const remaining = await db
+      .select({ id: schema.orderItems.id, name: schema.orderItems.name, quantity: schema.orderItems.quantity, total: schema.orderItems.total })
+      .from(schema.orderItems)
+      .where(eq(schema.orderItems.order_id, orderId));
+
+    return c.json({ success: true, data: { ...updatedOrder, items: remaining } });
   },
 );
 

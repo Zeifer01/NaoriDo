@@ -227,44 +227,6 @@ export async function handleIncomingWebhook(
     return;
   }
 
-  // Handle pending item-unavailability responses (1 = keep, 2 = edit with admin)
-  const msgData = (data.message as Record<string, unknown>) || {};
-  const incomingText = (
-    (msgData.conversation as string) ||
-    ((msgData.extendedTextMessage as Record<string, unknown>)?.text as string) ||
-    ""
-  ).trim();
-
-  const unavailKey = `wa:unavail:${instanceName}:${phone}`;
-  const pendingUnavail = await redis.get(unavailKey);
-
-  if (pendingUnavail && (incomingText === "1" || incomingText === "2")) {
-    await redis.del(unavailKey);
-    const ctx = JSON.parse(pendingUnavail) as {
-      orderNumber: string;
-      itemName: string;
-      adminLink: string | null;
-      orderSummary: string;
-    };
-
-    const reply =
-      incomingText === "1"
-        ? `✅ Tudo certo! Seu pedido *#${ctx.orderNumber}* foi confirmado sem o item *${ctx.itemName}*.\n\n` +
-          (ctx.orderSummary ? `Confira sua comanda:\n\n${ctx.orderSummary}\n\n` : "") +
-          `Obrigado pela compreensão! 🙏`
-        : ctx.adminLink
-          ? `Ok! Para editar seu pedido *#${ctx.orderNumber}*, fale com nosso atendente:\n\n${ctx.adminLink}`
-          : `Para editar seu pedido *#${ctx.orderNumber}*, entre em contato com nosso atendente.`;
-
-    try {
-      await sendWhatsAppText(instanceName, phone, reply);
-      logger.info({ instanceName, phone, choice: incomingText }, "Unavailability reply sent");
-    } catch (err) {
-      logger.error({ err, instanceName, phone }, "Failed to send unavailability reply");
-    }
-    return;
-  }
-
   const settings = (branch.settings || {}) as Record<string, unknown>;
   if (!settings.whatsapp_auto_reply_enabled) return;
 
@@ -368,24 +330,19 @@ export async function notifyItemUnavailable(
       `*Total: ${formatMoney(order.total, currency)}*`;
   }
 
+  const editLink = trackingUrl(branch.slug, order.id);
+
   const message =
     `Olá, ${customer}! 😔\n\n` +
-    `O item *${itemName}* do seu pedido *#${order.order_number}* ficou indisponível e foi removido da sua comanda.\n\n` +
+    `O item *${itemName}* do seu pedido *#${order.order_number}* ficou indisponível e foi removido automaticamente.\n\n` +
     (orderSummary ? orderSummary + "\n\n" : "") +
     (remainingItems.length > 0
-      ? `Responda:\n*1* – Confirmar meu pedido\n*2* – Falar com o atendente para editar`
-      : `Todos os itens do seu pedido foram afetados. Fale com nosso atendente:\n${adminLink || "Entre em contato com o atendente."}`);
+      ? `Se quiser fazer alterações no seu pedido, acesse o link abaixo:\n${editLink}`
+      : `Todos os itens do seu pedido foram afetados. Entre em contato com nosso atendente.`) +
+    `\n\nObrigado pela compreensão! 🙏`;
 
   try {
     await sendWhatsAppText(instanceName, phone, message);
-
-    const formattedPhone = formatPhoneForWhatsApp(phone);
-    const redisKey = `wa:unavail:${instanceName}:${formattedPhone}`;
-    await redis.setex(
-      redisKey,
-      86400,
-      JSON.stringify({ orderNumber: order.order_number, itemName, adminLink, orderSummary }),
-    );
   } catch (err) {
     logger.error(
       { err, branchId: branch.id, orderId: order.id },

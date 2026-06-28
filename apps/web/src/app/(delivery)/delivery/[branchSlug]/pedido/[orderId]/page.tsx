@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, RefreshCw, CheckCircle2, Clock, ChefHat } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle2, Clock, ChefHat, X } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useDeliveryStore } from "@/stores/delivery-store";
 import { useDeliveryBranch } from "@/hooks/use-delivery-branch";
@@ -30,6 +30,8 @@ const statusBadge: Record<string, string> = {
   cancelled: "bg-[#F5E8E8] text-[#8A4A4A] ring-[#EAD4D4]",
 };
 
+const EDITABLE_STATUSES = ["pending", "confirmed"];
+
 export default function DeliveryOrderStatusPage({
   params,
 }: {
@@ -38,13 +40,13 @@ export default function DeliveryOrderStatusPage({
   const { branchSlug, orderId } = use(params);
   const storedPhone = useDeliveryStore((s) => s.customerPhone);
   const { currency } = useDeliveryBranch(branchSlug);
-  // Start empty on both server and client to avoid hydration mismatches caused
-  // by sessionStorage-backed stores. `storedPhone` is hydrated via the effect below.
   const [phone, setPhone] = useState("");
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   const fetchStatus = useCallback(() => {
     if (!phone.trim()) return;
@@ -87,6 +89,31 @@ export default function DeliveryOrderStatusPage({
     const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
   }, [verified, order, fetchStatus]);
+
+  const handleRemoveItem = async (itemId: string) => {
+    if (!phone.trim()) return;
+    setRemovingItemId(itemId);
+    setConfirmRemoveId(null);
+    const qs = new URLSearchParams({ phone: phone.trim() });
+    try {
+      const res = await fetch(
+        `${API_URL}/api/delivery/${branchSlug}/orders/${orderId}/items/${itemId}?${qs}`,
+        { method: "DELETE" },
+      );
+      const result = await res.json();
+      if (result.success) {
+        setOrder(result.data);
+      } else {
+        setError(result.error?.message || "Erro ao remover item");
+      }
+    } catch {
+      setError("Erro ao remover item");
+    } finally {
+      setRemovingItemId(null);
+    }
+  };
+
+  const canEdit = order && EDITABLE_STATUSES.includes(order.status);
 
   return (
     <div className="space-y-5 pb-4">
@@ -170,18 +197,70 @@ export default function DeliveryOrderStatusPage({
           </div>
 
           <div className="space-y-2">
-            <h2 className="font-medium text-[#2F342E]">Itens</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-medium text-[#2F342E]">Itens</h2>
+              {canEdit && (
+                <span className="text-xs text-[#7A9B7E]">Toque em × para remover</span>
+              )}
+            </div>
+
+            {error && <p className={deliveryClasses.error}>{error}</p>}
+
             {(order.items || []).map((item: any) => (
-              <div
-                key={item.id}
-                className="flex justify-between rounded-xl border border-[#EDE8DF] bg-white/80 px-3 py-2.5 text-sm"
-              >
-                <span>
-                  {item.quantity}x {item.name}
-                </span>
-                <span className="font-medium text-[#5C7A5F]">
-                  {formatCurrency(item.total, currency)}
-                </span>
+              <div key={item.id}>
+                <div
+                  className="flex items-center justify-between rounded-xl border border-[#EDE8DF] bg-white/80 px-3 py-2.5 text-sm"
+                >
+                  <span>
+                    {item.quantity}x {item.name}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-[#5C7A5F]">
+                      {formatCurrency(item.total, currency)}
+                    </span>
+                    {canEdit && (order.items || []).length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={`Remover ${item.name}`}
+                        onClick={() => setConfirmRemoveId(item.id)}
+                        disabled={removingItemId !== null}
+                        className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-[#A8B5A0] transition hover:bg-[#F5E8E8] hover:text-[#8A4A4A] disabled:opacity-40"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {confirmRemoveId === item.id && (
+                  <div className="mt-1 rounded-xl border border-[#EAD4D4] bg-[#FDF5F5] px-3 py-3 text-sm">
+                    <p className="text-[#8A4A4A]">
+                      Remover <strong>{item.name}</strong> do pedido?
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.id)}
+                        disabled={removingItemId !== null}
+                        className="flex-1 rounded-lg bg-[#8A4A4A] py-1.5 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                      >
+                        {removingItemId === item.id ? (
+                          <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          "Sim, remover"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveId(null)}
+                        disabled={removingItemId !== null}
+                        className="flex-1 rounded-lg border border-[#EDE8DF] py-1.5 text-xs font-medium text-[#6B7268] transition hover:bg-[#F5F0EA] disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
