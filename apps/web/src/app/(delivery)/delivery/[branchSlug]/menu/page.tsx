@@ -21,6 +21,7 @@ interface MenuItem {
   compare_price_cents?: number | null;
   image_url?: string | null;
   category_id: string;
+  total_sold?: number;
 }
 
 interface Category {
@@ -109,16 +110,16 @@ export default function DeliveryMenuPage({
   const visibleItems = useMemo(() => {
     if (!menuData) return [];
 
+    const bySales = (a: MenuItem, b: MenuItem) =>
+      (b.total_sold ?? 0) - (a.total_sold ?? 0);
+
     if (activeCategory === ALL_PRODUCTS) {
-      return [...menuData.items].sort((a, b) => {
-        const orderA = categoryOrder.get(a.category_id) ?? 999;
-        const orderB = categoryOrder.get(b.category_id) ?? 999;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.name.localeCompare(b.name, "pt-BR");
-      });
+      return [...menuData.items].sort(bySales);
     }
 
-    return menuData.items.filter((item) => item.category_id === activeCategory);
+    return [...menuData.items]
+      .filter((item) => item.category_id === activeCategory)
+      .sort(bySales);
   }, [menuData, activeCategory, categoryOrder]);
 
   const getCartQty = (menuItemId: string) =>

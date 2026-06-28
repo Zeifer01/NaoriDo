@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, and, inArray, or, isNotNull } from "drizzle-orm";
+import { eq, and, inArray, or, isNotNull, sql, getTableColumns } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { getDeliveryFeeCents } from "@restai/config";
 import {
@@ -75,7 +75,17 @@ delivery.get("/:branchSlug/menu", async (c) => {
     );
 
   const items = await db
-    .select()
+    .select({
+      ...getTableColumns(schema.menuItems),
+      total_sold: sql<number>`(
+        SELECT COALESCE(SUM(oi.quantity), 0)::int
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE oi.menu_item_id = ${schema.menuItems.id}
+          AND o.branch_id = ${branch.id}
+          AND o.status != 'cancelled'
+      )`,
+    })
     .from(schema.menuItems)
     .where(
       and(

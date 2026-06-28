@@ -187,7 +187,7 @@ export default function DeliveryProductPage({
     <div className="space-y-5 pb-32">
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[#F0EBE3] ring-1 ring-[#EDE8DF]">
         {itemImage ? (
-          <Image src={itemImage} alt={item.name} fill className="object-cover" unoptimized />
+          <Image src={itemImage} alt={item.name} fill className="object-contain" unoptimized />
         ) : (
           <div className="flex h-full items-center justify-center text-[#A8B5A0]">
             <Leaf className="h-14 w-14" strokeWidth={1.25} />

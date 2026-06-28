@@ -164,7 +164,7 @@ export function OrdersTable({
                     };
                     const nextStatus = getNextStatus(order.status);
                     const orderNum = order.order_number || order.id;
-                    const table = order.table_number != null ? `Mesa ${order.table_number}` : "-";
+                    const table = order.table_number != null ? `Mesa ${order.table_number}` : null;
                     const customer = order.customer_name || "";
                     const itemCount = order.item_count ?? 0;
                     const createdAt = order.created_at || "";
@@ -185,7 +185,16 @@ export function OrdersTable({
                         className="border-b last:border-0 hover:bg-muted/50 transition-colors"
                       >
                         <td className="p-3 font-medium text-sm">#{orderNum}</td>
-                        <td className="p-3 text-sm">{table}</td>
+                        <td className="p-3 text-sm">
+                          {table ?? (order.delivery_address ? (
+                            <span
+                              className="block max-w-[140px] truncate text-xs text-muted-foreground"
+                              title={order.delivery_address}
+                            >
+                              {order.delivery_address}
+                            </span>
+                          ) : <span className="text-muted-foreground">-</span>)}
+                        </td>
                         <td className="p-3 text-sm hidden sm:table-cell">{customer}</td>
                         <td className="p-3">
                           <Badge variant={config.variant}>{config.label}</Badge>
