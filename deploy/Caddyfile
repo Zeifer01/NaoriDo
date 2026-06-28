@@ -52,10 +52,10 @@ naorido.com.br, www.naorido.com.br {
 		header Connection *Upgrade*
 		header Upgrade websocket
 	}
-	reverse_proxy @websockets 127.0.0.1:3000
+	reverse_proxy @websockets 127.0.0.1:3100
 
 	# Tudo mais: Next.js
-	reverse_proxy 127.0.0.1:3000 {
+	reverse_proxy 127.0.0.1:3100 {
 		# Timeout generoso para SSR de página de relatórios pesados
 		transport http {
 			read_timeout 60s
