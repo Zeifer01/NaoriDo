@@ -71,13 +71,19 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
   if (body.currency !== undefined) updateData.currency = body.currency;
   if (body.settings !== undefined) updateData.settings = body.settings;
 
-  if (
+  const hasSettingsFields =
     body.inventoryEnabled !== undefined ||
     body.waiterTableAssignmentEnabled !== undefined ||
     body.deliveryEnabled !== undefined ||
     body.deliveryFeeCents !== undefined ||
-    body.tablesEnabled !== undefined
-  ) {
+    body.tablesEnabled !== undefined ||
+    body.landingEnabled !== undefined ||
+    body.landingTitle !== undefined ||
+    body.landingDescription !== undefined ||
+    body.landingButtonText !== undefined ||
+    body.landingButtonUrl !== undefined;
+
+  if (hasSettingsFields) {
     // Fetch current settings to merge
     const [existing] = await db.select({ settings: schema.branches.settings })
       .from(schema.branches)
@@ -92,6 +98,11 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.deliveryEnabled !== undefined) merged.delivery_enabled = body.deliveryEnabled;
     if (body.deliveryFeeCents !== undefined) merged.delivery_fee_cents = body.deliveryFeeCents;
     if (body.tablesEnabled !== undefined) merged.tables_enabled = body.tablesEnabled;
+    if (body.landingEnabled !== undefined) merged.landing_enabled = body.landingEnabled;
+    if (body.landingTitle !== undefined) merged.landing_title = body.landingTitle;
+    if (body.landingDescription !== undefined) merged.landing_description = body.landingDescription;
+    if (body.landingButtonText !== undefined) merged.landing_button_text = body.landingButtonText;
+    if (body.landingButtonUrl !== undefined) merged.landing_button_url = body.landingButtonUrl;
     updateData.settings = merged;
   }
 

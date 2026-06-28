@@ -96,6 +96,13 @@ delivery.get("/:branchSlug/menu", async (c) => {
         logo_url: org?.logo_url ?? null,
         org_name: org?.name ?? branch.name,
       },
+      landing: {
+        enabled: settings.landing_enabled === true,
+        title: (settings.landing_title as string) || null,
+        description: (settings.landing_description as string) || null,
+        button_text: (settings.landing_button_text as string) || null,
+        button_url: (settings.landing_button_url as string) || null,
+      },
       categories,
       items,
     },

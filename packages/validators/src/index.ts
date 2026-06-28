@@ -342,6 +342,12 @@ export const updateBranchSettingsSchema = z.object({
   waiterTableAssignmentEnabled: z.boolean().optional(),
   deliveryEnabled: z.boolean().optional(),
   deliveryFeeCents: z.number().int().min(0).optional(),
+  tablesEnabled: z.boolean().optional(),
+  landingEnabled: z.boolean().optional(),
+  landingTitle: z.string().max(255).optional(),
+  landingDescription: z.string().max(2000).optional(),
+  landingButtonText: z.string().max(100).optional(),
+  landingButtonUrl: z.string().max(500).optional(),
 });
 
 // Query validators for GET endpoints

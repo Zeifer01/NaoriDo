@@ -43,6 +43,11 @@ export function BranchTab() {
     deliveryEnabled: boolean;
     deliveryFee: string;
     tablesEnabled: boolean;
+    landingEnabled: boolean;
+    landingTitle: string;
+    landingDescription: string;
+    landingButtonText: string;
+    landingButtonUrl: string;
   }>({
     name: "",
     address: "",
@@ -55,6 +60,11 @@ export function BranchTab() {
     deliveryEnabled: true,
     deliveryFee: "12.00",
     tablesEnabled: true,
+    landingEnabled: false,
+    landingTitle: "",
+    landingDescription: "",
+    landingButtonText: "",
+    landingButtonUrl: "",
   });
 
   useEffect(() => {
@@ -73,6 +83,11 @@ export function BranchTab() {
         deliveryEnabled: branchData.settings?.delivery_enabled !== false,
         deliveryFee: (getDeliveryFeeCents(branchData.settings) / 100).toFixed(2),
         tablesEnabled: branchData.settings?.tables_enabled !== false,
+        landingEnabled: branchData.settings?.landing_enabled === true,
+        landingTitle: (branchData.settings?.landing_title as string) || "",
+        landingDescription: (branchData.settings?.landing_description as string) || "",
+        landingButtonText: (branchData.settings?.landing_button_text as string) || "",
+        landingButtonUrl: (branchData.settings?.landing_button_url as string) || "",
       });
     }
   }, [branchData]);
@@ -93,6 +108,11 @@ export function BranchTab() {
         deliveryEnabled: branchForm.deliveryEnabled,
         deliveryFeeCents,
         tablesEnabled: branchForm.tablesEnabled,
+        landingEnabled: branchForm.landingEnabled,
+        landingTitle: branchForm.landingTitle,
+        landingDescription: branchForm.landingDescription,
+        landingButtonText: branchForm.landingButtonText,
+        landingButtonUrl: branchForm.landingButtonUrl,
       });
       toast.success("Filial atualizada com sucesso");
     } catch (err: any) {
@@ -241,6 +261,94 @@ export function BranchTab() {
                     Valor fixo cobrado em cada pedido de delivery (padrão R$ 12,00)
                   </p>
                 </div>
+
+                {/* Landing page section */}
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Página de boas-vindas</p>
+                      <p className="text-xs text-muted-foreground">
+                        Exibe uma página inicial com a história da marca antes do cardápio
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={branchForm.landingEnabled}
+                      onClick={() =>
+                        setBranchForm({ ...branchForm, landingEnabled: !branchForm.landingEnabled })
+                      }
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                        branchForm.landingEnabled ? "bg-primary" : "bg-muted",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                          branchForm.landingEnabled ? "translate-x-5" : "translate-x-0",
+                        )}
+                      />
+                    </button>
+                  </div>
+
+                  {branchForm.landingEnabled && (
+                    <div className="space-y-4 pt-2 border-t">
+                      <div className="space-y-2">
+                        <Label htmlFor="landingTitle">Título da página</Label>
+                        <Input
+                          id="landingTitle"
+                          placeholder="Ex: Venha fazer parte de nossa história"
+                          value={branchForm.landingTitle}
+                          onChange={(e) =>
+                            setBranchForm({ ...branchForm, landingTitle: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="landingDescription">Texto de apresentação</Label>
+                        <textarea
+                          id="landingDescription"
+                          rows={4}
+                          placeholder="Conte um pouco sobre a história da sua marca, clube ou estabelecimento..."
+                          value={branchForm.landingDescription}
+                          onChange={(e) =>
+                            setBranchForm({ ...branchForm, landingDescription: e.target.value })
+                          }
+                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                        />
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="landingButtonText">Texto do botão</Label>
+                          <Input
+                            id="landingButtonText"
+                            placeholder="Ex: Ver Cardápio"
+                            value={branchForm.landingButtonText}
+                            onChange={(e) =>
+                              setBranchForm({ ...branchForm, landingButtonText: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="landingButtonUrl">Link do botão (opcional)</Label>
+                          <Input
+                            id="landingButtonUrl"
+                            placeholder="Deixe em branco para ir ao cardápio"
+                            value={branchForm.landingButtonUrl}
+                            onChange={(e) =>
+                              setBranchForm({ ...branchForm, landingButtonUrl: e.target.value })
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Se vazio, leva direto ao cardápio
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="rounded-lg border p-4 bg-muted/30">
                   <DeliveryMenuLink branchSlug={branchData?.slug} />
                 </div>
