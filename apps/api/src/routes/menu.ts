@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNotNull, or } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   createCategorySchema,
@@ -19,6 +19,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
+import { notifyItemUnavailable } from "../services/whatsapp.service.js";
 
 const menu = new Hono<AppEnv>();
 
@@ -278,6 +279,46 @@ menu.patch(
     const body = c.req.valid("json");
     const tenant = c.get("tenant") as any;
 
+    // Detect item going unavailable to notify affected delivery orders
+    let unavailItemName: string | null = null;
+    let affectedOrders: any[] = [];
+
+    if (body.isAvailable === false) {
+      const [currentItem] = await db
+        .select({ is_available: schema.menuItems.is_available, name: schema.menuItems.name })
+        .from(schema.menuItems)
+        .where(and(eq(schema.menuItems.id, id), eq(schema.menuItems.branch_id, tenant.branchId)))
+        .limit(1);
+
+      if (currentItem?.is_available === true) {
+        unavailItemName = currentItem.name;
+
+        const affectedLinks = await db
+          .selectDistinct({ order_id: schema.orderItems.order_id })
+          .from(schema.orderItems)
+          .where(eq(schema.orderItems.menu_item_id, id));
+
+        if (affectedLinks.length > 0) {
+          const orderIds = affectedLinks.map((l) => l.order_id);
+          affectedOrders = await db
+            .select()
+            .from(schema.orders)
+            .where(
+              and(
+                eq(schema.orders.branch_id, tenant.branchId),
+                inArray(schema.orders.id, orderIds),
+                or(
+                  eq(schema.orders.status, "pending"),
+                  eq(schema.orders.status, "confirmed"),
+                  eq(schema.orders.status, "preparing"),
+                ),
+                isNotNull(schema.orders.delivery_phone),
+              ),
+            );
+        }
+      }
+    }
+
     const updateData: Record<string, any> = {};
     if (body.categoryId !== undefined) updateData.category_id = body.categoryId;
     if (body.name !== undefined) updateData.name = body.name;
@@ -305,6 +346,20 @@ menu.patch(
         { success: false, error: { code: "NOT_FOUND", message: "Item no encontrado" } },
         404,
       );
+    }
+
+    // Fire WhatsApp notifications for affected delivery orders (non-blocking)
+    if (unavailItemName && affectedOrders.length > 0) {
+      const [branch] = await db
+        .select()
+        .from(schema.branches)
+        .where(eq(schema.branches.id, tenant.branchId))
+        .limit(1);
+      if (branch) {
+        for (const order of affectedOrders) {
+          void notifyItemUnavailable(branch, order, unavailItemName);
+        }
+      }
     }
 
     return c.json({ success: true, data: updated });

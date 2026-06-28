@@ -227,6 +227,41 @@ export async function handleIncomingWebhook(
     return;
   }
 
+  // Handle pending item-unavailability responses (1 = keep, 2 = edit with admin)
+  const msgData = (data.message as Record<string, unknown>) || {};
+  const incomingText = (
+    (msgData.conversation as string) ||
+    ((msgData.extendedTextMessage as Record<string, unknown>)?.text as string) ||
+    ""
+  ).trim();
+
+  const unavailKey = `wa:unavail:${instanceName}:${phone}`;
+  const pendingUnavail = await redis.get(unavailKey);
+
+  if (pendingUnavail && (incomingText === "1" || incomingText === "2")) {
+    await redis.del(unavailKey);
+    const ctx = JSON.parse(pendingUnavail) as {
+      orderNumber: string;
+      itemName: string;
+      adminLink: string | null;
+    };
+
+    const reply =
+      incomingText === "1"
+        ? `✅ Tudo certo! Seu pedido *#${ctx.orderNumber}* será mantido sem o item *${ctx.itemName}*.\n\nObrigado pela compreensão! 🙏`
+        : ctx.adminLink
+          ? `Ok! Para editar seu pedido *#${ctx.orderNumber}*, fale com nosso atendente:\n\n${ctx.adminLink}`
+          : `Para editar seu pedido *#${ctx.orderNumber}*, entre em contato com nosso atendente.`;
+
+    try {
+      await sendWhatsAppText(instanceName, phone, reply);
+      logger.info({ instanceName, phone, choice: incomingText }, "Unavailability reply sent");
+    } catch (err) {
+      logger.error({ err, instanceName, phone }, "Failed to send unavailability reply");
+    }
+    return;
+  }
+
   const settings = (branch.settings || {}) as Record<string, unknown>;
   if (!settings.whatsapp_auto_reply_enabled) return;
 
@@ -289,6 +324,57 @@ export async function sendCampaignMessage(
   }
 
   return { sent, failed, total: customers.length };
+}
+
+export async function notifyItemUnavailable(
+  branch: BranchLike & { phone?: string | null },
+  order: OrderLike,
+  itemName: string,
+): Promise<void> {
+  if (!isWhatsAppConfigured() || !branchNotificationsEnabled(branch)) return;
+
+  const phone = order.delivery_phone;
+  if (!phone) return;
+
+  const instanceName = getBranchInstanceName(branch);
+  const { connected } = await fetchConnectionState(instanceName);
+  if (!connected) {
+    logger.warn({ branchId: branch.id, instanceName }, "WhatsApp disconnected, skipping unavailability notification");
+    return;
+  }
+
+  const customer = order.customer_name?.trim() || "Cliente";
+
+  const rawAdminPhone = (branch.phone || "").replace(/\D/g, "");
+  const adminWaPhone = rawAdminPhone && !rawAdminPhone.startsWith("55") ? `55${rawAdminPhone}` : rawAdminPhone;
+  const prefilledMsg = encodeURIComponent(
+    `Olá! Preciso editar meu pedido #${order.order_number} — o item "${itemName}" ficou indisponível.`,
+  );
+  const adminLink = adminWaPhone ? `https://wa.me/${adminWaPhone}?text=${prefilledMsg}` : null;
+
+  const message =
+    `Olá, ${customer}! 😔\n\n` +
+    `Infelizmente o item *${itemName}* do seu pedido *#${order.order_number}* ficou indisponível para a entrega.\n\n` +
+    `Responda com uma das opções:\n` +
+    `*1* – Manter meu pedido sem esse item\n` +
+    `*2* – Falar com o atendente para editar`;
+
+  try {
+    await sendWhatsAppText(instanceName, phone, message);
+
+    const formattedPhone = formatPhoneForWhatsApp(phone);
+    const redisKey = `wa:unavail:${instanceName}:${formattedPhone}`;
+    await redis.setex(
+      redisKey,
+      86400,
+      JSON.stringify({ orderNumber: order.order_number, itemName, adminLink }),
+    );
+  } catch (err) {
+    logger.error(
+      { err, branchId: branch.id, orderId: order.id },
+      "Failed to send item unavailable notification",
+    );
+  }
 }
 
 export async function notifyDeliveryOrderStatusUpdated(
