@@ -81,14 +81,8 @@ export default async function DeliveryLandingPage({
       {/* CTA button */}
       <a
         href={buttonUrl}
-        className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-semibold text-white shadow-md transition active:scale-[0.98]"
+        className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-semibold text-white shadow-md transition hover:opacity-90 active:scale-[0.98]"
         style={{ backgroundColor: "#5C7A5F" }}
-        onMouseOver={(e) =>
-          ((e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#4A6851")
-        }
-        onMouseOut={(e) =>
-          ((e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#5C7A5F")
-        }
       >
         {buttonText}
         <ArrowRight className="h-4 w-4" />
