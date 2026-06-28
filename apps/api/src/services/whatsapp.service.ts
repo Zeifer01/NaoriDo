@@ -244,11 +244,14 @@ export async function handleIncomingWebhook(
       orderNumber: string;
       itemName: string;
       adminLink: string | null;
+      orderSummary: string;
     };
 
     const reply =
       incomingText === "1"
-        ? `✅ Tudo certo! Seu pedido *#${ctx.orderNumber}* será mantido sem o item *${ctx.itemName}*.\n\nObrigado pela compreensão! 🙏`
+        ? `✅ Tudo certo! Seu pedido *#${ctx.orderNumber}* foi confirmado sem o item *${ctx.itemName}*.\n\n` +
+          (ctx.orderSummary ? `Confira sua comanda:\n\n${ctx.orderSummary}\n\n` : "") +
+          `Obrigado pela compreensão! 🙏`
         : ctx.adminLink
           ? `Ok! Para editar seu pedido *#${ctx.orderNumber}*, fale com nosso atendente:\n\n${ctx.adminLink}`
           : `Para editar seu pedido *#${ctx.orderNumber}*, entre em contato com nosso atendente.`;
@@ -330,6 +333,7 @@ export async function notifyItemUnavailable(
   branch: BranchLike & { phone?: string | null },
   order: OrderLike,
   itemName: string,
+  remainingItems: Array<{ name: string; quantity: number; total: number }>,
 ): Promise<void> {
   if (!isWhatsAppConfigured() || !branchNotificationsEnabled(branch)) return;
 
@@ -344,6 +348,7 @@ export async function notifyItemUnavailable(
   }
 
   const customer = order.customer_name?.trim() || "Cliente";
+  const currency = branch.currency || "BRL";
 
   const rawAdminPhone = (branch.phone || "").replace(/\D/g, "");
   const adminWaPhone = rawAdminPhone && !rawAdminPhone.startsWith("55") ? `55${rawAdminPhone}` : rawAdminPhone;
@@ -352,12 +357,24 @@ export async function notifyItemUnavailable(
   );
   const adminLink = adminWaPhone ? `https://wa.me/${adminWaPhone}?text=${prefilledMsg}` : null;
 
+  // Build order summary for remaining items
+  let orderSummary = "";
+  if (remainingItems.length > 0) {
+    const lines = remainingItems
+      .map((i) => `• ${i.quantity}x ${i.name} — ${formatMoney(i.total, currency)}`)
+      .join("\n");
+    orderSummary =
+      `📋 *Sua comanda atualizada:*\n${lines}\n\n` +
+      `*Total: ${formatMoney(order.total, currency)}*`;
+  }
+
   const message =
     `Olá, ${customer}! 😔\n\n` +
-    `Infelizmente o item *${itemName}* do seu pedido *#${order.order_number}* ficou indisponível para a entrega.\n\n` +
-    `Responda com uma das opções:\n` +
-    `*1* – Manter meu pedido sem esse item\n` +
-    `*2* – Falar com o atendente para editar`;
+    `O item *${itemName}* do seu pedido *#${order.order_number}* ficou indisponível e foi removido da sua comanda.\n\n` +
+    (orderSummary ? orderSummary + "\n\n" : "") +
+    (remainingItems.length > 0
+      ? `Responda:\n*1* – Confirmar meu pedido\n*2* – Falar com o atendente para editar`
+      : `Todos os itens do seu pedido foram afetados. Fale com nosso atendente:\n${adminLink || "Entre em contato com o atendente."}`);
 
   try {
     await sendWhatsAppText(instanceName, phone, message);
@@ -367,7 +384,7 @@ export async function notifyItemUnavailable(
     await redis.setex(
       redisKey,
       86400,
-      JSON.stringify({ orderNumber: order.order_number, itemName, adminLink }),
+      JSON.stringify({ orderNumber: order.order_number, itemName, adminLink, orderSummary }),
     );
   } catch (err) {
     logger.error(

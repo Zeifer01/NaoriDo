@@ -348,16 +348,64 @@ menu.patch(
       );
     }
 
-    // Fire WhatsApp notifications for affected delivery orders (non-blocking)
+    // Remove unavailable item from affected orders, recalculate totals, notify customers
     if (unavailItemName && affectedOrders.length > 0) {
       const [branch] = await db
         .select()
         .from(schema.branches)
         .where(eq(schema.branches.id, tenant.branchId))
         .limit(1);
+
       if (branch) {
         for (const order of affectedOrders) {
-          void notifyItemUnavailable(branch, order, unavailItemName);
+          // Get items being removed to know how much to subtract
+          const removedItems = await db
+            .select()
+            .from(schema.orderItems)
+            .where(
+              and(
+                eq(schema.orderItems.order_id, order.id),
+                eq(schema.orderItems.menu_item_id, id),
+              ),
+            );
+
+          const removedTotal = removedItems.reduce((sum: number, i: any) => sum + i.total, 0);
+
+          // Remove those items from the order
+          await db
+            .delete(schema.orderItems)
+            .where(
+              and(
+                eq(schema.orderItems.order_id, order.id),
+                eq(schema.orderItems.menu_item_id, id),
+              ),
+            );
+
+          // Fetch remaining items for summary and total recalculation
+          const remaining = await db
+            .select()
+            .from(schema.orderItems)
+            .where(eq(schema.orderItems.order_id, order.id));
+
+          const newSubtotal = Math.max(0, order.subtotal - removedTotal);
+          const newTax = order.subtotal > 0
+            ? Math.round((newSubtotal / order.subtotal) * order.tax)
+            : 0;
+          const newTotal = Math.max(0, newSubtotal + (order.delivery_fee ?? 0) - (order.discount ?? 0) + newTax);
+
+          await db
+            .update(schema.orders)
+            .set({ subtotal: newSubtotal, tax: newTax, total: newTotal, updated_at: new Date() })
+            .where(eq(schema.orders.id, order.id));
+
+          const updatedOrder = { ...order, subtotal: newSubtotal, tax: newTax, total: newTotal };
+
+          void notifyItemUnavailable(
+            branch,
+            updatedOrder,
+            unavailItemName,
+            remaining.map((i: any) => ({ name: i.name, quantity: i.quantity, total: i.total })),
+          );
         }
       }
     }
