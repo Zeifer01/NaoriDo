@@ -39,6 +39,7 @@ export const menuItems = pgTable("menu_items", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   price: integer("price").notNull(), // stored in cents
+  compare_price_cents: integer("compare_price_cents"), // retail price for "De Para" display
   image_url: text("image_url"),
   is_available: boolean("is_available").default(true).notNull(),
   sort_order: integer("sort_order").default(0).notNull(),

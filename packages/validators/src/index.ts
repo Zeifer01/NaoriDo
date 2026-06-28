@@ -51,6 +51,7 @@ export const createMenuItemSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(1000).optional(),
   price: z.number().int().min(0, "O preço não pode ser negativo"),
+  comparePriceCents: z.number().int().min(0).nullable().optional(),
   imageUrl: z.string().url().optional(),
   isAvailable: z.boolean().default(true),
   sortOrder: z.number().int().min(0).default(0),

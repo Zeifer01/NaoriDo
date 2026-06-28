@@ -57,6 +57,9 @@ export function ProductDialog({
   const [priceSoles, setPriceSoles] = useState(
     initial ? (initial.price / 100).toFixed(2) : ""
   );
+  const [comparePriceSoles, setComparePriceSoles] = useState(
+    initial?.compare_price_cents ? (initial.compare_price_cents / 100).toFixed(2) : ""
+  );
   const [categoryId, setCategoryId] = useState(
     initial?.category_id ?? initial?.categoryId ?? categories[0]?.id ?? ""
   );
@@ -89,10 +92,15 @@ export function ProductDialog({
       return;
     }
 
+    const comparePriceInCents = comparePriceSoles
+      ? Math.round(parseFloat(comparePriceSoles) * 100)
+      : null;
+
     const payload: any = {
       name: name.trim(),
       description: description.trim() || undefined,
       price: priceInCents,
+      comparePriceCents: comparePriceInCents,
       categoryId,
       imageUrl: imageUrl || undefined,
       preparationTimeMin: prepTime ? parseInt(prepTime, 10) : undefined,
@@ -179,7 +187,7 @@ export function ProductDialog({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="prod-price">Preço (R$)</Label>
+              <Label htmlFor="prod-price">Preço do clube (R$)</Label>
               <Input
                 id="prod-price"
                 type="number"
@@ -192,7 +200,21 @@ export function ProductDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="prod-prep">Tiempo prep. (min)</Label>
+              <Label htmlFor="prod-compare-price">Preço nas lojas (R$)</Label>
+              <Input
+                id="prod-compare-price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={comparePriceSoles}
+                onChange={(e) => setComparePriceSoles(e.target.value)}
+                placeholder="0,00 (opcional)"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2 sm:col-span-1">
+              <Label htmlFor="prod-prep">Tempo de preparo (min)</Label>
               <Input
                 id="prod-prep"
                 type="number"

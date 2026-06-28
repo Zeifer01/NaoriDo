@@ -18,6 +18,7 @@ interface MenuItem {
   name: string;
   description: string | null;
   price: number;
+  compare_price_cents?: number | null;
   image_url?: string | null;
   category_id: string;
 }
@@ -292,9 +293,27 @@ export default function DeliveryMenuPage({
                           {item.description}
                         </p>
                       )}
-                      <p className="mt-2 text-base font-semibold text-[#5C7A5F]">
-                        {formatCurrency(item.price, currency)}
-                      </p>
+                      <div className="mt-2">
+                        {item.compare_price_cents && item.compare_price_cents > item.price ? (
+                          <>
+                            <p className="text-xs leading-none text-[#A8B5A0] line-through">
+                              {formatCurrency(item.compare_price_cents, currency)} nas lojas
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-base font-semibold text-[#5C7A5F]">
+                                {formatCurrency(item.price, currency)}
+                              </p>
+                              <span className="rounded-full bg-[#EDF3E8] px-1.5 py-0.5 text-[10px] font-semibold text-[#5C7A5F]">
+                                -{Math.round((1 - item.price / item.compare_price_cents) * 100)}%
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-base font-semibold text-[#5C7A5F]">
+                            {formatCurrency(item.price, currency)}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </Link>
 

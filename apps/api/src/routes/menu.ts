@@ -255,6 +255,7 @@ menu.post(
         name: body.name,
         description: body.description,
         price: body.price,
+        compare_price_cents: body.comparePriceCents ?? null,
         image_url: body.imageUrl,
         is_available: body.isAvailable,
         sort_order: body.sortOrder,
@@ -282,6 +283,7 @@ menu.patch(
     if (body.name !== undefined) updateData.name = body.name;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.price !== undefined) updateData.price = body.price;
+    if (body.comparePriceCents !== undefined) updateData.compare_price_cents = body.comparePriceCents ?? null;
     if (body.imageUrl !== undefined) updateData.image_url = body.imageUrl;
     if (body.isAvailable !== undefined) updateData.is_available = body.isAvailable;
     if (body.sortOrder !== undefined) updateData.sort_order = body.sortOrder;
