@@ -10,6 +10,7 @@ import {
   ToggleLeft,
   ToggleRight,
   UtensilsCrossed,
+  ArrowUpDown,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -17,12 +18,15 @@ import {
   useDeleteMenuItem,
   useDeleteCategory,
 } from "@/hooks/use-menu";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/fetcher";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SearchInput } from "@/components/search-input";
 import { CategoryDialog } from "./category-dialog";
 import { ProductDialog } from "./product-dialog";
 import { ImageUploadButton } from "./image-upload-button";
+import { ReorderPanel } from "./reorder-panel";
 
 function Skeleton({ className }: { className?: string }) {
   return (
@@ -47,6 +51,8 @@ export function ProductsPainel({
   const deleteItem = useDeleteMenuItem();
   const deleteCat = useDeleteCategory();
 
+  const qc = useQueryClient();
+  const [reorderMode, setReorderMode] = useState(false);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [prodDialogOpen, setProdDialogOpen] = useState(false);
@@ -104,6 +110,20 @@ export function ProductsPainel({
 
   const handleImageUploaded = (item: any, url: string) => {
     updateItem.mutate({ id: item.id, imageUrl: url });
+  };
+
+  const handleSaveOrder = async (ordered: { id: string; sortOrder: number }[]) => {
+    await Promise.all(
+      ordered.map(({ id, sortOrder }) =>
+        apiFetch(`/api/menu/items/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ sortOrder }),
+        }),
+      ),
+    );
+    await qc.invalidateQueries({ queryKey: ["menu"] });
+    setReorderMode(false);
+    toast.success("Ordem do cardápio salva");
   };
 
   const handleConfirmDelete = async () => {
@@ -296,27 +316,53 @@ export function ProductsPainel({
               {search ? ` encontrado${visibleItems.length !== 1 ? "s" : ""}` : ""}
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditingProduct(null);
-              setProdDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Producto
-          </Button>
+          {!reorderMode && (
+            <>
+              {visibleItems.length > 1 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReorderMode(true)}
+                >
+                  <ArrowUpDown className="h-4 w-4 mr-1" />
+                  Reordenar
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingProduct(null);
+                  setProdDialogOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Produto
+              </Button>
+            </>
+          )}
         </div>
 
-        {/* Search */}
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Buscar nesta categoria..."
-        />
+        {/* Search — hidden in reorder mode */}
+        {!reorderMode && (
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar nesta categoria..."
+          />
+        )}
+
+        {/* Reorder mode */}
+        {reorderMode && (
+          <ReorderPanel
+            items={visibleItems}
+            categories={categoryList}
+            onSave={handleSaveOrder}
+            onCancel={() => setReorderMode(false)}
+          />
+        )}
 
         {/* Products grid */}
-        {visibleItems.length === 0 ? (
+        {!reorderMode && (visibleItems.length === 0 ? (
           <div className="text-center py-12 border border-dashed border-border rounded-lg">
             <UtensilsCrossed className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground mb-3">
@@ -448,7 +494,7 @@ export function ProductsPainel({
               );
             })}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Dialogs */}

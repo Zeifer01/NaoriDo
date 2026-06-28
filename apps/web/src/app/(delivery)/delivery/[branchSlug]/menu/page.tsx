@@ -110,16 +110,24 @@ export default function DeliveryMenuPage({
   const visibleItems = useMemo(() => {
     if (!menuData) return [];
 
-    const bySales = (a: MenuItem, b: MenuItem) =>
-      (b.total_sold ?? 0) - (a.total_sold ?? 0);
+    const byOrder = (a: MenuItem, b: MenuItem) => {
+      const sa = (a as any).sort_order ?? 0;
+      const sb = (b as any).sort_order ?? 0;
+      if (sa !== sb) {
+        if (sa === 0) return 1;
+        if (sb === 0) return -1;
+        return sa - sb;
+      }
+      return (b.total_sold ?? 0) - (a.total_sold ?? 0);
+    };
 
     if (activeCategory === ALL_PRODUCTS) {
-      return [...menuData.items].sort(bySales);
+      return [...menuData.items].sort(byOrder);
     }
 
     return [...menuData.items]
       .filter((item) => item.category_id === activeCategory)
-      .sort(bySales);
+      .sort(byOrder);
   }, [menuData, activeCategory, categoryOrder]);
 
   const getCartQty = (menuItemId: string) =>
