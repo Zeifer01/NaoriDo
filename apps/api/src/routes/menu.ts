@@ -73,6 +73,32 @@ menu.post(
   },
 );
 
+// PATCH /categories/reorder — must come before /categories/:id to avoid "reorder" being treated as UUID
+const reorderCategoriesSchema = z.object({
+  categories: z.array(z.object({ id: z.string().uuid(), sortOrder: z.number().int().min(0) })).min(1),
+});
+
+menu.patch(
+  "/categories/reorder",
+  requirePermission("menu:write"),
+  zValidator("json", reorderCategoriesSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { categories } = c.req.valid("json");
+
+    await Promise.all(
+      categories.map(({ id, sortOrder }) =>
+        db
+          .update(schema.menuCategories)
+          .set({ sort_order: sortOrder, updated_at: new Date() })
+          .where(and(eq(schema.menuCategories.id, id), eq(schema.menuCategories.branch_id, tenant.branchId))),
+      ),
+    );
+
+    return c.json({ success: true });
+  },
+);
+
 // PATCH /categories/:id
 menu.patch(
   "/categories/:id",
@@ -942,31 +968,6 @@ menu.delete(
     }
 
     return c.json({ success: true, data: { message: "Grupo desvinculado" } });
-  },
-);
-
-const reorderCategoriesSchema = z.object({
-  categories: z.array(z.object({ id: z.string().uuid(), sortOrder: z.number().int().min(0) })).min(1),
-});
-
-menu.patch(
-  "/categories/reorder",
-  requirePermission("menu:write"),
-  zValidator("json", reorderCategoriesSchema),
-  async (c) => {
-    const tenant = c.get("tenant") as any;
-    const { categories } = c.req.valid("json");
-
-    await Promise.all(
-      categories.map(({ id, sortOrder }) =>
-        db
-          .update(schema.menuCategories)
-          .set({ sort_order: sortOrder, updated_at: new Date() })
-          .where(and(eq(schema.menuCategories.id, id), eq(schema.menuCategories.branch_id, tenant.branchId))),
-      ),
-    );
-
-    return c.json({ success: true });
   },
 );
 
