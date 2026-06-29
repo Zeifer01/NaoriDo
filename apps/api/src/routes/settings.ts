@@ -81,7 +81,10 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.landingTitle !== undefined ||
     body.landingDescription !== undefined ||
     body.landingButtonText !== undefined ||
-    body.landingButtonUrl !== undefined;
+    body.landingButtonUrl !== undefined ||
+    body.menuDisplayName !== undefined ||
+    body.menuSubtitle !== undefined ||
+    body.menuDeliveryText !== undefined;
 
   if (hasSettingsFields) {
     // Fetch current settings to merge
@@ -103,6 +106,9 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.landingDescription !== undefined) merged.landing_description = body.landingDescription;
     if (body.landingButtonText !== undefined) merged.landing_button_text = body.landingButtonText;
     if (body.landingButtonUrl !== undefined) merged.landing_button_url = body.landingButtonUrl;
+    if (body.menuDisplayName !== undefined) merged.menu_display_name = body.menuDisplayName;
+    if (body.menuSubtitle !== undefined) merged.menu_subtitle = body.menuSubtitle;
+    if (body.menuDeliveryText !== undefined) merged.menu_delivery_text = body.menuDeliveryText;
     updateData.settings = merged;
   }
 

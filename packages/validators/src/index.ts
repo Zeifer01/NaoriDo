@@ -349,6 +349,9 @@ export const updateBranchSettingsSchema = z.object({
   landingDescription: z.string().max(2000).optional(),
   landingButtonText: z.string().max(100).optional(),
   landingButtonUrl: z.string().max(500).optional(),
+  menuDisplayName: z.string().max(255).optional(),
+  menuSubtitle: z.string().max(255).optional(),
+  menuDeliveryText: z.string().max(255).optional(),
 });
 
 // Query validators for GET endpoints

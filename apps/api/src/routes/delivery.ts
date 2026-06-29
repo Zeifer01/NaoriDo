@@ -118,6 +118,9 @@ delivery.get("/:branchSlug/menu", async (c) => {
         delivery_fee: getDeliveryFeeCents(settings),
         logo_url: org?.logo_url ?? null,
         org_name: org?.name ?? branch.name,
+        menu_display_name: (settings.menu_display_name as string) || null,
+        menu_subtitle: (settings.menu_subtitle as string) || null,
+        menu_delivery_text: (settings.menu_delivery_text as string) || null,
       },
       landing: {
         enabled: settings.landing_enabled === true,

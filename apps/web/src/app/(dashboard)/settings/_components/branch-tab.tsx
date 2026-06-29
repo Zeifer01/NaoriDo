@@ -48,6 +48,9 @@ export function BranchTab() {
     landingDescription: string;
     landingButtonText: string;
     landingButtonUrl: string;
+    menuDisplayName: string;
+    menuSubtitle: string;
+    menuDeliveryText: string;
   }>({
     name: "",
     address: "",
@@ -65,6 +68,9 @@ export function BranchTab() {
     landingDescription: "",
     landingButtonText: "",
     landingButtonUrl: "",
+    menuDisplayName: "",
+    menuSubtitle: "",
+    menuDeliveryText: "",
   });
 
   useEffect(() => {
@@ -88,6 +94,9 @@ export function BranchTab() {
         landingDescription: (branchData.settings?.landing_description as string) || "",
         landingButtonText: (branchData.settings?.landing_button_text as string) || "",
         landingButtonUrl: (branchData.settings?.landing_button_url as string) || "",
+        menuDisplayName: (branchData.settings?.menu_display_name as string) || "",
+        menuSubtitle: (branchData.settings?.menu_subtitle as string) || "",
+        menuDeliveryText: (branchData.settings?.menu_delivery_text as string) || "",
       });
     }
   }, [branchData]);
@@ -113,6 +122,9 @@ export function BranchTab() {
         landingDescription: branchForm.landingDescription,
         landingButtonText: branchForm.landingButtonText,
         landingButtonUrl: branchForm.landingButtonUrl,
+        menuDisplayName: branchForm.menuDisplayName,
+        menuSubtitle: branchForm.menuSubtitle,
+        menuDeliveryText: branchForm.menuDeliveryText,
       });
       toast.success("Filial atualizada com sucesso");
     } catch (err: any) {
@@ -245,6 +257,51 @@ export function BranchTab() {
             </div>
             {branchForm.deliveryEnabled && (
               <>
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium">Aparência do cardápio</p>
+                    <p className="text-xs text-muted-foreground">
+                      Textos exibidos no topo do cardápio público. Deixe em branco para usar os padrões.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="menuDisplayName">Nome exibido no cardápio</Label>
+                    <Input
+                      id="menuDisplayName"
+                      placeholder={branchForm.name || "Nome da filial"}
+                      value={branchForm.menuDisplayName}
+                      onChange={(e) =>
+                        setBranchForm({ ...branchForm, menuDisplayName: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="menuSubtitle">Subtítulo</Label>
+                    <Input
+                      id="menuSubtitle"
+                      placeholder="Produtos naturais, entregues na sua porta"
+                      value={branchForm.menuSubtitle}
+                      onChange={(e) =>
+                        setBranchForm({ ...branchForm, menuSubtitle: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="menuDeliveryText">Texto de entrega</Label>
+                    <Input
+                      id="menuDeliveryText"
+                      placeholder={`Entrega · R$ ${branchForm.deliveryFee}`}
+                      value={branchForm.menuDeliveryText}
+                      onChange={(e) =>
+                        setBranchForm({ ...branchForm, menuDeliveryText: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Se vazio, exibe "Entrega · {"{valor da taxa}"}". Ex: "Frete grátis acima de R$ 100"
+                    </p>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="deliveryFee">Taxa de entrega</Label>
                   <Input

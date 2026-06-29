@@ -40,6 +40,9 @@ interface MenuData {
     delivery_fee: number;
     logo_url?: string | null;
     org_name?: string | null;
+    menu_display_name?: string | null;
+    menu_subtitle?: string | null;
+    menu_delivery_text?: string | null;
   };
   categories: Category[];
   items: MenuItem[];
@@ -170,7 +173,9 @@ export default function DeliveryMenuPage({
     );
   }
 
-  const displayName = menuData.branch.org_name || menuData.branch.name;
+  const displayName = menuData.branch.menu_display_name || menuData.branch.org_name || menuData.branch.name;
+  const menuSubtitle = menuData.branch.menu_subtitle || "Produtos naturais, entregues na sua porta";
+  const deliveryText = menuData.branch.menu_delivery_text || `Entrega · ${formatCurrency(menuData.branch.delivery_fee || 1200, currency)}`;
   const currency = menuData.branch.currency;
 
   return (
@@ -192,10 +197,10 @@ export default function DeliveryMenuPage({
               {displayName}
             </h1>
             <p className="mt-1 text-sm leading-relaxed text-[#6B7268]">
-              Produtos naturais, entregues na sua porta
+              {menuSubtitle}
             </p>
             <p className="mt-2 inline-flex items-center rounded-full bg-white/60 px-3 py-1 text-xs text-[#5C6356] ring-1 ring-[#E8EFE4]">
-              Entrega · {formatCurrency(menuData.branch.delivery_fee || 1200, currency)}
+              {deliveryText}
             </p>
           </div>
 
