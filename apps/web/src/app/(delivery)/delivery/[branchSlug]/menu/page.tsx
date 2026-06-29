@@ -84,7 +84,9 @@ export default function DeliveryMenuPage({
           currency: result.data.branch.currency || "BRL",
           deliveryFee: result.data.branch.delivery_fee || 1200,
         });
-        setActiveCategory(ALL_PRODUCTS);
+        const cats: Category[] = result.data.categories ?? [];
+        const sorted = [...cats].sort((a, b) => a.sort_order - b.sort_order);
+        setActiveCategory(sorted[0]?.id ?? ALL_PRODUCTS);
         setLoading(false);
       })
       .catch(() => {
