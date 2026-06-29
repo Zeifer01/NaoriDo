@@ -173,10 +173,10 @@ export default function DeliveryMenuPage({
     );
   }
 
+  const currency = menuData.branch.currency;
   const displayName = menuData.branch.menu_display_name || menuData.branch.org_name || menuData.branch.name;
   const menuSubtitle = menuData.branch.menu_subtitle || "Produtos naturais, entregues na sua porta";
   const deliveryText = menuData.branch.menu_delivery_text || `Entrega · ${formatCurrency(menuData.branch.delivery_fee || 1200, currency)}`;
-  const currency = menuData.branch.currency;
 
   return (
     <div className="min-h-[100dvh] text-[#3A3F38] -mx-0">
