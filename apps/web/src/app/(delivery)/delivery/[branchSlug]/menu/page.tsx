@@ -105,6 +105,21 @@ export default function DeliveryMenuPage({
     [menuData],
   );
 
+  // Subtle palette for per-category background (earthy/organic, same family)
+  const CATEGORY_BG = [
+    "#EDF3E8", // sage green tint
+    "#F5EFE8", // warm cream/amber
+    "#EEF4F0", // pale mint
+    "#F0EBE3", // warm sand
+    "#F4F0EB", // bone/ivory
+  ];
+
+  const activeBg = useMemo(() => {
+    if (activeCategory === ALL_PRODUCTS) return "#FAF7F2";
+    const idx = sortedCategories.findIndex((c) => c.id === activeCategory);
+    return CATEGORY_BG[idx % CATEGORY_BG.length] ?? "#FAF7F2";
+  }, [activeCategory, sortedCategories]);
+
   const categoryOrder = useMemo(
     () => new Map(sortedCategories.map((category, index) => [category.id, index])),
     [sortedCategories],
@@ -179,7 +194,7 @@ export default function DeliveryMenuPage({
   const deliveryText = menuData.branch.menu_delivery_text || `Entrega · ${formatCurrency(menuData.branch.delivery_fee || 1200, currency)}`;
 
   return (
-    <div className="min-h-[100dvh] text-[#3A3F38] -mx-0">
+    <div className="min-h-[100dvh] text-[#3A3F38] -mx-0" style={{ backgroundColor: activeBg, transition: "background-color 0.3s ease" }}>
       {/* Hero */}
       <header className="relative overflow-hidden bg-gradient-to-b from-[#EDF3E8] to-[#FAF7F2] px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
         <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#E8EFE4]/80 blur-2xl" />
@@ -221,21 +236,9 @@ export default function DeliveryMenuPage({
 
       {/* Categories — sticky */}
       {(sortedCategories.length > 0 || (menuData?.items.length ?? 0) > 0) && (
-        <div className="sticky top-0 z-20 border-b border-[#EDE8DF]/80 bg-[#FAF7F2]/90 backdrop-blur-md">
+        <div className="sticky top-0 z-20 border-b border-[#EDE8DF]/80 backdrop-blur-md" style={{ backgroundColor: `color-mix(in srgb, ${activeBg} 90%, transparent)`, transition: "background-color 0.3s ease" }}>
           <div className="mx-auto max-w-lg px-4 py-3">
             <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <button
-                type="button"
-                onClick={() => setActiveCategory(ALL_PRODUCTS)}
-                className={cn(
-                  "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
-                  activeCategory === ALL_PRODUCTS
-                    ? "bg-[#7A9B7E] text-white shadow-sm"
-                    : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
-                )}
-              >
-                Todos os produtos
-              </button>
               {sortedCategories.map((cat) => (
                 <button
                   key={cat.id}
@@ -251,6 +254,18 @@ export default function DeliveryMenuPage({
                   {cat.name}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setActiveCategory(ALL_PRODUCTS)}
+                className={cn(
+                  "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
+                  activeCategory === ALL_PRODUCTS
+                    ? "bg-[#7A9B7E] text-white shadow-sm"
+                    : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
+                )}
+              >
+                Todos os produtos
+              </button>
             </div>
           </div>
         </div>

@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/page-header";
 import { DeliveryMenuLink } from "@/components/delivery-menu-link";
 import { ProductsPainel } from "./_components/products-panel";
 import { ModifierGroupsPainel } from "./_components/modifier-groups-panel";
+import { CategoriesPanel } from "./_components/categories-panel";
 
 export default function MenuPage() {
   const { data: branchData } = useBranchSettings();
@@ -82,6 +83,7 @@ export default function MenuPage() {
       <Tabs defaultValue="products">
         <TabsList>
           <TabsTrigger value="products">Produtos</TabsTrigger>
+          <TabsTrigger value="categories">Categorias</TabsTrigger>
           <TabsTrigger value="modifiers">Modificadores</TabsTrigger>
         </TabsList>
         <TabsContent value="products">
@@ -91,6 +93,11 @@ export default function MenuPage() {
             allModifierGroups={modifierGroups ?? []}
             isLoading={isLoading}
           />
+        </TabsContent>
+        <TabsContent value="categories">
+          <div className="mt-4">
+            <CategoriesPanel categories={categories ?? []} />
+          </div>
         </TabsContent>
         <TabsContent value="modifiers">
           <ModifierGroupsPainel />
