@@ -945,4 +945,29 @@ menu.delete(
   },
 );
 
+const reorderItemsSchema = z.object({
+  items: z.array(z.object({ id: z.string().uuid(), sortOrder: z.number().int().min(0) })).min(1),
+});
+
+menu.patch(
+  "/items/reorder",
+  requirePermission("menu:write"),
+  zValidator("json", reorderItemsSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { items } = c.req.valid("json");
+
+    await Promise.all(
+      items.map(({ id, sortOrder }) =>
+        db
+          .update(schema.menuItems)
+          .set({ sort_order: sortOrder, updated_at: new Date() })
+          .where(and(eq(schema.menuItems.id, id), eq(schema.menuItems.branch_id, tenant.branchId))),
+      ),
+    );
+
+    return c.json({ success: true });
+  },
+);
+
 export { menu };

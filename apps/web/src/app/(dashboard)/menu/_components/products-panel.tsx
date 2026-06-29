@@ -113,14 +113,10 @@ export function ProductsPainel({
   };
 
   const handleSaveOrder = async (ordered: { id: string; sortOrder: number }[]) => {
-    await Promise.all(
-      ordered.map(({ id, sortOrder }) =>
-        apiFetch(`/api/menu/items/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ sortOrder }),
-        }),
-      ),
-    );
+    await apiFetch("/api/menu/items/reorder", {
+      method: "PATCH",
+      body: JSON.stringify({ items: ordered }),
+    });
     await qc.invalidateQueries({ queryKey: ["menu"] });
     setReorderMode(false);
     toast.success("Ordem do cardápio salva");
