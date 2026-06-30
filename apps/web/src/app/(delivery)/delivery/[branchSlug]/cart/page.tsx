@@ -193,7 +193,7 @@ export default function DeliveryCartPage({
             }`}
           >
             <Bike className="h-5 w-5" />
-            <span className="font-medium">Entrega</span>
+            <span className="font-medium">Entrega no lar</span>
             <span className="text-[11px]">
               {zones.length > 0 ? "A partir de " : "+ "}{formatCurrency(zones.length > 0 ? Math.min(...zones.map((z) => z.fee_cents)) : deliveryFee, currency)}
             </span>
@@ -208,9 +208,9 @@ export default function DeliveryCartPage({
             }`}
           >
             <ShoppingBag className="h-5 w-5" />
-            <span className="font-medium">Retirada</span>
+            <span className="font-medium">Retirada Presencial</span>
             <span className="text-[11px] font-semibold text-[#5C7A5F]">
-              Sem taxa
+              Oportunidade para prestigiar nossa feira Orgânica
             </span>
           </button>
         </div>
