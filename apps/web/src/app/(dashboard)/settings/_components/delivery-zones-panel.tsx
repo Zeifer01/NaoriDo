@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@restai/ui/components/button";
 import { Input } from "@restai/ui/components/input";
 import { apiFetch } from "@/lib/fetcher";
@@ -20,18 +20,49 @@ interface DeliveryZone {
 function ZoneRow({
   zone,
   currency,
+  isFirst,
+  isLast,
   onEdit,
   onDelete,
   onToggle,
+  onMoveUp,
+  onMoveDown,
 }: {
   zone: DeliveryZone;
   currency: string;
+  isFirst: boolean;
+  isLast: boolean;
   onEdit: (zone: DeliveryZone) => void;
   onDelete: (id: string) => void;
   onToggle: (id: string, active: boolean) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+      {/* reorder arrows */}
+      <div className="flex flex-col shrink-0">
+        <button
+          type="button"
+          onClick={onMoveUp}
+          disabled={isFirst}
+          className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-default rounded"
+          title="Mover para cima"
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onMoveDown}
+          disabled={isLast}
+          className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20 disabled:cursor-default rounded"
+          title="Mover para baixo"
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* active toggle */}
       <button
         type="button"
         onClick={() => onToggle(zone.id, !zone.is_active)}
@@ -40,6 +71,7 @@ function ZoneRow({
         }`}
         title={zone.is_active ? "Desativar" : "Ativar"}
       />
+
       <span className={`flex-1 text-sm ${!zone.is_active ? "text-muted-foreground line-through" : ""}`}>
         {zone.name}
       </span>
@@ -149,7 +181,7 @@ export function DeliveryZonesPanel({ currency }: { currency: string }) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; feeCents?: number; isActive?: boolean }) =>
+    mutationFn: ({ id, ...data }: { id: string; name?: string; feeCents?: number; isActive?: boolean; sortOrder?: number }) =>
       apiFetch(`/api/settings/delivery-zones/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
@@ -164,6 +196,31 @@ export function DeliveryZonesPanel({ currency }: { currency: string }) {
     onSuccess: () => { invalidate(); toast.success("Zona removida"); },
     onError: () => toast.error("Erro ao remover zona"),
   });
+
+  const handleMove = async (index: number, direction: "up" | "down") => {
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= zones.length) return;
+
+    // Use index-based sort_orders (multiples of 10) so equal sort_orders nunca travam a reordenação
+    const newOrder = [...zones];
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex]!, newOrder[index]!];
+
+    try {
+      await Promise.all([
+        apiFetch(`/api/settings/delivery-zones/${newOrder[index]!.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ sortOrder: index * 10 }),
+        }),
+        apiFetch(`/api/settings/delivery-zones/${newOrder[swapIndex]!.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ sortOrder: swapIndex * 10 }),
+        }),
+      ]);
+      await invalidate();
+    } catch {
+      toast.error("Erro ao reordenar zonas");
+    }
+  };
 
   const isMutating = createMutation.isPending || updateMutation.isPending;
 
@@ -191,7 +248,7 @@ export function DeliveryZonesPanel({ currency }: { currency: string }) {
       )}
 
       <div className="space-y-1.5">
-        {zones.map((zone) =>
+        {zones.map((zone, idx) =>
           editingId === zone.id ? (
             <ZoneForm
               key={zone.id}
@@ -206,9 +263,13 @@ export function DeliveryZonesPanel({ currency }: { currency: string }) {
               key={zone.id}
               zone={zone}
               currency={currency}
+              isFirst={idx === 0}
+              isLast={idx === zones.length - 1}
               onEdit={() => setEditingId(zone.id)}
               onDelete={(id) => deleteMutation.mutate(id)}
               onToggle={(id, active) => updateMutation.mutate({ id, isActive: active })}
+              onMoveUp={() => handleMove(idx, "up")}
+              onMoveDown={() => handleMove(idx, "down")}
             />
           ),
         )}
