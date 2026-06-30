@@ -289,16 +289,18 @@ export function BranchTab() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="menuDeliveryText">Texto de entrega</Label>
-                    <Input
+                    <textarea
                       id="menuDeliveryText"
+                      rows={2}
                       placeholder={`Entrega · R$ ${branchForm.deliveryFee}`}
                       value={branchForm.menuDeliveryText}
                       onChange={(e) =>
                         setBranchForm({ ...branchForm, menuDeliveryText: e.target.value })
                       }
+                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Se vazio, exibe "Entrega · {"{valor da taxa}"}". Ex: "Frete grátis acima de R$ 100"
+                      Se vazio, exibe "Entrega · {"{valor da taxa}"}". Use Enter para quebrar linha.
                     </p>
                   </div>
                 </div>
