@@ -72,7 +72,7 @@ export default async function DeliveryLandingPage({
 
       {/* Description */}
       <p
-        className="mb-12 max-w-xs text-base leading-relaxed"
+        className="mb-12 max-w-sm text-left text-base leading-relaxed whitespace-pre-line"
         style={{ color: "#6B7268" }}
       >
         {description}
