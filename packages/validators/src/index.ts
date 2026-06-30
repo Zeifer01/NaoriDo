@@ -136,6 +136,7 @@ export const createDeliveryOrderSchema = createOrderSchema
     deliveryPhone: z.string().min(8, "Informe um telefone válido").max(20),
     deliveryAddress: z.string().max(500).optional(),
     deliveryReference: z.string().max(255).optional(),
+    deliveryZoneId: z.string().uuid().optional(),
     paymentMethod: z.enum(["cash", "card", "pix"]).optional(),
   })
   .superRefine((data, ctx) => {
@@ -149,6 +150,16 @@ export const createDeliveryOrderSchema = createOrderSchema
       }
     }
   });
+
+// Delivery zone validators
+export const createDeliveryZoneSchema = z.object({
+  name: z.string().min(1).max(255),
+  feeCents: z.number().int().min(0),
+  isActive: z.boolean().optional().default(true),
+  sortOrder: z.number().int().min(0).optional().default(0),
+});
+
+export const updateDeliveryZoneSchema = createDeliveryZoneSchema.partial();
 
 export const deliveryOrderStatusQuerySchema = z.object({
   phone: z.string().min(8, "Informe o telefone usado no pedido"),

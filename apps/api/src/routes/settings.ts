@@ -2,8 +2,14 @@ import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { db, schema } from "@restai/db";
-import { eq } from "drizzle-orm";
-import { updateOrgSettingsSchema, updateBranchSettingsSchema } from "@restai/validators";
+import { eq, and } from "drizzle-orm";
+import {
+  updateOrgSettingsSchema,
+  updateBranchSettingsSchema,
+  createDeliveryZoneSchema,
+  updateDeliveryZoneSchema,
+} from "@restai/validators";
+import { idParamSchema } from "@restai/validators";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -118,5 +124,77 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     .returning();
   return c.json({ success: true, data: updated });
 });
+
+// --- Delivery Zones ---
+
+settings.get("/delivery-zones", requirePermission("settings:*"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const zones = await db
+    .select()
+    .from(schema.deliveryZones)
+    .where(eq(schema.deliveryZones.branch_id, tenant.branchId))
+    .orderBy(schema.deliveryZones.sort_order, schema.deliveryZones.name);
+  return c.json({ success: true, data: zones });
+});
+
+settings.post(
+  "/delivery-zones",
+  requirePermission("settings:*"),
+  zValidator("json", createDeliveryZoneSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const body = c.req.valid("json");
+    const [zone] = await db
+      .insert(schema.deliveryZones)
+      .values({
+        branch_id: tenant.branchId,
+        organization_id: tenant.organizationId,
+        name: body.name,
+        fee_cents: body.feeCents,
+        is_active: body.isActive ?? true,
+        sort_order: body.sortOrder ?? 0,
+      })
+      .returning();
+    return c.json({ success: true, data: zone }, 201);
+  },
+);
+
+settings.patch(
+  "/delivery-zones/:id",
+  requirePermission("settings:*"),
+  zValidator("param", idParamSchema),
+  zValidator("json", updateDeliveryZoneSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const updateData: any = { updated_at: new Date() };
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.feeCents !== undefined) updateData.fee_cents = body.feeCents;
+    if (body.isActive !== undefined) updateData.is_active = body.isActive;
+    if (body.sortOrder !== undefined) updateData.sort_order = body.sortOrder;
+    const [zone] = await db
+      .update(schema.deliveryZones)
+      .set(updateData)
+      .where(and(eq(schema.deliveryZones.id, id), eq(schema.deliveryZones.branch_id, tenant.branchId)))
+      .returning();
+    if (!zone) return c.json({ success: false, error: { code: "NOT_FOUND", message: "Zona não encontrada" } }, 404);
+    return c.json({ success: true, data: zone });
+  },
+);
+
+settings.delete(
+  "/delivery-zones/:id",
+  requirePermission("settings:*"),
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { id } = c.req.valid("param");
+    await db
+      .delete(schema.deliveryZones)
+      .where(and(eq(schema.deliveryZones.id, id), eq(schema.deliveryZones.branch_id, tenant.branchId)));
+    return c.json({ success: true });
+  },
+);
 
 export { settings };

@@ -9,6 +9,7 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { CURRENCIES, BRAZIL, getDeliveryFeeCents } from "@restai/config";
 import { cn } from "@/lib/utils";
 import { DeliveryMenuLink } from "@/components/delivery-menu-link";
+import { DeliveryZonesPanel } from "./delivery-zones-panel";
 import { useBranchSettings, useUpdateBranch } from "@/hooks/use-settings";
 import { toast } from "sonner";
 
@@ -315,9 +316,11 @@ export function BranchTab() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Valor fixo cobrado em cada pedido de delivery (padrão R$ 12,00)
+                    Valor fixo cobrado em cada pedido de delivery (padrão R$ 12,00). Usado como fallback quando não há zonas cadastradas.
                   </p>
                 </div>
+
+                <DeliveryZonesPanel currency={branchForm.currency} />
 
                 {/* Landing page section */}
                 <div className="rounded-lg border p-4 space-y-4">

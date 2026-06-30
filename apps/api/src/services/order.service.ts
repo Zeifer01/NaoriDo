@@ -43,6 +43,7 @@ interface CreateOrderParams {
   deliveryAddress?: string | null;
   deliveryReference?: string | null;
   paymentMethod?: string | null;
+  deliveryFeeOverrideCents?: number | null;
 }
 
 interface CreateOrderResult {
@@ -70,6 +71,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     deliveryAddress,
     deliveryReference,
     paymentMethod,
+    deliveryFeeOverrideCents,
   } = params;
 
   // Get menu items for price calculation
@@ -158,7 +160,9 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
   const taxRate = branch?.tax_rate ?? 1800;
   const branchSettings = (branch?.settings || {}) as Record<string, unknown>;
   const deliveryFee =
-    type === "delivery" ? getDeliveryFeeCents(branchSettings) : 0;
+    type === "delivery"
+      ? (deliveryFeeOverrideCents ?? getDeliveryFeeCents(branchSettings))
+      : 0;
 
   // Create order + items + coupon redemption in a transaction
   // Coupon validation is INSIDE the transaction to prevent race conditions on current_uses

@@ -42,6 +42,20 @@ async function getActiveBranch(branchSlug: string) {
   return branch;
 }
 
+delivery.get("/:branchSlug/zones", async (c) => {
+  const branchSlug = c.req.param("branchSlug");
+  const branch = await getActiveBranch(branchSlug);
+  if (!branch) {
+    return c.json({ success: true, data: [] });
+  }
+  const zones = await db
+    .select()
+    .from(schema.deliveryZones)
+    .where(and(eq(schema.deliveryZones.branch_id, branch.id), eq(schema.deliveryZones.is_active, true)))
+    .orderBy(schema.deliveryZones.sort_order, schema.deliveryZones.name);
+  return c.json({ success: true, data: zones });
+});
+
 delivery.get("/:branchSlug/menu", async (c) => {
   const branchSlug = c.req.param("branchSlug");
   const branch = await getActiveBranch(branchSlug);
@@ -217,6 +231,24 @@ delivery.post(
     }
 
     const orderType = body.fulfillment === "pickup" ? "takeout" : "delivery";
+
+    // Resolve zone-based delivery fee
+    let deliveryFeeOverrideCents: number | null = null;
+    if (orderType === "delivery" && body.deliveryZoneId) {
+      const [zone] = await db
+        .select({ fee_cents: schema.deliveryZones.fee_cents })
+        .from(schema.deliveryZones)
+        .where(
+          and(
+            eq(schema.deliveryZones.id, body.deliveryZoneId),
+            eq(schema.deliveryZones.branch_id, branch.id),
+            eq(schema.deliveryZones.is_active, true),
+          ),
+        )
+        .limit(1);
+      if (zone) deliveryFeeOverrideCents = zone.fee_cents;
+    }
+
     let result;
     try {
       result = await createOrder({
@@ -232,6 +264,7 @@ delivery.post(
         couponCode: body.couponCode || null,
         redemptionId: body.redemptionId || null,
         paymentMethod: body.paymentMethod || null,
+        deliveryFeeOverrideCents,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

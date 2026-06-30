@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -14,6 +14,12 @@ import { deliveryClasses } from "@/app/(delivery)/_components/delivery-theme";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+interface DeliveryZone {
+  id: string;
+  name: string;
+  fee_cents: number;
+}
 
 type CheckoutForm = {
   customerName: string;
@@ -48,6 +54,20 @@ export default function DeliveryCartPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "pix" | null>(null);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetch(`${API_URL}/api/delivery/${branchSlug}/zones`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data.length > 0) {
+          setZones(res.data);
+          setSelectedZoneId(res.data[0].id);
+        }
+      })
+      .catch(() => {});
+  }, [branchSlug]);
 
   const {
     register,
@@ -65,7 +85,9 @@ export default function DeliveryCartPage({
 
   const subtotal = getSubtotal();
   const tax = getTax(taxRate);
-  const effectiveDeliveryFee = isPickup ? 0 : deliveryFee;
+  const selectedZone = zones.find((z) => z.id === selectedZoneId);
+  const zoneBasedFee = zones.length > 0 ? (selectedZone?.fee_cents ?? zones[0]!.fee_cents) : null;
+  const effectiveDeliveryFee = isPickup ? 0 : (zoneBasedFee ?? deliveryFee);
   const total = getTotal(taxRate) + effectiveDeliveryFee;
 
   const onSubmit = (form: CheckoutForm) => {
@@ -73,6 +95,11 @@ export default function DeliveryCartPage({
 
     if (!paymentMethod) {
       setError("Selecione uma forma de pagamento");
+      return;
+    }
+
+    if (!isPickup && zones.length > 0 && !selectedZoneId) {
+      setError("Selecione sua zona de entrega");
       return;
     }
 
@@ -84,6 +111,7 @@ export default function DeliveryCartPage({
       deliveryReference: isPickup
         ? undefined
         : form.deliveryReference || undefined,
+      deliveryZoneId: (!isPickup && selectedZoneId) ? selectedZoneId : undefined,
       notes: form.notes || undefined,
       paymentMethod,
       items: items.map((item) => ({
@@ -167,7 +195,7 @@ export default function DeliveryCartPage({
             <Bike className="h-5 w-5" />
             <span className="font-medium">Entrega</span>
             <span className="text-[11px]">
-              + {formatCurrency(deliveryFee, currency)} de taxa
+              {zones.length > 0 ? "A partir de " : "+ "}{formatCurrency(zones.length > 0 ? Math.min(...zones.map((z) => z.fee_cents)) : deliveryFee, currency)}
             </span>
           </button>
           <button
@@ -187,6 +215,32 @@ export default function DeliveryCartPage({
           </button>
         </div>
       </div>
+
+      {!isPickup && zones.length > 0 && (
+        <div className={`${deliveryClasses.cardInner} space-y-2`}>
+          <p className="text-sm font-semibold text-[#2F342E]">Zona de entrega</p>
+          <p className="text-xs text-[#6B7268]">Selecione seu bairro para calcular o frete</p>
+          <div className="space-y-1.5">
+            {zones.map((zone) => (
+              <button
+                key={zone.id}
+                type="button"
+                onClick={() => setSelectedZoneId(zone.id)}
+                className={`w-full flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition ${
+                  selectedZoneId === zone.id
+                    ? "border-[#5C7A5F] bg-[#EDF3E8] text-[#2F342E]"
+                    : "border-[#E5DFD4] bg-white text-[#6B7268]"
+                }`}
+              >
+                <span className="font-medium">{zone.name}</span>
+                <span className={`font-semibold ${selectedZoneId === zone.id ? "text-[#5C7A5F]" : ""}`}>
+                  {formatCurrency(zone.fee_cents, currency)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         {items.map((item) => {
@@ -255,10 +309,10 @@ export default function DeliveryCartPage({
         </div>
         <div className="flex justify-between">
           <span className="text-[#6B7268]">
-            {isPickup ? "Retirada" : "Entrega"}
+            {isPickup ? "Retirada" : selectedZone ? selectedZone.name : "Entrega"}
           </span>
           <span className={isPickup ? "font-semibold text-[#5C7A5F]" : ""}>
-            {isPickup ? "Grátis" : formatCurrency(deliveryFee, currency)}
+            {isPickup ? "Grátis" : formatCurrency(effectiveDeliveryFee, currency)}
           </span>
         </div>
         <div className="flex justify-between border-t border-[#F0EBE3] pt-2 text-base font-semibold text-[#2F342E]">

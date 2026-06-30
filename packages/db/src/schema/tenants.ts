@@ -8,6 +8,7 @@ import {
   timestamp,
   jsonb,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { planEnum } from "./enums";
 
@@ -49,4 +50,24 @@ export const branches = pgTable(
   (table) => [
     unique("branches_org_slug_unique").on(table.organization_id, table.slug),
   ],
+);
+
+export const deliveryZones = pgTable(
+  "delivery_zones",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    branch_id: uuid("branch_id")
+      .notNull()
+      .references(() => branches.id, { onDelete: "cascade" }),
+    organization_id: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 255 }).notNull(),
+    fee_cents: integer("fee_cents").notNull().default(0),
+    is_active: boolean("is_active").default(true).notNull(),
+    sort_order: integer("sort_order").default(0).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("delivery_zones_branch_idx").on(table.branch_id)],
 );
