@@ -216,7 +216,7 @@ export default function DeliveryMenuPage({
             <p className="mt-1 text-sm leading-relaxed text-[#6B7268]">
               {menuSubtitle}
             </p>
-            <p className="mt-2 inline-flex items-center rounded-full bg-white/60 px-3 py-1 text-xs text-[#5C6356] ring-1 ring-[#E8EFE4]">
+            <p className="mt-2 inline-flex items-center rounded-full bg-white/60 px-3 py-1 text-xs text-[#5C6356] ring-1 ring-[#E8EFE4] whitespace-pre-line">
               {deliveryText}
             </p>
           </div>
