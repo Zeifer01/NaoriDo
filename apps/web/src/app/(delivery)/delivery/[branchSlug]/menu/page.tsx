@@ -156,13 +156,20 @@ export default function DeliveryMenuPage({
       .reduce((sum, i) => sum + i.quantity, 0);
 
   const handleQuickAdd = (item: MenuItem) => {
-    addItem({
-      menuItemId: item.id,
-      name: item.name,
-      unitPrice: item.price,
-      quantity: 1,
-      modifiers: [],
-    });
+    const existingLine = items.find(
+      (i) => i.menuItemId === item.id && i.modifiers.length === 0,
+    );
+    if (existingLine) {
+      updateQuantity(existingLine.lineId, existingLine.quantity + 1);
+    } else {
+      addItem({
+        menuItemId: item.id,
+        name: item.name,
+        unitPrice: item.price,
+        quantity: 1,
+        modifiers: [],
+      });
+    }
   };
 
   const cartCount = getItemCount();
@@ -354,14 +361,14 @@ export default function DeliveryMenuPage({
                         <button
                           type="button"
                           aria-label="Remover um"
-                          className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#5C7A5F] shadow-sm transition active:scale-95"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#5C7A5F] shadow-sm transition active:scale-95 touch-manipulation"
                           onClick={() => {
                             const line = items.find(
                               (i) =>
                                 i.menuItemId === item.id &&
                                 i.modifiers.length === 0,
                             );
-                            if (line) updateQuantity(line.lineId, qty - 1);
+                            if (line) updateQuantity(line.lineId, line.quantity - 1);
                           }}
                         >
                           <Minus className="h-4 w-4" />
@@ -372,7 +379,7 @@ export default function DeliveryMenuPage({
                         <button
                           type="button"
                           aria-label="Adicionar um"
-                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#7A9B7E] text-white shadow-sm transition active:scale-95"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#7A9B7E] text-white shadow-sm transition active:scale-95 touch-manipulation"
                           onClick={() => handleQuickAdd(item)}
                         >
                           <Plus className="h-4 w-4" />
