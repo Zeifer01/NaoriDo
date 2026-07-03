@@ -263,12 +263,12 @@ export default function DeliveryProductPage({
         </div>
       ))}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#EDE8DF] bg-[#FAF7F2]/95 px-4 py-3 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#EDE8DF] bg-[#FAF7F2] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <div className="flex items-center rounded-2xl bg-[#EDF3E8] px-1 py-1">
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#5C7A5F] shadow-sm"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#5C7A5F] shadow-sm touch-manipulation"
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
             >
               <Minus className="h-4 w-4" />
@@ -276,7 +276,7 @@ export default function DeliveryProductPage({
             <span className="w-10 text-center font-semibold">{quantity}</span>
             <button
               type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#5C7A5F] shadow-sm"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#5C7A5F] shadow-sm touch-manipulation"
               onClick={() => setQuantity(quantity + 1)}
             >
               <Plus className="h-4 w-4" />

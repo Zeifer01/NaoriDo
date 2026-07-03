@@ -274,7 +274,7 @@ export default function DeliveryCartPage({
                   <div className="flex items-center gap-2 rounded-full bg-[#EDF3E8] px-1 py-1">
                     <button
                       type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#5C7A5F] shadow-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#5C7A5F] shadow-sm touch-manipulation"
                       onClick={() => updateQuantity(item.lineId, item.quantity - 1)}
                     >
                       <Minus className="h-4 w-4" />
@@ -282,7 +282,7 @@ export default function DeliveryCartPage({
                     <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
                     <button
                       type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7A9B7E] text-white shadow-sm"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7A9B7E] text-white shadow-sm touch-manipulation"
                       onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
                     >
                       <Plus className="h-4 w-4" />
