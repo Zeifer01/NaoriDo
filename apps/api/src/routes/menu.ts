@@ -76,6 +76,7 @@ menu.post(
 // PATCH /categories/reorder — must come before /categories/:id to avoid "reorder" being treated as UUID
 const reorderCategoriesSchema = z.object({
   categories: z.array(z.object({ id: z.string().uuid(), sortOrder: z.number().int().min(0) })).min(1),
+  allProductsSortOrder: z.number().int().min(0).optional(),
 });
 
 menu.patch(
@@ -84,16 +85,33 @@ menu.patch(
   zValidator("json", reorderCategoriesSchema),
   async (c) => {
     const tenant = c.get("tenant") as any;
-    const { categories } = c.req.valid("json");
+    const { categories, allProductsSortOrder } = c.req.valid("json");
 
-    await Promise.all(
-      categories.map(({ id, sortOrder }) =>
-        db
-          .update(schema.menuCategories)
-          .set({ sort_order: sortOrder, updated_at: new Date() })
-          .where(and(eq(schema.menuCategories.id, id), eq(schema.menuCategories.branch_id, tenant.branchId))),
-      ),
+    const ops: Promise<unknown>[] = categories.map(({ id, sortOrder }) =>
+      db
+        .update(schema.menuCategories)
+        .set({ sort_order: sortOrder, updated_at: new Date() })
+        .where(and(eq(schema.menuCategories.id, id), eq(schema.menuCategories.branch_id, tenant.branchId))),
     );
+
+    if (allProductsSortOrder !== undefined) {
+      ops.push(
+        db
+          .select({ settings: schema.branches.settings })
+          .from(schema.branches)
+          .where(eq(schema.branches.id, tenant.branchId))
+          .limit(1)
+          .then(([existing]) => {
+            const current = (existing?.settings as Record<string, unknown>) || {};
+            return db
+              .update(schema.branches)
+              .set({ settings: { ...current, all_products_tab_sort_order: allProductsSortOrder }, updated_at: new Date() })
+              .where(eq(schema.branches.id, tenant.branchId));
+          }),
+      );
+    }
+
+    await Promise.all(ops);
 
     return c.json({ success: true });
   },

@@ -96,7 +96,14 @@ export default function MenuPage() {
         </TabsContent>
         <TabsContent value="categories">
           <div className="mt-4">
-            <CategoriesPanel categories={categories ?? []} />
+            <CategoriesPanel
+              categories={categories ?? []}
+              allProductsSortOrder={
+                typeof branchData?.settings?.all_products_tab_sort_order === "number"
+                  ? branchData.settings.all_products_tab_sort_order
+                  : null
+              }
+            />
           </div>
         </TabsContent>
         <TabsContent value="modifiers">

@@ -22,6 +22,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/fetcher";
 import { toast } from "sonner";
 
+const ALL_ID = "__all__";
+
 interface Category {
   id: string;
   name: string;
@@ -29,9 +31,16 @@ interface Category {
   is_active?: boolean;
 }
 
-function SortableCategory({ cat }: { cat: Category }) {
+interface SortableItem {
+  id: string;
+  name: string;
+  isAll?: boolean;
+  is_active?: boolean;
+}
+
+function SortableCategory({ item }: { item: SortableItem }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: cat.id });
+    useSortable({ id: item.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -44,7 +53,11 @@ function SortableCategory({ cat }: { cat: Category }) {
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 shadow-sm"
+      className={`flex items-center gap-3 rounded-lg border px-3 py-3 shadow-sm ${
+        item.isAll
+          ? "border-dashed border-muted-foreground/30 bg-muted/40"
+          : "border-border bg-card"
+      }`}
     >
       <button
         type="button"
@@ -55,9 +68,11 @@ function SortableCategory({ cat }: { cat: Category }) {
       >
         <GripVertical className="h-5 w-5" />
       </button>
-      <div className="h-2 w-2 rounded-full bg-primary/60 shrink-0" />
-      <p className="flex-1 text-sm font-medium">{cat.name}</p>
-      {cat.is_active === false && (
+      <div className={`h-2 w-2 rounded-full shrink-0 ${item.isAll ? "bg-muted-foreground/40" : "bg-primary/60"}`} />
+      <p className={`flex-1 text-sm font-medium ${item.isAll ? "text-muted-foreground italic" : ""}`}>
+        {item.name}
+      </p>
+      {item.is_active === false && (
         <span className="text-xs text-muted-foreground">inativa</span>
       )}
     </div>
@@ -66,14 +81,27 @@ function SortableCategory({ cat }: { cat: Category }) {
 
 interface CategoriesPanelProps {
   categories: Category[];
+  allProductsSortOrder?: number | null;
 }
 
-export function CategoriesPanel({ categories }: CategoriesPanelProps) {
+export function CategoriesPanel({ categories, allProductsSortOrder }: CategoriesPanelProps) {
   const qc = useQueryClient();
-  const [ordered, setOrdered] = useState<Category[]>(() =>
-    [...categories].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
-  );
   const [saving, setSaving] = useState(false);
+
+  const buildOrdered = (): SortableItem[] => {
+    const sorted: SortableItem[] = [...categories]
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((c) => ({ id: c.id, name: c.name, is_active: c.is_active }));
+
+    const allItem: SortableItem = { id: ALL_ID, name: "Todos os produtos", isAll: true };
+    const insertAt = allProductsSortOrder != null
+      ? Math.min(allProductsSortOrder, sorted.length)
+      : sorted.length;
+    sorted.splice(insertAt, 0, allItem);
+    return sorted;
+  };
+
+  const [ordered, setOrdered] = useState<SortableItem[]>(buildOrdered);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -92,10 +120,16 @@ export function CategoriesPanel({ categories }: CategoriesPanelProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const allIndex = ordered.findIndex((c) => c.id === ALL_ID);
+      const realCategories = ordered
+        .filter((c) => c.id !== ALL_ID)
+        .map((cat, idx) => ({ id: cat.id, sortOrder: idx + (idx >= allIndex ? 1 : 0) }));
+
       await apiFetch("/api/menu/categories/reorder", {
         method: "PATCH",
         body: JSON.stringify({
-          categories: ordered.map((cat, idx) => ({ id: cat.id, sortOrder: idx + 1 })),
+          categories: realCategories.map((c, idx) => ({ id: c.id, sortOrder: idx + 1 })),
+          allProductsSortOrder: allIndex,
         }),
       });
       await qc.invalidateQueries({ queryKey: ["categories"] });
@@ -119,7 +153,7 @@ export function CategoriesPanel({ categories }: CategoriesPanelProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Arraste para definir a ordem das categorias no cardápio. "Todos os produtos" aparece sempre no final.
+          Arraste para definir a ordem das abas no cardápio, incluindo "Todos os produtos".
         </p>
         <Button size="sm" onClick={handleSave} disabled={saving} className="shrink-0">
           {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
@@ -130,8 +164,8 @@ export function CategoriesPanel({ categories }: CategoriesPanelProps) {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={ordered.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-1.5">
-            {ordered.map((cat) => (
-              <SortableCategory key={cat.id} cat={cat} />
+            {ordered.map((item) => (
+              <SortableCategory key={item.id} item={item} />
             ))}
           </div>
         </SortableContext>

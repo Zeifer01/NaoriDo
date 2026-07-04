@@ -248,33 +248,43 @@ export default function DeliveryMenuPage({
         <div className="sticky top-0 z-20 border-b border-[#EDE8DF]/80 backdrop-blur-md" style={{ backgroundColor: `color-mix(in srgb, ${activeBg} 90%, transparent)`, transition: "background-color 0.3s ease" }}>
           <div className="mx-auto max-w-lg px-4 py-3">
             <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {sortedCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setActiveCategory(cat.id)}
-                  className={cn(
-                    "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
-                    activeCategory === cat.id
-                      ? "bg-[#7A9B7E] text-white shadow-sm"
-                      : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
-                  )}
-                >
-                  {cat.name}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setActiveCategory(ALL_PRODUCTS)}
-                className={cn(
-                  "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
-                  activeCategory === ALL_PRODUCTS
-                    ? "bg-[#7A9B7E] text-white shadow-sm"
-                    : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
-                )}
-              >
-                Todos os produtos
-              </button>
+              {(() => {
+                const allProductsIndex =
+                  typeof menuData.branch.all_products_tab_sort_order === "number"
+                    ? Math.min(menuData.branch.all_products_tab_sort_order, sortedCategories.length)
+                    : sortedCategories.length;
+                const allBtn = (
+                  <button
+                    key={ALL_PRODUCTS}
+                    type="button"
+                    onClick={() => setActiveCategory(ALL_PRODUCTS)}
+                    className={cn(
+                      "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
+                      activeCategory === ALL_PRODUCTS
+                        ? "bg-[#7A9B7E] text-white shadow-sm"
+                        : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
+                    )}
+                  >
+                    Todos os produtos
+                  </button>
+                );
+                const catBtns = sortedCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={cn(
+                      "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
+                      activeCategory === cat.id
+                        ? "bg-[#7A9B7E] text-white shadow-sm"
+                        : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
+                    )}
+                  >
+                    {cat.name}
+                  </button>
+                ));
+                return [...catBtns.slice(0, allProductsIndex), allBtn, ...catBtns.slice(allProductsIndex)];
+              })()}
             </div>
           </div>
         </div>

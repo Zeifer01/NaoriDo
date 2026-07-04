@@ -135,6 +135,7 @@ delivery.get("/:branchSlug/menu", async (c) => {
         menu_display_name: (settings.menu_display_name as string) || null,
         menu_subtitle: (settings.menu_subtitle as string) || null,
         menu_delivery_text: (settings.menu_delivery_text as string) || null,
+        all_products_tab_sort_order: typeof settings.all_products_tab_sort_order === "number" ? settings.all_products_tab_sort_order : null,
       },
       landing: {
         enabled: settings.landing_enabled === true,
