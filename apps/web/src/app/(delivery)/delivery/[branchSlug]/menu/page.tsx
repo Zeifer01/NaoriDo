@@ -43,6 +43,7 @@ interface MenuData {
     menu_display_name?: string | null;
     menu_subtitle?: string | null;
     menu_delivery_text?: string | null;
+    all_products_tab_sort_order?: number | null;
   };
   categories: Category[];
   items: MenuItem[];
