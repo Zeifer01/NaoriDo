@@ -15,10 +15,13 @@ import {
   AlertTriangle,
   CreditCard,
   Loader2,
+  MapPin,
   Minus,
+  Phone,
   Plus,
   Search,
   Trash2,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
@@ -52,11 +55,10 @@ export function EditOrderSheet({ orderId, onOpenChange }: EditOrderSheetProps) {
         <div className="p-6">
           <SheetHeader>
             <SheetTitle>
-              Editar pedido {orderData ? `#${orderData.order_number}` : ""}
+              Pedido {orderData ? `#${orderData.order_number}` : ""}
             </SheetTitle>
             <SheetDescription>
-              Adicione, ajuste ou remova itens. Mudanças notificam a cozinha em
-              tempo real.
+              Detalhes, itens e pagamento do pedido.
             </SheetDescription>
           </SheetHeader>
 
@@ -81,8 +83,77 @@ function EditOrderContent({ order }: { order: any }) {
   const isPaid = order.payment_status === "paid";
   const isPartial = order.payment_status === "partial";
 
+  const orderTypeLabel: Record<string, string> = {
+    dine_in: "Mesa",
+    takeout: "Retirada",
+    delivery: "Entrega",
+  };
+
+  const paymentMethodLabel: Record<string, string> = {
+    cash: "Dinheiro",
+    card: "Cartão",
+    pix: "PIX",
+  };
+
+  const hasInfo =
+    order.customer_name ||
+    order.delivery_phone ||
+    order.delivery_address ||
+    order.notes ||
+    order.type;
+
   return (
     <div className="mt-4 space-y-4">
+      {hasInfo && (
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+          {order.type && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {orderTypeLabel[order.type] ?? order.type}
+              </span>
+              {order.table_number != null && (
+                <span>· Mesa {order.table_number}</span>
+              )}
+            </div>
+          )}
+          {order.customer_name && (
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span>{order.customer_name}</span>
+            </div>
+          )}
+          {order.delivery_phone && (
+            <div className="flex items-center gap-2">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span>{order.delivery_phone}</span>
+            </div>
+          )}
+          {order.delivery_address && (
+            <div className="flex items-start gap-2">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+              <div>
+                <p>{order.delivery_address}</p>
+                {order.delivery_reference && (
+                  <p className="text-xs text-muted-foreground">{order.delivery_reference}</p>
+                )}
+              </div>
+            </div>
+          )}
+          {order.payment_method && (
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span>{paymentMethodLabel[order.payment_method] ?? order.payment_method}</span>
+            </div>
+          )}
+          {order.notes && (
+            <div className="flex items-start gap-2 pt-1 border-t">
+              <span className="text-muted-foreground text-xs">Obs:</span>
+              <span className="text-xs italic">{order.notes}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {nonEditable && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm">
           <AlertTriangle className="mt-0.5 h-4 w-4 text-destructive shrink-0" />
@@ -145,17 +216,6 @@ function EditOrderContent({ order }: { order: any }) {
 
       {!nonEditable && (
         <AddItemPicker orderId={order.id} branchId={order.branch_id} />
-      )}
-
-      {order.payment_method && (
-        <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-sm">
-          <span className="text-muted-foreground">Pagamento preferido</span>
-          <span className="font-medium">
-            {order.payment_method === "cash" ? "💵 Dinheiro" :
-             order.payment_method === "card" ? "💳 Cartão" :
-             order.payment_method === "pix"  ? "PIX" : order.payment_method}
-          </span>
-        </div>
       )}
 
       <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
