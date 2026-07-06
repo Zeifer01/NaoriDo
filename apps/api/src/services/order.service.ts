@@ -812,7 +812,9 @@ async function recalculateOrderTotals(
  * Ajusta estoque incrementalmente para uma variação de quantidade de um item.
  * delta > 0 = mais unidades vendidas (deduz estoque)
  * delta < 0 = menos unidades vendidas (devolve estoque)
- * Só faz efeito se o branch tem inventory_enabled e o order já foi inventory_deducted.
+ * Só faz efeito se o branch tem inventory_enabled. Não depende de
+ * inventory_deducted — edições em pedidos históricos (feira, pedidos
+ * criados com inventário desativado) também atualizam o estoque corretamente.
  */
 async function adjustInventoryForItem(params: {
   branchId: string;
@@ -822,7 +824,7 @@ async function adjustInventoryForItem(params: {
   itemSnapshotName: string;
   delta: number;
 }): Promise<void> {
-  const { branchId, orderId, orderNumber, menuItemId, itemSnapshotName, delta } = params;
+  const { branchId, orderId: _orderId, orderNumber, menuItemId, itemSnapshotName, delta } = params;
   if (delta === 0) return;
 
   const [branch] = await db
@@ -835,13 +837,6 @@ async function adjustInventoryForItem(params: {
     "inventory_enabled"
   ];
   if (!inventoryEnabled) return;
-
-  const [order] = await db
-    .select({ inventory_deducted: schema.orders.inventory_deducted })
-    .from(schema.orders)
-    .where(eq(schema.orders.id, orderId))
-    .limit(1);
-  if (!order?.inventory_deducted) return;
 
   const recipeIngredients = await db
     .select()
