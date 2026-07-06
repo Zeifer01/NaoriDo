@@ -131,8 +131,7 @@ export default function OrdersPage() {
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
 
-      const res = await apiFetch(`/api/orders/export?${params.toString()}`);
-      const orders: any[] = (res as any)?.data ?? [];
+      const orders: any[] = await apiFetch(`/api/orders/export?${params.toString()}`);
 
       const statusLabel: Record<string, string> = {
         pending: "Pendente", confirmed: "Confirmado", preparing: "Preparando",
