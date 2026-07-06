@@ -7,8 +7,7 @@ import { useOrders, useUpdateOrderStatus, useDeleteOrder, useResetOrderSequence 
 import { useOrgSettings, useBranchSettings } from "@/hooks/use-settings";
 import { usePrintReceipt } from "@/components/print-ticket";
 import { apiFetch } from "@/lib/fetcher";
-import { downloadCsv } from "@/lib/csv";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { downloadXlsx } from "@/lib/export-xlsx";
 import { PageHeader } from "@/components/page-header";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { OrderFilters } from "./_components/order-filters";
@@ -155,31 +154,32 @@ export default function OrdersPage() {
         const items: any[] = o.items ?? [];
         const itemsSummary = items
           .map((i: any) => `${i.quantity}x ${i.name}${i.notes ? ` (${i.notes})` : ""}`)
-          .join("; ");
-        const totalPaid = o.total_paid ?? 0;
+          .join("\r\n");
+
         return [
-          o.order_number ?? o.id,
-          o.created_at ? formatDate(o.created_at) : "",
+          typeof o.order_number === "number" ? o.order_number : Number(o.order_number) || o.id,
+          o.created_at ? new Date(o.created_at) : null,
           statusLabel[o.status] ?? o.status,
-          typeLabel[o.type] ?? o.type ?? "",
-          o.table_number != null ? `Mesa ${o.table_number}` : "",
-          o.customer_name ?? "",
-          o.delivery_phone ?? "",
-          o.delivery_address ?? "",
-          o.delivery_reference ?? "",
-          o.payment_method ? (payLabel[o.payment_method] ?? o.payment_method) : "",
-          ((o.subtotal ?? 0) / 100).toFixed(2),
-          ((o.delivery_fee ?? 0) / 100).toFixed(2),
-          ((o.discount ?? 0) / 100).toFixed(2),
-          ((o.total ?? 0) / 100).toFixed(2),
-          (totalPaid / 100).toFixed(2),
-          o.notes ?? "",
-          itemsSummary,
+          typeLabel[o.type] ?? o.type ?? null,
+          o.table_number != null ? `Mesa ${o.table_number}` : null,
+          o.customer_name ?? null,
+          o.delivery_phone ?? null,
+          o.delivery_address ?? null,
+          o.delivery_reference ?? null,
+          o.payment_method ? (payLabel[o.payment_method] ?? o.payment_method) : null,
+          (o.subtotal ?? 0) / 100,
+          (o.delivery_fee ?? 0) / 100,
+          (o.discount ?? 0) / 100,
+          (o.total ?? 0) / 100,
+          (o.total_paid ?? 0) / 100,
+          o.notes ?? null,
+          itemsSummary || null,
         ];
       });
 
+      const colWidths = [10, 18, 12, 10, 8, 28, 16, 35, 20, 16, 14, 16, 12, 14, 14, 30, 50];
       const dateStr = new Date().toISOString().slice(0, 10);
-      downloadCsv(`pedidos_${dateStr}.csv`, headers, rows);
+      downloadXlsx(`pedidos_${dateStr}.xlsx`, "Pedidos", headers, rows, colWidths);
     } catch {
       // silent — user can retry
     } finally {
@@ -211,7 +211,7 @@ export default function OrdersPage() {
           <div className="flex gap-2">
             <Button variant="outline" disabled={exportLoading} onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
-              {exportLoading ? "Exportando..." : "Exportar CSV"}
+              {exportLoading ? "Exportando..." : "Exportar Excel"}
             </Button>
             <Button variant="outline" onClick={() => setResetSequenceOpen(true)}>
               <RotateCcw className="h-4 w-4 mr-2" />

@@ -5,7 +5,7 @@ import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
 import { Download, Plus, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { cn, formatCurrency, formatQuantity } from "@/lib/utils";
-import { downloadCsv } from "@/lib/csv";
+import { downloadXlsx } from "@/lib/export-xlsx";
 import { SearchInput } from "@/components/search-input";
 
 function Skeleton({ className }: { className?: string }) {
@@ -51,15 +51,16 @@ export function ItemsTab({
       return [
         item.name,
         item.unit,
-        stock.toString().replace(".", ","),
-        minStock.toString().replace(".", ","),
-        cost.toFixed(2).replace(".", ","),
-        stockValue.toFixed(2).replace(".", ","),
+        stock,
+        minStock,
+        cost,
+        stockValue,
         isLow ? "Baixo" : "OK",
       ];
     });
+    const colWidths = [32, 10, 14, 14, 18, 20, 10];
     const dateStr = new Date().toISOString().slice(0, 10);
-    downloadCsv(`inventario_${dateStr}.csv`, headers, rows);
+    downloadXlsx(`inventario_${dateStr}.xlsx`, "Inventário", headers, rows, colWidths);
   };
 
   return (
@@ -73,7 +74,7 @@ export function ItemsTab({
         />
         <Button variant="outline" onClick={handleExport} disabled={items.length === 0}>
           <Download className="h-4 w-4 mr-2" />
-          Exportar CSV
+          Exportar Excel
         </Button>
         <Button onClick={onNewItem}>
           <Plus className="h-4 w-4 mr-2" />
