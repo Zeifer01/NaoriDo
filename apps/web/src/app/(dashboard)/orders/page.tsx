@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { Button } from "@restai/ui/components/button";
-import { RefreshCw, RotateCcw } from "lucide-react";
+import { Download, RefreshCw, RotateCcw } from "lucide-react";
 import { useOrders, useUpdateOrderStatus, useDeleteOrder, useResetOrderSequence } from "@/hooks/use-orders";
 import { useOrgSettings, useBranchSettings } from "@/hooks/use-settings";
 import { usePrintReceipt } from "@/components/print-ticket";
 import { apiFetch } from "@/lib/fetcher";
+import { downloadCsv } from "@/lib/csv";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { OrderFilters } from "./_components/order-filters";
@@ -23,6 +25,7 @@ export default function OrdersPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [page, setPage] = useState(1);
+  const [exportLoading, setExportLoading] = useState(false);
   const [chargeOrderId, setChargeOrderId] = useState<string | null>(null);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<any | null>(null);
@@ -120,6 +123,71 @@ export default function OrdersPage() {
     }
   };
 
+  const handleExport = async () => {
+    setExportLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await apiFetch(`/api/orders/export?${params.toString()}`);
+      const orders: any[] = (res as any)?.data ?? [];
+
+      const statusLabel: Record<string, string> = {
+        pending: "Pendente", confirmed: "Confirmado", preparing: "Preparando",
+        ready: "Pronto", served: "Servido", completed: "Concluído", cancelled: "Cancelado",
+      };
+      const typeLabel: Record<string, string> = {
+        dine_in: "Mesa", takeout: "Retirada", delivery: "Entrega",
+      };
+      const payLabel: Record<string, string> = {
+        cash: "Dinheiro", card: "Cartão", pix: "PIX",
+      };
+
+      const headers = [
+        "Nº Pedido", "Data", "Status", "Tipo", "Mesa",
+        "Cliente", "Telefone", "Endereço", "Referência",
+        "Forma de Pagamento", "Subtotal (R$)", "Taxa Entrega (R$)", "Desconto (R$)", "Total (R$)", "Pago (R$)",
+        "Observações", "Itens",
+      ];
+
+      const rows = orders.map((o: any) => {
+        const items: any[] = o.items ?? [];
+        const itemsSummary = items
+          .map((i: any) => `${i.quantity}x ${i.name}${i.notes ? ` (${i.notes})` : ""}`)
+          .join("; ");
+        const totalPaid = o.total_paid ?? 0;
+        return [
+          o.order_number ?? o.id,
+          o.created_at ? formatDate(o.created_at) : "",
+          statusLabel[o.status] ?? o.status,
+          typeLabel[o.type] ?? o.type ?? "",
+          o.table_number != null ? `Mesa ${o.table_number}` : "",
+          o.customer_name ?? "",
+          o.delivery_phone ?? "",
+          o.delivery_address ?? "",
+          o.delivery_reference ?? "",
+          o.payment_method ? (payLabel[o.payment_method] ?? o.payment_method) : "",
+          ((o.subtotal ?? 0) / 100).toFixed(2),
+          ((o.delivery_fee ?? 0) / 100).toFixed(2),
+          ((o.discount ?? 0) / 100).toFixed(2),
+          ((o.total ?? 0) / 100).toFixed(2),
+          (totalPaid / 100).toFixed(2),
+          o.notes ?? "",
+          itemsSummary,
+        ];
+      });
+
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadCsv(`pedidos_${dateStr}.csv`, headers, rows);
+    } catch {
+      // silent — user can retry
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   if (error) {
     return (
       <div className="space-y-6">
@@ -141,10 +209,16 @@ export default function OrdersPage() {
         title="Pedidos"
         description="Gerencie e acompanhe todos os pedidos"
         actions={
-          <Button variant="outline" onClick={() => setResetSequenceOpen(true)}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Reiniciar sequência
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" disabled={exportLoading} onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              {exportLoading ? "Exportando..." : "Exportar CSV"}
+            </Button>
+            <Button variant="outline" onClick={() => setResetSequenceOpen(true)}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reiniciar sequência
+            </Button>
+          </div>
         }
       />
 

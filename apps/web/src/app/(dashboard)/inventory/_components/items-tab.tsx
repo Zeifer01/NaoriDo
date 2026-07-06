@@ -3,8 +3,9 @@
 import { Card, CardContent } from "@restai/ui/components/card";
 import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
-import { Plus, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { Download, Plus, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { cn, formatCurrency, formatQuantity } from "@/lib/utils";
+import { downloadCsv } from "@/lib/csv";
 import { SearchInput } from "@/components/search-input";
 
 function Skeleton({ className }: { className?: string }) {
@@ -36,6 +37,31 @@ export function ItemsTab({
     item.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleExport = () => {
+    const headers = [
+      "Nome", "Unidade", "Estoque Atual", "Estoque Mínimo",
+      "Custo/Unidade (R$)", "Valor em Estoque (R$)", "Status",
+    ];
+    const rows = items.map((item: any) => {
+      const stock = parseFloat(item.current_stock ?? "0");
+      const minStock = parseFloat(item.min_stock ?? "0");
+      const cost = (item.cost_per_unit ?? 0) / 100;
+      const stockValue = stock * cost;
+      const isLow = stock < minStock;
+      return [
+        item.name,
+        item.unit,
+        stock.toString().replace(".", ","),
+        minStock.toString().replace(".", ","),
+        cost.toFixed(2).replace(".", ","),
+        stockValue.toFixed(2).replace(".", ","),
+        isLow ? "Baixo" : "OK",
+      ];
+    });
+    const dateStr = new Date().toISOString().slice(0, 10);
+    downloadCsv(`inventario_${dateStr}.csv`, headers, rows);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
@@ -45,6 +71,10 @@ export function ItemsTab({
           placeholder="Buscar item..."
           className="flex-1"
         />
+        <Button variant="outline" onClick={handleExport} disabled={items.length === 0}>
+          <Download className="h-4 w-4 mr-2" />
+          Exportar CSV
+        </Button>
         <Button onClick={onNewItem}>
           <Plus className="h-4 w-4 mr-2" />
           Novo Item

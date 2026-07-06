@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, sql, getTableColumns, gte, lt } from "drizzle-orm";
+import { eq, and, desc, sql, getTableColumns, gte, lt, inArray } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   createOrderSchema,
@@ -107,6 +107,63 @@ orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuery
     data: enriched,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
+});
+
+// GET /export - All orders with items for CSV/Excel export
+orders.get("/export", requirePermission("orders:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const { status, startDate, endDate } = c.req.query();
+
+  const conditions = [
+    eq(schema.orders.branch_id, tenant.branchId),
+    eq(schema.orders.organization_id, tenant.organizationId),
+  ];
+
+  if (status && status !== "all") {
+    conditions.push(eq(schema.orders.status, status as any));
+  }
+  if (startDate) {
+    conditions.push(gte(schema.orders.created_at, new Date(`${startDate}T00:00:00`)));
+  }
+  if (endDate) {
+    const end = new Date(`${endDate}T00:00:00`);
+    end.setDate(end.getDate() + 1);
+    conditions.push(lt(schema.orders.created_at, end));
+  }
+
+  const allOrders = await db
+    .select({
+      ...getTableColumns(schema.orders),
+      table_number: schema.tables.number,
+      total_paid: sql<number>`COALESCE((SELECT SUM(amount)::int FROM payments WHERE payments.order_id = ${schema.orders.id} AND payments.status = 'completed'), 0)`,
+    })
+    .from(schema.orders)
+    .leftJoin(schema.tableSessions, eq(schema.orders.table_session_id, schema.tableSessions.id))
+    .leftJoin(schema.tables, eq(schema.tableSessions.table_id, schema.tables.id))
+    .where(and(...conditions))
+    .orderBy(desc(schema.orders.created_at));
+
+  const orderIds = allOrders.map((o) => o.id);
+  const allItems = orderIds.length > 0
+    ? await db
+        .select()
+        .from(schema.orderItems)
+        .where(inArray(schema.orderItems.order_id, orderIds))
+    : [];
+
+  const itemsByOrder = new Map<string, typeof allItems>();
+  for (const item of allItems) {
+    const list = itemsByOrder.get(item.order_id) ?? [];
+    list.push(item);
+    itemsByOrder.set(item.order_id, list);
+  }
+
+  const result = allOrders.map((order) => ({
+    ...order,
+    items: itemsByOrder.get(order.id) ?? [],
+  }));
+
+  return c.json({ success: true, data: result });
 });
 
 // POST / - Create order
