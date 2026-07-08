@@ -288,8 +288,8 @@ reports.get(
       purchaseRows.map((r) => [r.itemId, Number(r.purchased || 0)]),
     );
 
-    // Completed orders in range
-    const completedOrders = await db
+    // All non-cancelled orders in range
+    const ordersInRange = await db
       .select({ id: schema.orders.id })
       .from(schema.orders)
       .where(
@@ -297,7 +297,7 @@ reports.get(
           eq(schema.orders.branch_id, tenant.branchId),
           gte(schema.orders.created_at, start),
           lte(schema.orders.created_at, end),
-          eq(schema.orders.status, "completed"),
+          sql`${schema.orders.status} != 'cancelled'`,
         ),
       );
 
@@ -308,8 +308,8 @@ reports.get(
     }[] = [];
     const consumedMap = new Map<string, number>();
 
-    if (completedOrders.length > 0) {
-      const orderIds = completedOrders.map((o) => o.id);
+    if (ordersInRange.length > 0) {
+      const orderIds = ordersInRange.map((o) => o.id);
 
       // Menu items sold (aggregated by name snapshot)
       const soldRows = await db
