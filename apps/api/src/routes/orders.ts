@@ -26,6 +26,7 @@ import {
   OrderNotFoundError,
   OrderValidationError,
   resetBranchOrders,
+  archiveBranchOrderSession,
   addItemToOrder,
   updateOrderItem,
   removeOrderItem,
@@ -239,27 +240,28 @@ orders.post(
   },
 );
 
-// POST /reset-sequence - Delete all branch orders and restart numbering at 1
-orders.post("/reset-sequence", requirePermission("orders:delete"), async (c) => {
+// POST /reset-sequence - Archive current session's order numbers and restart at 1
+// Orders are NEVER deleted. Numeric order_numbers get a session prefix (e.g. "feira1-42").
+orders.post("/reset-sequence", requirePermission("orders:write"), async (c) => {
   const tenant = c.get("tenant") as any;
 
   try {
-    const result = await resetBranchOrders({
+    const result = await archiveBranchOrderSession({
       branchId: tenant.branchId,
-      organizationId: tenant.organizationId,
     });
 
     return c.json({
       success: true,
       data: {
-        deletedCount: result.deletedCount,
-        nextOrderNumber: 1,
+        archivedCount: result.archivedCount,
+        sessionName: result.sessionName,
+        nextSessionName: result.nextSessionName,
       },
     });
   } catch (err) {
-    logger.error("Failed to reset order sequence", { error: (err as Error).message });
+    logger.error("Failed to archive order session", { error: (err as Error).message });
     return c.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Erro ao reiniciar sequência de pedidos" } },
+      { success: false, error: { code: "INTERNAL_ERROR", message: "Erro ao arquivar sessão de pedidos" } },
       500,
     );
   }

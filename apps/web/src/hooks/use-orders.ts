@@ -198,7 +198,7 @@ export function useResetOrderSequence() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<{ deletedCount: number; nextOrderNumber: number }>("/api/orders/reset-sequence", {
+      apiFetch<{ archivedCount: number; sessionName: string; nextSessionName: string }>("/api/orders/reset-sequence", {
         method: "POST",
       }),
     onSuccess: () => {

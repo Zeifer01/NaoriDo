@@ -111,14 +111,14 @@ export default function OrdersPage() {
     try {
       const result = await resetSequence.mutateAsync();
       toast.success(
-        result.deletedCount > 0
-          ? `${result.deletedCount} pedido(s) removido(s). Próximo pedido será #${result.nextOrderNumber}.`
-          : "Sequência reiniciada. Próximo pedido será #1.",
+        result.archivedCount > 0
+          ? `${result.archivedCount} pedido(s) da ${result.sessionName} arquivado(s). Próximos pedidos começam em #1 (${result.nextSessionName}).`
+          : `Sequência reiniciada. Próximos pedidos serão da ${result.nextSessionName}, começando em #1.`,
       );
       setResetSequenceOpen(false);
       setPage(1);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao reiniciar sequência");
+      toast.error(err.message || "Erro ao arquivar sessão");
     }
   };
 
@@ -273,11 +273,11 @@ export default function OrdersPage() {
       <ConfirmDialog
         open={resetSequenceOpen}
         onOpenChange={setResetSequenceOpen}
-        title="Reiniciar sequência de pedidos"
-        description="Isso exclui todos os pedidos desta filial e faz o próximo pedido começar em #1. Use para limpar pedidos de teste antes de operar com clientes reais."
+        title="Arquivar sessão e reiniciar contagem"
+        description="Os pedidos atuais terão seus números arquivados com o prefixo da sessão (ex: feira1-1, feira1-120). Nenhum pedido será apagado ou alterado. A contagem reinicia em #1 para a próxima sessão."
         onConfirm={handleResetSequence}
         loading={resetSequence.isPending}
-        confirmLabel="Reiniciar sequência"
+        confirmLabel="Arquivar e reiniciar"
       />
 
       <PaymentDialog

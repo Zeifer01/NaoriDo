@@ -1,7 +1,7 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
 import { getDeliveryFeeCents } from "@restai/config";
-import { allocateOrderNumber, resetBranchOrderSequence } from "../lib/order-number.js";
+import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
 import { deductForOrder, restoreForOrder } from "./inventory.service.js";
@@ -682,6 +682,15 @@ export async function resetBranchOrders(params: {
   });
 
   return { deletedCount: orderIds.length };
+}
+
+export async function archiveBranchOrderSession(params: {
+  branchId: string;
+}): Promise<{ archivedCount: number; sessionName: string; nextSessionName: string }> {
+  const { branchId } = params;
+  return await db.transaction(async (tx) => {
+    return await archiveCurrentSession(tx, branchId);
+  });
 }
 
 /**
