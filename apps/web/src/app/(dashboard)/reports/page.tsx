@@ -8,6 +8,7 @@ import { Check, Download, RefreshCw } from "lucide-react";
 import {
   useSalesReport,
   useTopItems,
+  useInventoryConsumption,
   type SalesReportDay,
   type PaymentMethodShare,
   type TopItemReport,
@@ -16,6 +17,7 @@ import { ReportStats } from "./_components/report-stats";
 import { SalesChart } from "./_components/sales-chart";
 import { PaymentMethodsChart } from "./_components/payment-methods-chart";
 import { TopItemsList } from "./_components/top-items-list";
+import { InventoryConsumptionReportCard } from "./_components/inventory-consumption-report";
 
 const METHOD_LABELS: Record<string, string> = {
   cash: "Dinheiro",
@@ -114,6 +116,13 @@ export default function ReportsPage() {
     refetch: refetchTopItems,
   } = useTopItems(startDate, endDate, 10);
 
+  const {
+    data: inventoryConsumptionData,
+    isLoading: inventoryConsumptionLoading,
+    isFetching: inventoryConsumptionFetching,
+    refetch: refetchInventoryConsumption,
+  } = useInventoryConsumption(startDate, endDate);
+
   const days: SalesReportDay[] = salesData?.days ?? [];
   const paymentMethods: PaymentMethodShare[] = (salesData?.paymentMethods ?? []).map((pm) => ({
     ...pm,
@@ -128,7 +137,7 @@ export default function ReportsPage() {
 
   const error = salesError || topItemsError;
   const isLoading = salesLoading || topItemsLoading;
-  const isRefreshing = salesFetching || topItemsFetching;
+  const isRefreshing = salesFetching || topItemsFetching || inventoryConsumptionFetching;
   const hasPendingDateChanges =
     draftStartDate !== startDate || draftEndDate !== endDate;
   const invalidDateRange =
@@ -162,6 +171,7 @@ export default function ReportsPage() {
             onClick={() => {
               refetchSales();
               refetchTopItems();
+              refetchInventoryConsumption();
             }}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -213,6 +223,7 @@ export default function ReportsPage() {
             onClick={() => {
               refetchSales();
               refetchTopItems();
+              refetchInventoryConsumption();
             }}
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -294,6 +305,13 @@ export default function ReportsPage() {
       </div>
 
       <TopItemsList topItems={topItems} isLoading={topItemsLoading} />
+
+      <InventoryConsumptionReportCard
+        data={inventoryConsumptionData}
+        isLoading={inventoryConsumptionLoading}
+        startDate={startDate}
+        endDate={endDate}
+      />
     </div>
   );
 }

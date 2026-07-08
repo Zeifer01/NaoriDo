@@ -241,4 +241,129 @@ reports.get(
   },
 );
 
+// GET /inventory-consumption - Cross-report: menu items sold vs inventory consumed/purchased
+reports.get(
+  "/inventory-consumption",
+  requirePermission("reports:read"),
+  zValidator("query", reportQuerySchema),
+  async (c) => {
+    const { startDate, endDate } = c.req.valid("query");
+    const tenant = c.get("tenant") as any;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // All inventory items for this branch
+    const allInventoryItems = await db
+      .select()
+      .from(schema.inventoryItems)
+      .where(eq(schema.inventoryItems.branch_id, tenant.branchId))
+      .orderBy(schema.inventoryItems.name);
+
+    // Purchases (type = 'purchase') in this period
+    const purchaseRows =
+      allInventoryItems.length > 0
+        ? await db
+            .select({
+              itemId: schema.inventoryMovements.item_id,
+              purchased: sum(schema.inventoryMovements.quantity),
+            })
+            .from(schema.inventoryMovements)
+            .where(
+              and(
+                inArray(
+                  schema.inventoryMovements.item_id,
+                  allInventoryItems.map((i) => i.id),
+                ),
+                eq(schema.inventoryMovements.type, "purchase"),
+                gte(schema.inventoryMovements.created_at, start),
+                lte(schema.inventoryMovements.created_at, end),
+              ),
+            )
+            .groupBy(schema.inventoryMovements.item_id)
+        : [];
+
+    const purchaseMap = new Map(
+      purchaseRows.map((r) => [r.itemId, Number(r.purchased || 0)]),
+    );
+
+    // Completed orders in range
+    const completedOrders = await db
+      .select({ id: schema.orders.id })
+      .from(schema.orders)
+      .where(
+        and(
+          eq(schema.orders.branch_id, tenant.branchId),
+          gte(schema.orders.created_at, start),
+          lte(schema.orders.created_at, end),
+          eq(schema.orders.status, "completed"),
+        ),
+      );
+
+    let menuItemsSold: {
+      name: string;
+      quantitySold: number;
+      revenue: number;
+    }[] = [];
+    const consumedMap = new Map<string, number>();
+
+    if (completedOrders.length > 0) {
+      const orderIds = completedOrders.map((o) => o.id);
+
+      // Menu items sold (aggregated by name snapshot)
+      const soldRows = await db
+        .select({
+          name: schema.orderItems.name,
+          quantitySold: sum(schema.orderItems.quantity),
+          revenue: sum(schema.orderItems.total),
+        })
+        .from(schema.orderItems)
+        .where(inArray(schema.orderItems.order_id, orderIds))
+        .groupBy(schema.orderItems.name)
+        .orderBy(desc(sum(schema.orderItems.quantity)));
+
+      menuItemsSold = soldRows.map((r) => ({
+        name: r.name,
+        quantitySold: Number(r.quantitySold || 0),
+        revenue: Number(r.revenue || 0),
+      }));
+
+      // Ingredient consumption = SUM(order_item.quantity * recipe.quantity_used)
+      const consumedRows = await db
+        .select({
+          inventoryItemId: schema.recipeIngredients.inventory_item_id,
+          consumed: sql<string>`SUM(${schema.orderItems.quantity}::numeric * ${schema.recipeIngredients.quantity_used}::numeric)`,
+        })
+        .from(schema.orderItems)
+        .innerJoin(
+          schema.recipeIngredients,
+          eq(schema.orderItems.menu_item_id, schema.recipeIngredients.menu_item_id),
+        )
+        .where(inArray(schema.orderItems.order_id, orderIds))
+        .groupBy(schema.recipeIngredients.inventory_item_id);
+
+      for (const row of consumedRows) {
+        consumedMap.set(row.inventoryItemId, Number(row.consumed || 0));
+      }
+    }
+
+    const inventoryReport = allInventoryItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      unit: item.unit,
+      consumed: consumedMap.get(item.id) ?? 0,
+      purchased: purchaseMap.get(item.id) ?? 0,
+      currentStock: Number(item.current_stock),
+      minStock: Number(item.min_stock),
+      costPerUnit: item.cost_per_unit,
+    }));
+
+    return c.json({
+      success: true,
+      data: { menuItemsSold, inventoryReport },
+    });
+  },
+);
+
 export { reports };

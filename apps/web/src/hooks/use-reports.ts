@@ -41,6 +41,36 @@ export function useSalesReport(startDate?: string, endDate?: string) {
   });
 }
 
+export interface InventoryConsumptionReport {
+  menuItemsSold: { name: string; quantitySold: number; revenue: number }[];
+  inventoryReport: {
+    id: string;
+    name: string;
+    unit: string;
+    consumed: number;
+    purchased: number;
+    currentStock: number;
+    minStock: number;
+    costPerUnit: number;
+  }[];
+}
+
+export function useInventoryConsumption(startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate) params.set("startDate", startDate);
+  if (endDate) params.set("endDate", endDate);
+  const qs = params.toString();
+
+  return useQuery<InventoryConsumptionReport>({
+    queryKey: ["reports", "inventory-consumption", startDate, endDate],
+    queryFn: () =>
+      apiFetch<InventoryConsumptionReport>(
+        `/api/reports/inventory-consumption${qs ? `?${qs}` : ""}`,
+      ),
+    enabled: !!startDate && !!endDate,
+  });
+}
+
 export function useTopItems(startDate?: string, endDate?: string, limit?: number) {
   const params = new URLSearchParams();
   if (startDate) params.set("startDate", startDate);
