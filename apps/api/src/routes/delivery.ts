@@ -42,6 +42,36 @@ async function getActiveBranch(branchSlug: string) {
   return branch;
 }
 
+// Like getActiveBranch but returns even when delivery is disabled (for showing the offline message).
+async function getBranchForMenu(branchSlug: string): Promise<
+  | { branch: typeof schema.branches.$inferSelect; disabled: false }
+  | { branch: typeof schema.branches.$inferSelect; disabled: true; offlineMessage: string }
+  | null
+> {
+  const [branch] = await db
+    .select()
+    .from(schema.branches)
+    .where(eq(schema.branches.slug, branchSlug))
+    .limit(1);
+
+  if (!branch || !branch.is_active) return null;
+
+  const settings = (branch.settings || {}) as Record<string, unknown>;
+  const deliveryEnabled = settings.delivery_enabled !== false;
+
+  if (!deliveryEnabled) {
+    const offlineMessage =
+      (settings.delivery_offline_message as string | undefined) ||
+      "No momento não estamos aceitando pedidos. Em breve voltamos!";
+    return { branch, disabled: true, offlineMessage };
+  }
+
+  const planAllows = await orgHasFeature(branch.organization_id, "delivery");
+  if (!planAllows) return null;
+
+  return { branch, disabled: false };
+}
+
 delivery.get("/:branchSlug/zones", async (c) => {
   const branchSlug = c.req.param("branchSlug");
   const branch = await getActiveBranch(branchSlug);
@@ -58,15 +88,23 @@ delivery.get("/:branchSlug/zones", async (c) => {
 
 delivery.get("/:branchSlug/menu", async (c) => {
   const branchSlug = c.req.param("branchSlug");
-  const branch = await getActiveBranch(branchSlug);
+  const result = await getBranchForMenu(branchSlug);
 
-  if (!branch) {
+  if (!result) {
     return c.json(
-      { success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada ou delivery indisponível" } },
+      { success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } },
       404,
     );
   }
 
+  if (result.disabled) {
+    return c.json(
+      { success: false, error: { code: "DELIVERY_DISABLED", message: result.offlineMessage } },
+      503,
+    );
+  }
+
+  const branch = result.branch;
   const settings = (branch.settings || {}) as Record<string, unknown>;
 
   const [org] = await db

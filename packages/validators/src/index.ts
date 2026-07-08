@@ -363,6 +363,7 @@ export const updateBranchSettingsSchema = z.object({
   menuDisplayName: z.string().max(255).optional(),
   menuSubtitle: z.string().max(255).optional(),
   menuDeliveryText: z.string().max(255).optional(),
+  deliveryOfflineMessage: z.string().max(1000).optional(),
 });
 
 // Query validators for GET endpoints

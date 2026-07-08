@@ -90,7 +90,8 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.landingButtonUrl !== undefined ||
     body.menuDisplayName !== undefined ||
     body.menuSubtitle !== undefined ||
-    body.menuDeliveryText !== undefined;
+    body.menuDeliveryText !== undefined ||
+    body.deliveryOfflineMessage !== undefined;
 
   if (hasSettingsFields) {
     // Fetch current settings to merge
@@ -115,6 +116,7 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.menuDisplayName !== undefined) merged.menu_display_name = body.menuDisplayName;
     if (body.menuSubtitle !== undefined) merged.menu_subtitle = body.menuSubtitle;
     if (body.menuDeliveryText !== undefined) merged.menu_delivery_text = body.menuDeliveryText;
+    if (body.deliveryOfflineMessage !== undefined) merged.delivery_offline_message = body.deliveryOfflineMessage;
     updateData.settings = merged;
   }
 

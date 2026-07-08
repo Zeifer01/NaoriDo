@@ -52,6 +52,7 @@ export function BranchTab() {
     menuDisplayName: string;
     menuSubtitle: string;
     menuDeliveryText: string;
+    deliveryOfflineMessage: string;
   }>({
     name: "",
     address: "",
@@ -72,6 +73,7 @@ export function BranchTab() {
     menuDisplayName: "",
     menuSubtitle: "",
     menuDeliveryText: "",
+    deliveryOfflineMessage: "",
   });
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export function BranchTab() {
         menuDisplayName: (branchData.settings?.menu_display_name as string) || "",
         menuSubtitle: (branchData.settings?.menu_subtitle as string) || "",
         menuDeliveryText: (branchData.settings?.menu_delivery_text as string) || "",
+        deliveryOfflineMessage: (branchData.settings?.delivery_offline_message as string) || "",
       });
     }
   }, [branchData]);
@@ -126,6 +129,7 @@ export function BranchTab() {
         menuDisplayName: branchForm.menuDisplayName,
         menuSubtitle: branchForm.menuSubtitle,
         menuDeliveryText: branchForm.menuDeliveryText,
+        deliveryOfflineMessage: branchForm.deliveryOfflineMessage,
       });
       toast.success("Filial atualizada com sucesso");
     } catch (err: any) {
@@ -255,6 +259,22 @@ export function BranchTab() {
                   )}
                 />
               </button>
+            </div>
+            <div className="rounded-lg border p-4 space-y-2">
+              <Label htmlFor="deliveryOfflineMessage">Mensagem quando cardápio estiver fechado</Label>
+              <textarea
+                id="deliveryOfflineMessage"
+                rows={4}
+                placeholder="Ex: Olá! Por ora não estamos mais aceitando pedidos, mas não se preocupe — a próxima feira está agendada para X dia. Obrigado pela compreensão!"
+                value={branchForm.deliveryOfflineMessage}
+                onChange={(e) =>
+                  setBranchForm({ ...branchForm, deliveryOfflineMessage: e.target.value })
+                }
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                Exibida no link do cardápio quando os pedidos online estiverem desativados. Se vazio, usa uma mensagem padrão.
+              </p>
             </div>
             {branchForm.deliveryEnabled && (
               <>

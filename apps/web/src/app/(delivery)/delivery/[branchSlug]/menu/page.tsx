@@ -62,15 +62,18 @@ export default function DeliveryMenuPage({
   const [menuData, setMenuData] = useState<MenuData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>(ALL_PRODUCTS);
 
   const loadMenu = useCallback(() => {
     setLoading(true);
     setError(null);
+    setErrorCode(null);
     void fetch(`${API_URL}/api/delivery/${branchSlug}/menu`)
       .then((res) => res.json())
       .then((result) => {
         if (!result.success) {
+          setErrorCode(result.error?.code ?? null);
           setError(result.error?.message || "Erro ao carregar cardápio");
           setLoading(false);
           return;
@@ -184,6 +187,21 @@ export default function DeliveryMenuPage({
   }
 
   if (error || !menuData) {
+    if (errorCode === "DELIVERY_DISABLED") {
+      return (
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-6 bg-[#FAF7F2] px-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#EDF3E8]">
+            <ShoppingBag className="h-8 w-8 text-[#7A9B7E]" />
+          </div>
+          <div className="max-w-sm space-y-2">
+            <h1 className="text-lg font-semibold text-[#3A3F38]">Pedidos temporariamente suspensos</h1>
+            <p className="text-sm leading-relaxed text-[#5C6356]" style={{ whiteSpace: "pre-line" }}>
+              {error}
+            </p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#FAF7F2] px-6 text-center">
         <p className="text-sm text-[#5C6356]">{error || "Cardápio indisponível"}</p>
