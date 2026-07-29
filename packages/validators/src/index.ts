@@ -144,7 +144,7 @@ export const createOrderItemSchema = z.object({
   })).default([]),
 });
 
-export const createOrderSchema = z.object({
+export const createOrderBaseSchema = z.object({
   type: z.enum(["dine_in", "takeout", "delivery"]).default("dine_in"),
   customerName: z.string().max(255).optional(),
   customerId: z.string().uuid().optional(),
@@ -156,7 +156,9 @@ export const createOrderSchema = z.object({
   items: z.array(createOrderItemSchema).min(1, "O pedido deve ter pelo menos um item"),
   couponCode: z.string().max(50).optional(),
   redemptionId: z.string().uuid().optional(),
-}).superRefine((data, ctx) => {
+});
+
+export const createOrderSchema = createOrderBaseSchema.superRefine((data, ctx) => {
   if (data.type === "delivery") {
     if (!data.deliveryAddress || data.deliveryAddress.trim().length < 5) {
       ctx.addIssue({
@@ -168,7 +170,7 @@ export const createOrderSchema = z.object({
   }
 });
 
-export const createDeliveryOrderSchema = createOrderSchema
+export const createDeliveryOrderSchema = createOrderBaseSchema
   .extend({
     type: z.literal("delivery").optional(),
     fulfillment: z.enum(["delivery", "pickup"]).default("delivery"),
