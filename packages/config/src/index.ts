@@ -64,11 +64,12 @@ export const PERMISSIONS = {
 } as const;
 
 // Order status state machine
+// Bidirectional pending ↔ preparing ↔ ready so kitchen/comandas can drag cards between columns.
 export const ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
-  pending: ["confirmed", "preparing", "cancelled"],
-  confirmed: ["preparing", "cancelled"],
-  preparing: ["ready", "cancelled"],
-  ready: ["served"],
+  pending: ["confirmed", "preparing", "ready", "cancelled"],
+  confirmed: ["preparing", "ready", "pending", "cancelled"],
+  preparing: ["ready", "pending", "confirmed", "cancelled"],
+  ready: ["served", "preparing"],
   served: ["completed"],
   completed: [],
   cancelled: [],

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@restai/ui/components/button";
 import {
   CheckCircle,
@@ -118,6 +118,7 @@ export function KitchenOrderCard({
   isAdvancing,
   isUpdatingItem,
   isNew,
+  dragHandle,
 }: {
   order: any;
   columnStatus: "pending" | "preparing" | "ready";
@@ -127,6 +128,7 @@ export function KitchenOrderCard({
   isAdvancing: boolean;
   isUpdatingItem: boolean;
   isNew?: boolean;
+  dragHandle?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { kitchenLabel } = useFeatures();
@@ -182,7 +184,8 @@ export function KitchenOrderCard({
     >
       {/* Card Header */}
       <div className={cn("px-4 py-3 flex items-center justify-between", headerBg)}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          {dragHandle}
           <span className="text-white font-black text-2xl md:text-3xl tracking-tight">
             #{orderNum}
           </span>

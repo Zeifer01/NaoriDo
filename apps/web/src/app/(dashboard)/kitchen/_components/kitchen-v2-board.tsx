@@ -1,6 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  closestCorners,
+  useDroppable,
+  useDraggable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
 import { Input } from "@restai/ui/components/input";
@@ -8,6 +21,7 @@ import {
   ArrowRight,
   CheckCircle,
   Copy,
+  GripVertical,
   Printer,
   Search,
   Timer,
@@ -17,10 +31,12 @@ import { cn } from "@/lib/utils";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { deliveryPaymentLabel } from "@restai/config";
 import {
+  getKitchenColumn,
   getMinutesDiff,
   getTimeDiff,
   getTimeUrgency,
   useKitchenContext,
+  type KitchenColumnStatus,
 } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
 
@@ -30,6 +46,12 @@ const TYPE_LABEL: Record<string, string> = {
   dine_in: "Mesa",
   takeout: "Retirada",
   delivery: "Delivery",
+};
+
+const COLUMN_DROP_IDS: Record<KitchenColumnStatus, string> = {
+  pending: "column-pending",
+  preparing: "column-preparing",
+  ready: "column-ready",
 };
 
 function formatModifierLines(mods: Array<{ name: string }> | undefined): string[] {
@@ -43,14 +65,29 @@ function formatModifierLines(mods: Array<{ name: string }> | undefined): string[
   );
 }
 
+function resolveDropColumn(
+  overId: string | number,
+  ordersById: Map<string, any>,
+): KitchenColumnStatus | null {
+  const id = String(overId);
+  if (id === COLUMN_DROP_IDS.pending) return "pending";
+  if (id === COLUMN_DROP_IDS.preparing) return "preparing";
+  if (id === COLUMN_DROP_IDS.ready) return "ready";
+  const order = ordersById.get(id);
+  if (!order) return null;
+  return getKitchenColumn(order.status);
+}
+
 function CompactCard({
   order,
   columnStatus,
   isNew,
+  isDragOverlay = false,
 }: {
   order: any;
-  columnStatus: "pending" | "preparing" | "ready";
+  columnStatus: KitchenColumnStatus;
   isNew: boolean;
+  isDragOverlay?: boolean;
 }) {
   const {
     advanceOrder,
@@ -60,6 +97,12 @@ function CompactCard({
     isUpdatingItem,
   } = useKitchenContext();
   const { kitchenLabel } = useFeatures();
+
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: order.id,
+    data: { columnStatus, order },
+    disabled: isDragOverlay,
+  });
 
   const createdAt = order.created_at || order.createdAt;
   const urgency = getTimeUrgency(createdAt);
@@ -80,13 +123,21 @@ function CompactCard({
       })
     : "";
 
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+
   return (
     <div
+      ref={isDragOverlay ? undefined : setNodeRef}
+      style={isDragOverlay ? undefined : style}
       className={cn(
         "rounded-lg border bg-card overflow-hidden",
         isNew && "animate-kitchen-flash",
         urgency === "urgent" && "border-red-500 border-2",
         urgency === "warning" && "border-amber-400",
+        isDragging && !isDragOverlay && "opacity-40",
+        isDragOverlay && "shadow-xl ring-2 ring-primary/40",
       )}
     >
       <div
@@ -98,6 +149,17 @@ function CompactCard({
         )}
       >
         <div className="min-w-0 flex items-center gap-2">
+          {!isDragOverlay && (
+            <button
+              type="button"
+              className="touch-none cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-white/20 shrink-0"
+              aria-label="Arrastar comanda"
+              {...listeners}
+              {...attributes}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
           <span className="font-black text-lg leading-none">#{orderNumber}</span>
           <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-white/20 text-white border-0">
             {TYPE_LABEL[type] ?? type}
@@ -194,45 +256,47 @@ function CompactCard({
         )}
       </div>
 
-      <div className="px-2.5 pb-2 space-y-1">
-        <Button
-          size="sm"
-          className="w-full h-8 text-xs"
-          disabled={isAdvancing}
-          onClick={() =>
-            advanceOrder(order.id, order.status === "confirmed" ? "pending" : order.status)
-          }
-        >
-          {columnStatus === "pending" && "Preparar"}
-          {columnStatus === "preparing" && "Pronto"}
-          {columnStatus === "ready" && "Entregue"}
-          <ArrowRight className="h-3.5 w-3.5 ml-1" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="w-full h-7 text-[11px]"
-          onClick={async () => {
-            try {
-              await copyOrderTicket(
-                orderToTicketInput(order, { headerLabel: kitchenLabel }),
-              );
-              toast.success("Comanda copiada");
-            } catch {
-              toast.error("Não foi possível copiar");
+      {!isDragOverlay && (
+        <div className="px-2.5 pb-2 space-y-1">
+          <Button
+            size="sm"
+            className="w-full h-8 text-xs"
+            disabled={isAdvancing}
+            onClick={() =>
+              advanceOrder(order.id, order.status === "confirmed" ? "pending" : order.status)
             }
-          }}
-        >
-          <Copy className="h-3 w-3 mr-1" />
-          Copiar
-        </Button>
-        {minutes >= 15 && (
-          <p className="text-[10px] text-center text-red-600 font-semibold mt-1">
-            Atrasado · {minutes} min
-          </p>
-        )}
-      </div>
+          >
+            {columnStatus === "pending" && "Preparar"}
+            {columnStatus === "preparing" && "Pronto"}
+            {columnStatus === "ready" && "Entregue"}
+            <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full h-7 text-[11px]"
+            onClick={async () => {
+              try {
+                await copyOrderTicket(
+                  orderToTicketInput(order, { headerLabel: kitchenLabel }),
+                );
+                toast.success("Comanda copiada");
+              } catch {
+                toast.error("Não foi possível copiar");
+              }
+            }}
+          >
+            <Copy className="h-3 w-3 mr-1" />
+            Copiar
+          </Button>
+          {minutes >= 15 && (
+            <p className="text-[10px] text-center text-red-600 font-semibold mt-1">
+              Atrasado · {minutes} min
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -245,20 +309,31 @@ function DenseColumn({
   accent,
 }: {
   title: string;
-  status: "pending" | "preparing" | "ready";
+  status: KitchenColumnStatus;
   orders: any[];
   newOrderIds: Set<string>;
   accent: string;
 }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: COLUMN_DROP_IDS[status],
+    data: { columnStatus: status },
+  });
+
   return (
-    <div className="flex flex-col min-h-0 rounded-lg border bg-muted/20">
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex flex-col min-h-0 rounded-lg border bg-muted/20 transition-colors",
+        isOver && "ring-2 ring-primary/50 bg-primary/5",
+      )}
+    >
       <div className={cn("flex items-center justify-between px-3 py-2 border-b sticky top-0 z-10 bg-background/95", accent)}>
         <h2 className="text-sm font-bold">{title}</h2>
         <Badge variant="secondary" className="tabular-nums text-xs">
           {orders.length}
         </Badge>
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-2">
+      <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[120px]">
         {orders.map((order) => (
           <CompactCard
             key={order.id}
@@ -268,7 +343,9 @@ function DenseColumn({
           />
         ))}
         {orders.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-8">Vazio</p>
+          <p className="text-xs text-muted-foreground text-center py-8">
+            {isOver ? "Solte aqui" : "Vazio"}
+          </p>
         )}
       </div>
     </div>
@@ -276,10 +353,16 @@ function DenseColumn({
 }
 
 export function KitchenV2Board() {
-  const { columns, newOrderIds, orders } = useKitchenContext();
+  const { columns, newOrderIds, orders, moveOrderToColumn } = useKitchenContext();
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [onlyLate, setOnlyLate] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<any | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+  );
 
   const filterFn = (list: any[]) =>
     list.filter((o) => {
@@ -308,7 +391,29 @@ export function KitchenV2Board() {
   const preparing = useMemo(() => filterFn(columns.preparing), [columns.preparing, query, typeFilter, onlyLate]);
   const ready = useMemo(() => filterFn(columns.ready), [columns.ready, query, typeFilter, onlyLate]);
 
+  const ordersById = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const o of orders) map.set(o.id, o);
+    return map;
+  }, [orders]);
+
   const lateCount = orders.filter((o) => getMinutesDiff(o.created_at || o.createdAt) >= 15).length;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const order = ordersById.get(String(event.active.id));
+    setActiveOrder(order ?? null);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveOrder(null);
+    const { active, over } = event;
+    if (!over) return;
+    const target = resolveDropColumn(over.id, ordersById);
+    if (!target) return;
+    moveOrderToColumn(String(active.id), target);
+  };
+
+  const handleDragCancel = () => setActiveOrder(null);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
@@ -343,31 +448,55 @@ export function KitchenV2Board() {
         >
           Atrasados{lateCount > 0 ? ` (${lateCount})` : ""}
         </Button>
+        <p className="text-[11px] text-muted-foreground hidden sm:block">
+          Arraste pelo ícone ⋮⋮ entre as colunas
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 flex-1 min-h-0">
-        <DenseColumn
-          title="Pendentes"
-          status="pending"
-          orders={pending}
-          newOrderIds={newOrderIds}
-          accent="bg-amber-50 dark:bg-amber-950/30"
-        />
-        <DenseColumn
-          title="Preparando"
-          status="preparing"
-          orders={preparing}
-          newOrderIds={newOrderIds}
-          accent="bg-blue-50 dark:bg-blue-950/30"
-        />
-        <DenseColumn
-          title="Prontos"
-          status="ready"
-          orders={ready}
-          newOrderIds={newOrderIds}
-          accent="bg-emerald-50 dark:bg-emerald-950/30"
-        />
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 flex-1 min-h-0">
+          <DenseColumn
+            title="Pendentes"
+            status="pending"
+            orders={pending}
+            newOrderIds={newOrderIds}
+            accent="bg-amber-50 dark:bg-amber-950/30"
+          />
+          <DenseColumn
+            title="Preparando"
+            status="preparing"
+            orders={preparing}
+            newOrderIds={newOrderIds}
+            accent="bg-blue-50 dark:bg-blue-950/30"
+          />
+          <DenseColumn
+            title="Prontos"
+            status="ready"
+            orders={ready}
+            newOrderIds={newOrderIds}
+            accent="bg-emerald-50 dark:bg-emerald-950/30"
+          />
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {activeOrder ? (
+            <div className="w-[min(100vw-2rem,320px)]">
+              <CompactCard
+                order={activeOrder}
+                columnStatus={getKitchenColumn(activeOrder.status)}
+                isNew={false}
+                isDragOverlay
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }

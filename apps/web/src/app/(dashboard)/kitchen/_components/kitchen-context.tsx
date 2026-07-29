@@ -15,6 +15,7 @@ import { useKitchenOrders, useUpdateKitchenItemStatus } from "@/hooks/use-kitche
 import { useUpdateOrderStatus } from "@/hooks/use-orders";
 import { usePrintKitchenTicket } from "@/components/print-ticket";
 import { useFeatures } from "@/hooks/use-features";
+import { toast } from "sonner";
 import type { WsMessage } from "@restai/types";
 
 // ── Time helpers ──
@@ -54,10 +55,14 @@ export function useTimerTick(intervalMs = 10000) {
 
 // ── Context ──
 
+export type KitchenColumnStatus = "pending" | "preparing" | "ready";
+
 interface KitchenContextValue {
   orders: any[];
   columns: { pending: any[]; preparing: any[]; ready: any[] };
   advanceOrder: (orderId: string, currentStatus: string) => void;
+  /** Move an order to a kitchen column (drag-and-drop). */
+  moveOrderToColumn: (orderId: string, column: KitchenColumnStatus) => void;
   handleItemReady: (itemId: string) => void;
   handlePrint: (order: any) => void;
   newOrderIds: Set<string>;
@@ -66,6 +71,12 @@ interface KitchenContextValue {
   refetch: () => void;
   isAdvancing: boolean;
   isUpdatingItem: boolean;
+}
+
+export function getKitchenColumn(status: string): KitchenColumnStatus {
+  if (status === "preparing") return "preparing";
+  if (status === "ready") return "ready";
+  return "pending";
 }
 
 const KitchenContext = createContext<KitchenContextValue | null>(null);
@@ -177,6 +188,30 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
     updateOrderStatus.mutate({ id: orderId, status: newStatus });
   };
 
+  const moveOrderToColumn = useCallback(
+    (orderId: string, column: KitchenColumnStatus) => {
+      const order = (data as any[] | undefined)?.find((o) => o.id === orderId);
+      if (!order) return;
+      const from = getKitchenColumn(order.status);
+      if (from === column) return;
+      const targetStatus =
+        column === "pending"
+          ? "pending"
+          : column === "preparing"
+            ? "preparing"
+            : "ready";
+      updateOrderStatus.mutate(
+        { id: orderId, status: targetStatus },
+        {
+          onError: (err: Error) => {
+            toast.error(err.message || "Não foi possível mover a comanda");
+          },
+        },
+      );
+    },
+    [data, updateOrderStatus],
+  );
+
   const handleItemReady = (itemId: string) => {
     updateItemStatus.mutate({ id: itemId, status: "ready" });
   };
@@ -187,6 +222,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
         orders,
         columns,
         advanceOrder,
+        moveOrderToColumn,
         handleItemReady,
         handlePrint,
         newOrderIds,
