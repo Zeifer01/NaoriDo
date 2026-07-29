@@ -19,8 +19,6 @@ import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { useFeatures } from "@/hooks/use-features";
 import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel } from "@restai/config";
 import { getActiveCurrency } from "@/stores/currency-store";
-import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel } from "@restai/config";
-import { getActiveCurrency } from "@/stores/currency-store";
 
 const PAGE_SIZE = 20;
 
