@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useCallback } from "react";
+import { formatCurrency } from "@/lib/utils";
+import { getActiveCurrency } from "@/stores/currency-store";
 
 interface OrderItem {
   name: string;
@@ -42,8 +44,8 @@ interface ReceiptTicketData {
   docHolderName?: string;
 }
 
-function formatCents(cents: number): string {
-  return (cents / 100).toFixed(2);
+function formatMoney(cents: number): string {
+  return formatCurrency(cents, getActiveCurrency());
 }
 
 function formatDateTime(dateStr: string): string {
@@ -67,6 +69,7 @@ const methodLabels: Record<string, string> = {
   transfer: "Transferência",
   zelle: "Zelle",
   venmo: "Venmo",
+  cashapp: "Cash App",
   other: "Outro",
 };
 
@@ -161,7 +164,7 @@ function buildReceiptTicketHtml(data: ReceiptTicketData): string {
       (item) =>
         `<tr>
           <td style="text-align:left;padding:1px 0;">${item.quantity}x ${item.name}</td>
-          <td style="text-align:right;padding:1px 0;white-space:nowrap;">R$ ${formatCents(item.total)}</td>
+          <td style="text-align:right;padding:1px 0;white-space:nowrap;">${formatMoney(item.total)}</td>
         </tr>`
     )
     .join("");
@@ -217,15 +220,15 @@ function buildReceiptTicketHtml(data: ReceiptTicketData): string {
   <table class="totals">
     <tr>
       <td>Subtotal:</td>
-      <td style="text-align:right;">R$ ${formatCents(data.subtotal)}</td>
+      <td style="text-align:right;">${formatMoney(data.subtotal)}</td>
     </tr>
     <tr>
       <td>Impostos:</td>
-      <td style="text-align:right;">R$ ${formatCents(data.tax)}</td>
+      <td style="text-align:right;">${formatMoney(data.tax)}</td>
     </tr>
     <tr class="bold">
       <td style="font-size:13px;padding-top:2px;">TOTAL:</td>
-      <td style="text-align:right;font-size:13px;font-weight:bold;padding-top:2px;">R$ ${formatCents(data.total)}</td>
+      <td style="text-align:right;font-size:13px;font-weight:bold;padding-top:2px;">${formatMoney(data.total)}</td>
     </tr>
   </table>
   <div class="divider"></div>

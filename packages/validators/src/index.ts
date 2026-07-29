@@ -153,6 +153,9 @@ export const createOrderBaseSchema = z.object({
   deliveryPhone: z.string().max(20).optional(),
   deliveryAddress: z.string().max(500).optional(),
   deliveryReference: z.string().max(255).optional(),
+  paymentMethod: z
+    .enum(["cash", "card", "pix", "zelle", "venmo", "cashapp", "transfer", "other", "yape", "plin"])
+    .optional(),
   items: z.array(createOrderItemSchema).min(1, "O pedido deve ter pelo menos um item"),
   couponCode: z.string().max(50).optional(),
   redemptionId: z.string().uuid().optional(),
@@ -180,7 +183,7 @@ export const createDeliveryOrderSchema = createOrderBaseSchema
     deliveryReference: z.string().max(255).optional(),
     deliveryZoneId: z.string().uuid().optional(),
     paymentMethod: z
-      .enum(["cash", "card", "pix", "zelle", "venmo", "transfer", "other"])
+      .enum(["cash", "card", "pix", "zelle", "venmo", "cashapp", "transfer", "other"])
       .optional(),
   })
   .superRefine((data, ctx) => {
@@ -235,7 +238,18 @@ export type UpdateOrderItemInput = z.infer<typeof updateOrderItemSchema>;
 // Payment validators
 export const createPaymentSchema = z.object({
   orderId: z.string().uuid(),
-  method: z.enum(["cash", "card", "yape", "plin", "transfer", "other"]),
+  method: z.enum([
+    "cash",
+    "card",
+    "yape",
+    "plin",
+    "pix",
+    "zelle",
+    "venmo",
+    "cashapp",
+    "transfer",
+    "other",
+  ]),
   amount: z.number().int().min(1),
   reference: z.string().max(255).optional(),
   tip: z.number().int().min(0).default(0),
@@ -453,7 +467,7 @@ export const updateBranchSettingsSchema = z.object({
   pickupLabel: z.string().max(80).optional(),
   /** Checkout payment methods shown on the public storefront. */
   paymentMethods: z
-    .array(z.enum(["cash", "card", "pix", "zelle", "venmo", "transfer", "other"]))
+    .array(z.enum(["cash", "card", "pix", "zelle", "venmo", "cashapp", "transfer", "other"]))
     .min(1)
     .max(10)
     .optional(),

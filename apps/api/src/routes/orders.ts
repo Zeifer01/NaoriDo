@@ -224,6 +224,7 @@ orders.post(
         deliveryPhone: body.deliveryPhone,
         deliveryAddress: body.deliveryAddress,
         deliveryReference: body.deliveryReference,
+        paymentMethod: body.paymentMethod,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

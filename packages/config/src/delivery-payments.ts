@@ -9,6 +9,7 @@ export const DELIVERY_PAYMENT_METHOD_IDS = [
   "pix",
   "zelle",
   "venmo",
+  "cashapp",
   "transfer",
   "other",
 ] as const;
@@ -24,6 +25,7 @@ export const DELIVERY_PAYMENT_METHOD_META: Record<
   pix: { label: "PIX", labelEn: "PIX" },
   zelle: { label: "Zelle", labelEn: "Zelle" },
   venmo: { label: "Venmo", labelEn: "Venmo" },
+  cashapp: { label: "Cash App", labelEn: "Cash App" },
   transfer: { label: "Transferência", labelEn: "Bank transfer" },
   other: { label: "Outro", labelEn: "Other" },
 };

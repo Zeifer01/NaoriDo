@@ -20,7 +20,15 @@ import {
   DialogFooter,
 } from "@restai/ui/components/dialog";
 import { useCreatePayment, useUnpaidOrders } from "@/hooks/use-payments";
+import { useBranchSettings } from "@/hooks/use-settings";
 import { formatCurrency } from "@/lib/utils";
+import {
+  parseDeliveryPaymentMethods,
+  deliveryPaymentLabel,
+  type DeliveryPaymentMethodId,
+} from "@restai/config";
+import { CURRENCIES, type CurrencyCode } from "@restai/config";
+import { getActiveCurrency } from "@/stores/currency-store";
 
 interface PaymentDialogProps {
   open: boolean;
@@ -42,9 +50,20 @@ export function PaymentDialog({
 
   const { data: unpaidOrders } = useUnpaidOrders();
   const createPayment = useCreatePayment();
+  const { data: branchSettings } = useBranchSettings();
 
   const orders: any[] = unpaidOrders ?? [];
   const selectedOrder = orders.find((o: any) => o.id === selectedOrderId);
+  const currency = (branchSettings as any)?.currency || getActiveCurrency();
+  const currencySymbol =
+    CURRENCIES[currency as CurrencyCode]?.symbol || currency;
+  const preferEnglish = currency === "USD";
+  const paymentOptions = parseDeliveryPaymentMethods(
+    (branchSettings as any)?.settings?.payment_methods,
+    currency === "USD"
+      ? ["cash", "card", "zelle", "venmo", "cashapp"]
+      : ["cash", "card", "pix"],
+  );
 
   // Auto-select preselected order
   useEffect(() => {
@@ -182,11 +201,14 @@ export function PaymentDialog({
                     <SelectValue placeholder="Selecionar método" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Dinheiro</SelectItem>
-                    <SelectItem value="card">Cartão</SelectItem>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="transfer">Transferência</SelectItem>
-                    <SelectItem value="other">Outro</SelectItem>
+                    {paymentOptions.map((id) => (
+                      <SelectItem key={id} value={id}>
+                        {deliveryPaymentLabel(id as DeliveryPaymentMethodId, preferEnglish)}
+                      </SelectItem>
+                    ))}
+                    {!paymentOptions.includes("other" as any) && (
+                      <SelectItem value="other">Other / Outro</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -194,7 +216,7 @@ export function PaymentDialog({
               {/* Amount and tip */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="pay-amount">Valor (R$)</Label>
+                  <Label htmlFor="pay-amount">Valor ({currencySymbol})</Label>
                   <Input
                     id="pay-amount"
                     type="number"

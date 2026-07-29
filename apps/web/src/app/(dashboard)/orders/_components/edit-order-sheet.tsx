@@ -93,6 +93,11 @@ function EditOrderContent({ order }: { order: any }) {
     cash: "Dinheiro",
     card: "Cartão",
     pix: "PIX",
+    zelle: "Zelle",
+    venmo: "Venmo",
+    cashapp: "Cash App",
+    transfer: "Transferência",
+    other: "Outro",
   };
 
   const hasInfo =

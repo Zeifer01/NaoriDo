@@ -5,6 +5,7 @@ import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
 import { ChevronLeft, ChevronRight, Copy, DollarSign, Eye, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { deliveryPaymentLabel } from "@restai/config";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pendente", variant: "outline" },
@@ -211,11 +212,10 @@ export function OrdersTable({
                                 {formatCurrency(order.total_paid)}
                               </span>
                             )}
-                            {order.payment_method && paymentStatus !== "paid" && (
+                            {order.payment_method && (
                               <span className="text-[10px] text-muted-foreground">
-                                {order.payment_method === "cash" ? "Dinheiro" :
-                                 order.payment_method === "card" ? "Cartão" :
-                                 order.payment_method === "pix"  ? "PIX" : order.payment_method}
+                                {deliveryPaymentLabel(order.payment_method as any) ||
+                                  order.payment_method}
                               </span>
                             )}
                           </div>

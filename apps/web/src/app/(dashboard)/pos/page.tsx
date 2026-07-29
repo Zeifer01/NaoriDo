@@ -45,6 +45,7 @@ export default function PosPage() {
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<PosOrderType>("delivery");
   const [successDialog, setSuccessDialog] = useState(false);
@@ -68,6 +69,7 @@ export default function PosPage() {
     setCustomerNotes("");
     setSelectedCustomerId(null);
     setOrderNotes("");
+    setPaymentMethod("");
   };
 
   const handleSelectCustomer = (c: PosCustomerSuggestion) => {
@@ -139,6 +141,10 @@ export default function PosPage() {
       toast.error("Informe o endereço de entrega");
       return;
     }
+    if (!paymentMethod) {
+      toast.error("Selecione a forma de pagamento");
+      return;
+    }
 
     try {
       const ticketPreview: OrderTicketInput = {
@@ -147,6 +153,7 @@ export default function PosPage() {
         type: orderType,
         deliveryPhone: customerPhone || undefined,
         deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : undefined,
+        paymentMethod,
         notes: orderNotes || undefined,
         headerLabel: kitchenLabel,
         createdAt: new Date().toISOString(),
@@ -166,6 +173,7 @@ export default function PosPage() {
         deliveryAddress:
           orderType === "delivery" ? deliveryAddress.trim() : undefined,
         customerNotes: customerNotes.trim() || undefined,
+        paymentMethod,
         items: cart.map((item) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
@@ -210,6 +218,7 @@ export default function PosPage() {
         deliveryAddress={deliveryAddress}
         customerNotes={customerNotes}
         orderNotes={orderNotes}
+        paymentMethod={paymentMethod}
         selectedCustomerId={selectedCustomerId}
         isPending={createOrder.isPending}
         onOrderTypeChange={setOrderType}
@@ -218,6 +227,7 @@ export default function PosPage() {
         onDeliveryAddressChange={setDeliveryAddress}
         onCustomerNotesChange={setCustomerNotes}
         onOrderNotesChange={setOrderNotes}
+        onPaymentMethodChange={setPaymentMethod}
         onSelectCustomer={handleSelectCustomer}
         onClearSelectedCustomer={() => setSelectedCustomerId(null)}
         onUpdateQty={updateCartQty}

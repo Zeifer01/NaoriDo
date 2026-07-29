@@ -64,6 +64,13 @@
       "when": 1785400000000,
       "tag": "0011_customer_address_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785500000000,
+      "tag": "0012_payment_cashapp",
+      "breakpoints": true
     }
   ]
 }

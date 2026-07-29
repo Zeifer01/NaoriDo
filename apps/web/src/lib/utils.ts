@@ -1,14 +1,18 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { CURRENCIES, type CurrencyCode } from "@restai/config";
+import { getActiveCurrency } from "@/stores/currency-store";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(cents: number, currency: CurrencyCode | string = "BRL"): string {
-  const info =
-    CURRENCIES[currency as CurrencyCode] || CURRENCIES.BRL;
+export function formatCurrency(
+  cents: number,
+  currency?: CurrencyCode | string,
+): string {
+  const code = (currency || getActiveCurrency()) as CurrencyCode;
+  const info = CURRENCIES[code] || CURRENCIES.BRL;
   const value = (cents / 100).toLocaleString(info.locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

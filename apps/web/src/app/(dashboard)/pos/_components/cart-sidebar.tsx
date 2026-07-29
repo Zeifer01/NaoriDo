@@ -21,6 +21,12 @@ import {
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useLoyaltyCustomers } from "@/hooks/use-loyalty";
+import { useBranchSettings } from "@/hooks/use-settings";
+import {
+  parseDeliveryPaymentMethods,
+  deliveryPaymentLabel,
+  type DeliveryPaymentMethodId,
+} from "@restai/config";
 import type { PosCartItem } from "../page";
 
 export type PosOrderType = "delivery" | "takeout";
@@ -57,6 +63,7 @@ export function CartSidebar({
   deliveryAddress,
   customerNotes,
   orderNotes,
+  paymentMethod,
   selectedCustomerId,
   isPending,
   onOrderTypeChange,
@@ -65,6 +72,7 @@ export function CartSidebar({
   onDeliveryAddressChange,
   onCustomerNotesChange,
   onOrderNotesChange,
+  onPaymentMethodChange,
   onSelectCustomer,
   onClearSelectedCustomer,
   onUpdateQty,
@@ -79,6 +87,7 @@ export function CartSidebar({
   deliveryAddress: string;
   customerNotes: string;
   orderNotes: string;
+  paymentMethod: string;
   selectedCustomerId: string | null;
   isPending: boolean;
   onOrderTypeChange: (type: PosOrderType) => void;
@@ -87,6 +96,7 @@ export function CartSidebar({
   onDeliveryAddressChange: (address: string) => void;
   onCustomerNotesChange: (notes: string) => void;
   onOrderNotesChange: (notes: string) => void;
+  onPaymentMethodChange: (method: string) => void;
   onSelectCustomer: (customer: PosCustomerSuggestion) => void;
   onClearSelectedCustomer: () => void;
   onUpdateQty: (lineId: string, qty: number) => void;
@@ -98,6 +108,15 @@ export function CartSidebar({
   const wrapRef = useRef<HTMLDivElement>(null);
   const debouncedName = useDebouncedValue(customerName.trim(), 250);
   const searchEnabled = debouncedName.length >= 2 && !selectedCustomerId;
+  const { data: branchSettings } = useBranchSettings();
+  const currency = (branchSettings as any)?.currency || "BRL";
+  const preferEnglish = currency === "USD";
+  const paymentOptions = parseDeliveryPaymentMethods(
+    (branchSettings as any)?.settings?.payment_methods,
+    currency === "USD"
+      ? ["cash", "card", "zelle", "venmo", "cashapp"]
+      : ["cash", "card", "pix"],
+  );
 
   const { data: customersData, isFetching } = useLoyaltyCustomers(
     searchEnabled ? debouncedName : undefined,
@@ -137,11 +156,13 @@ export function CartSidebar({
 
   const deliveryNeedsAddress =
     orderType === "delivery" && deliveryAddress.trim().length < 5;
+  const needsPayment = !paymentMethod;
   const canCreate =
     cart.length > 0 &&
     !isPending &&
     customerName.trim().length > 0 &&
-    !deliveryNeedsAddress;
+    !deliveryNeedsAddress &&
+    !needsPayment;
 
   return (
     <div className="w-80 lg:w-96 flex flex-col border-l pl-4 min-h-0">
@@ -268,6 +289,24 @@ export function CartSidebar({
           onChange={(e) => onCustomerNotesChange(e.target.value)}
           className="text-sm min-h-[52px] resize-none"
         />
+
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Forma de pagamento *</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {paymentOptions.map((id) => (
+              <Button
+                key={id}
+                type="button"
+                size="sm"
+                variant={paymentMethod === id ? "default" : "outline"}
+                className="h-8 text-xs justify-start"
+                onClick={() => onPaymentMethodChange(id)}
+              >
+                {deliveryPaymentLabel(id as DeliveryPaymentMethodId, preferEnglish)}
+              </Button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Cart items */}
@@ -384,6 +423,9 @@ export function CartSidebar({
           )}
           {!customerName.trim() && (
             <p className="text-[11px] text-destructive">Informe o nome do cliente</p>
+          )}
+          {needsPayment && (
+            <p className="text-[11px] text-destructive">Selecione a forma de pagamento</p>
           )}
         </div>
       )}

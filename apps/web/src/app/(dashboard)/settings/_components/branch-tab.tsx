@@ -476,6 +476,7 @@ export function BranchTab() {
                         { id: "pix", label: "PIX" },
                         { id: "zelle", label: "Zelle" },
                         { id: "venmo", label: "Venmo" },
+                        { id: "cashapp", label: "Cash App" },
                         { id: "transfer", label: "Transferência" },
                       ] as const
                     ).map((opt) => {

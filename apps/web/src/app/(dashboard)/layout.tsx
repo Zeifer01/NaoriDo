@@ -32,6 +32,7 @@ import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
 import { cn, resolveUploadUrl } from "@/lib/utils";
 import { useOrgSettings, useBranches, useBranchSettings } from "@/hooks/use-settings";
+import { useCurrencyStore } from "@/stores/currency-store";
 import { useFeatures } from "@/hooks/use-features";
 import { NotificationBell } from "@/components/notification-bell";
 import { PlanStatusBanner } from "@/components/plan-status-banner";
@@ -178,9 +179,15 @@ export default function DashboardLayout({
   const { data: branches } = useBranches();
   const { data: branchSettings } = useBranchSettings();
   const { has: hasFeature, kitchenLabel } = useFeatures();
+  const setCurrency = useCurrencyStore((s) => s.setCurrency);
   const availableBranches = branches ?? [];
   const canSwitchBranch = availableBranches.length > 1;
   const [onControlPlane, setOnControlPlane] = useState(false);
+
+  useEffect(() => {
+    const code = (branchSettings as { currency?: string } | undefined)?.currency;
+    if (code) setCurrency(code);
+  }, [branchSettings, setCurrency]);
 
   useEffect(() => {
     const host = window.location.hostname;

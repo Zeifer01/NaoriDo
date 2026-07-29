@@ -17,6 +17,10 @@ import { PaymentDialog } from "../payments/_components/payment-dialog";
 import { toast } from "sonner";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { useFeatures } from "@/hooks/use-features";
+import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel } from "@restai/config";
+import { getActiveCurrency } from "@/stores/currency-store";
+import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel } from "@restai/config";
+import { getActiveCurrency } from "@/stores/currency-store";
 
 const PAGE_SIZE = 20;
 
@@ -155,13 +159,29 @@ export default function OrdersPage() {
         dine_in: "Mesa", takeout: "Retirada", delivery: "Entrega",
       };
       const payLabel: Record<string, string> = {
-        cash: "Dinheiro", card: "Cartão", pix: "PIX",
+        cash: "Dinheiro",
+        card: "Cartão",
+        pix: "PIX",
+        zelle: "Zelle",
+        venmo: "Venmo",
+        cashapp: "Cash App",
+        transfer: "Transferência",
+        other: "Outro",
       };
+
+      const currency = (branchSettings as any)?.currency || getActiveCurrency();
+      const symbol =
+        CURRENCIES[currency as CurrencyCode]?.symbol || currency;
 
       const headers = [
         "Nº Pedido", "Data", "Status", "Tipo", "Mesa",
         "Cliente", "Telefone", "Endereço", "Referência",
-        "Forma de Pagamento", "Subtotal (R$)", "Taxa Entrega (R$)", "Desconto (R$)", "Total (R$)", "Pago (R$)",
+        "Forma de Pagamento",
+        `Subtotal (${symbol})`,
+        `Taxa Entrega (${symbol})`,
+        `Desconto (${symbol})`,
+        `Total (${symbol})`,
+        `Pago (${symbol})`,
         "Observações", "Itens",
       ];
 
@@ -181,7 +201,11 @@ export default function OrdersPage() {
           o.delivery_phone ?? null,
           o.delivery_address ?? null,
           o.delivery_reference ?? null,
-          o.payment_method ? (payLabel[o.payment_method] ?? o.payment_method) : null,
+          o.payment_method
+            ? (deliveryPaymentLabel(o.payment_method as any) ||
+                payLabel[o.payment_method] ||
+                o.payment_method)
+            : null,
           (o.subtotal ?? 0) / 100,
           (o.delivery_fee ?? 0) / 100,
           (o.discount ?? 0) / 100,
