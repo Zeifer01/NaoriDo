@@ -9,6 +9,7 @@ import { OrgOverviewCard } from "./_components/org-overview-card";
 import { OrgBillingCard } from "./_components/org-billing-card";
 import { OrgBranchesCard } from "./_components/org-branches-card";
 import { OrgUsersCard } from "./_components/org-users-card";
+import { OrgDomainsCard } from "./_components/org-domains-card";
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-muted rounded ${className ?? ""}`} />;
@@ -53,6 +54,7 @@ export default function SuperAdminOrgPage({
         <>
           <OrgOverviewCard org={org} />
           <OrgBillingCard org={org} />
+          <OrgDomainsCard orgId={org.id} />
           <div className="grid gap-4 lg:grid-cols-2">
             <OrgBranchesCard branches={org.branches} />
             <OrgUsersCard

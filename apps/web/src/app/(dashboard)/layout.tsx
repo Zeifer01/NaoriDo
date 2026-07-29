@@ -36,6 +36,11 @@ import { useFeatures } from "@/hooks/use-features";
 import { NotificationBell } from "@/components/notification-bell";
 import { PlanStatusBanner } from "@/components/plan-status-banner";
 import type { PlanFeature } from "@restai/config";
+import {
+  buildPlatformAppOrigin,
+  isLocalHostname,
+  isPlatformControlHost,
+} from "@restai/config";
 
 interface NavItem {
   href: string;
@@ -120,15 +125,33 @@ const roleNavAccess: Record<string, Set<string>> = {
 function getFilteredNavGroups(
   role: string | undefined,
   hasFeature: (f: PlanFeature) => boolean,
+  onControlPlane: boolean,
+  kitchenLabel = "Cozinha",
 ): NavGroup[] {
+  // Control plane (app.automatizappy.com): only Super Admin for the SaaS owner.
+  if (onControlPlane && role === "super_admin") {
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.href === "/super-admin"),
+      }))
+      .filter((group) => group.items.length > 0);
+  }
+
   const allowed = roleNavAccess[role || ""] || roleNavAccess.org_admin;
   return navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(
-        (item) =>
-          allowed.has(item.href) && (!item.feature || hasFeature(item.feature)),
-      ),
+      items: group.items
+        .filter(
+          (item) =>
+            item.href !== "/super-admin" &&
+            allowed.has(item.href) &&
+            (!item.feature || hasFeature(item.feature)),
+        )
+        .map((item) =>
+          item.href === "/kitchen" ? { ...item, label: kitchenLabel } : item,
+        ),
     }))
     .filter((group) => group.items.length > 0);
 }
@@ -154,9 +177,31 @@ export default function DashboardLayout({
   const { data: org } = useOrgSettings();
   const { data: branches } = useBranches();
   const { data: branchSettings } = useBranchSettings();
-  const { has: hasFeature } = useFeatures();
+  const { has: hasFeature, kitchenLabel } = useFeatures();
   const availableBranches = branches ?? [];
   const canSwitchBranch = availableBranches.length > 1;
+  const [onControlPlane, setOnControlPlane] = useState(false);
+
+  useEffect(() => {
+    const host = window.location.hostname;
+    const control = isPlatformControlHost(host);
+    setOnControlPlane(control);
+
+    // Super Admin UI only on control plane (or local).
+    if (
+      pathname.startsWith("/super-admin") &&
+      !control &&
+      !isLocalHostname(host)
+    ) {
+      window.location.href = `${buildPlatformAppOrigin()}${pathname}`;
+      return;
+    }
+
+    // On control plane, keep super_admin inside /super-admin.
+    if (control && user?.role === "super_admin" && !pathname.startsWith("/super-admin")) {
+      router.replace("/super-admin");
+    }
+  }, [pathname, router, user?.role]);
 
   const currentBranch = availableBranches.find((branch: Branch) => branch.id === selectedBranchId);
 
@@ -175,7 +220,9 @@ export default function DashboardLayout({
     }
   }, [isAuthenticated, router]);
 
+  // Control plane: skip tenant branch auto-select noise.
   useEffect(() => {
+    if (onControlPlane) return;
     if (availableBranches.length === 0) return;
 
     const selectedBranchStillAllowed = selectedBranchId
@@ -186,12 +233,17 @@ export default function DashboardLayout({
       setSelectedBranch(availableBranches[0].id);
       queryClient.invalidateQueries();
     }
-  }, [availableBranches, selectedBranchId, setSelectedBranch, queryClient]);
+  }, [availableBranches, selectedBranchId, setSelectedBranch, queryClient, onControlPlane]);
 
   useEffect(() => {
+    if (onControlPlane) {
+      document.title = "Automatizappy — Super Admin";
+      return;
+    }
     const name = org?.name;
+    if (!name) return;
+    document.title = name;
     const logoUrl = resolveUploadUrl(org?.logo_url);
-    if (name) document.title = name;
     if (logoUrl) {
       let link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
       if (!link) {
@@ -201,7 +253,7 @@ export default function DashboardLayout({
       }
       link.href = logoUrl;
     }
-  }, [org]);
+  }, [org, onControlPlane]);
 
   if (!user) {
     return (
@@ -216,11 +268,16 @@ export default function DashboardLayout({
     router.push("/login");
   };
 
-  const orgName = org?.name || "RestAI";
-  const orgLogoUrl = resolveUploadUrl(org?.logo_url);
+  const orgName = onControlPlane ? "Automatizappy" : org?.name || "RestAI";
+  const orgLogoUrl = onControlPlane ? null : resolveUploadUrl(org?.logo_url);
 
   const tablesEnabled = (branchSettings as any)?.settings?.tables_enabled !== false;
-  const baseNavGroups = getFilteredNavGroups(user.role, hasFeature);
+  const baseNavGroups = getFilteredNavGroups(
+    user.role,
+    hasFeature,
+    onControlPlane,
+    kitchenLabel,
+  );
   const filteredNavGroups = tablesEnabled
     ? baseNavGroups
     : baseNavGroups
@@ -257,14 +314,14 @@ export default function DashboardLayout({
                 {orgName}
               </p>
               <p className="text-[11px] text-muted-foreground truncate leading-tight">
-                Gestão do negócio
+                {onControlPlane ? "Painel da plataforma" : "Gestão do negócio"}
               </p>
             </div>
           )}
         </div>
 
         {/* Branch selector */}
-        {!collapsed && canSwitchBranch && (
+        {!collapsed && canSwitchBranch && !onControlPlane && (
           <div className="px-3 py-2 border-b border-sidebar-border">
             <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 block">
               Filial ativa
@@ -586,7 +643,7 @@ export default function DashboardLayout({
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6">
-          <PlanStatusBanner />
+          {!onControlPlane && <PlanStatusBanner />}
           {children}
         </main>
 

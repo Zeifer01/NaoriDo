@@ -1,9 +1,12 @@
 import { create } from "zustand";
+import { calcModifiersChargeCents } from "@restai/config";
 
 export interface DeliveryCartModifier {
   modifierId: string;
   name: string;
   price: number;
+  groupId?: string;
+  freeQuantity?: number;
 }
 
 export interface DeliveryCartItem {
@@ -19,6 +22,30 @@ export interface DeliveryCartItem {
 let lineCounter = 0;
 function nextLineId() {
   return `delivery-${++lineCounter}-${Date.now()}`;
+}
+
+function lineModifiersCents(mods: DeliveryCartModifier[]): number {
+  if (!mods.length) return 0;
+  const hasGroups = mods.every((m) => m.groupId);
+  if (!hasGroups) {
+    return mods.reduce((s, m) => s + m.price, 0);
+  }
+  const groups = [
+    ...new Map(
+      mods.map((m) => [
+        m.groupId!,
+        { id: m.groupId!, freeQuantity: m.freeQuantity ?? 0 },
+      ]),
+    ).values(),
+  ];
+  return calcModifiersChargeCents(
+    mods.map((m) => ({
+      id: m.modifierId,
+      groupId: m.groupId!,
+      price: m.price,
+    })),
+    groups,
+  );
 }
 
 interface DeliveryCartState {
@@ -57,7 +84,7 @@ export const useDeliveryCartStore = create<DeliveryCartState>((set, get) => ({
   clearCart: () => set({ items: [] }),
   getSubtotal: () =>
     get().items.reduce((sum, item) => {
-      const mods = item.modifiers.reduce((ms, m) => ms + m.price, 0);
+      const mods = lineModifiersCents(item.modifiers);
       return sum + (item.unitPrice + mods) * item.quantity;
     }, 0),
   getTax: (taxRate) => Math.round((get().getSubtotal() * taxRate) / 10000),

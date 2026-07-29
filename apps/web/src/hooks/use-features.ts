@@ -3,9 +3,13 @@
 import { useMemo } from "react";
 import {
   getPlan,
+  getOrgUxFlags,
+  getKitchenLabel,
   planHasFeature,
+  type OrgUxFlags,
   type PlanFeature,
   type PlanId,
+  type UxVersion,
 } from "@restai/config";
 import { useOrgSettings } from "./use-settings";
 import { useAuthStore } from "@/stores/auth-store";
@@ -23,6 +27,12 @@ interface UseFeaturesResult {
   isSuperAdmin: boolean;
   /** Returns true when the active plan includes the given feature. */
   has: (feature: PlanFeature) => boolean;
+  /** Per-org UX flags (reports_ux / kitchen_ux). */
+  ux: OrgUxFlags;
+  reportsUx: UxVersion;
+  kitchenUx: UxVersion;
+  /** Nav/page label for kitchen board (default "Cozinha"). */
+  kitchenLabel: string;
   /** Expiry timestamp (`null` = no expiry configured). */
   planExpiresAt: Date | null;
   /**
@@ -64,11 +74,13 @@ export function useFeatures(): UseFeaturesResult {
       plan?: PlanId;
       is_active?: boolean;
       plan_expires_at?: string | null;
+      settings?: unknown;
     };
     const plan = (raw.plan ?? "free") as PlanId;
     const planDefinition = getPlan(plan);
     const planExpiresAt = parseExpiry(raw.plan_expires_at);
     const isActiveFlag = raw.is_active ?? true;
+    const ux = getOrgUxFlags(raw.settings);
 
     let status: OrgStatus = "active";
     if (!isActiveFlag) status = "suspended";
@@ -92,6 +104,10 @@ export function useFeatures(): UseFeaturesResult {
       planDefinition,
       isSuperAdmin,
       has,
+      ux,
+      reportsUx: ux.reports_ux,
+      kitchenUx: ux.kitchen_ux,
+      kitchenLabel: getKitchenLabel(raw.settings),
       planExpiresAt,
       daysRemaining,
       status,

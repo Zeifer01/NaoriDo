@@ -301,6 +301,8 @@ menu.post(
         description: body.description,
         price: body.price,
         compare_price_cents: body.comparePriceCents ?? null,
+        cost_cents: body.costCents ?? null,
+        supplier: body.supplier ?? null,
         image_url: body.imageUrl,
         is_available: body.isAvailable,
         sort_order: body.sortOrder,
@@ -397,6 +399,8 @@ menu.patch(
     if (body.description !== undefined) updateData.description = body.description;
     if (body.price !== undefined) updateData.price = body.price;
     if (body.comparePriceCents !== undefined) updateData.compare_price_cents = body.comparePriceCents ?? null;
+    if (body.costCents !== undefined) updateData.cost_cents = body.costCents ?? null;
+    if (body.supplier !== undefined) updateData.supplier = body.supplier ?? null;
     if (body.imageUrl !== undefined) updateData.image_url = body.imageUrl;
     if (body.isAvailable !== undefined) updateData.is_available = body.isAvailable;
     if (body.sortOrder !== undefined) updateData.sort_order = body.sortOrder;
@@ -566,6 +570,7 @@ menu.post(
         min_selections: body.minSelections,
         max_selections: body.maxSelections,
         is_required: body.isRequired,
+        free_quantity: body.freeQuantity ?? 0,
       })
       .returning();
 
@@ -720,6 +725,7 @@ menu.patch(
     if (body.minSelections !== undefined) updateData.min_selections = body.minSelections;
     if (body.maxSelections !== undefined) updateData.max_selections = body.maxSelections;
     if (body.isRequired !== undefined) updateData.is_required = body.isRequired;
+    if (body.freeQuantity !== undefined) updateData.free_quantity = body.freeQuantity;
 
     const [updated] = await db
       .update(schema.modifierGroups)

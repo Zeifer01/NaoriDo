@@ -24,6 +24,7 @@ import { inventory } from "./routes/inventory.js";
 import { loyalty } from "./routes/loyalty.js";
 import { staff } from "./routes/staff.js";
 import { reports } from "./routes/reports.js";
+import { analytics } from "./routes/analytics.js";
 import { settings } from "./routes/settings.js";
 import { customer } from "./routes/customer.js";
 import { uploads } from "./routes/uploads.js";
@@ -31,9 +32,11 @@ import { coupons } from "./routes/coupons.js";
 import { delivery } from "./routes/delivery.js";
 import { whatsapp } from "./routes/whatsapp.js";
 import { superAdmin } from "./routes/super-admin.js";
+import { publicHost } from "./routes/public-host.js";
+import { isAllowedCorsOrigin } from "./lib/tenant-host.js";
 
 const CORS_ORIGINS = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",")
+  ? process.env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
   : ["http://localhost:3000"];
 
 import { existsSync } from "node:fs";
@@ -53,15 +56,28 @@ const app = new Hono<AppEnv>();
 app.use(
   "*",
   cors({
-    origin: (origin) => {
+    origin: async (origin) => {
+      if (!origin) return CORS_ORIGINS[0];
       if (CORS_ORIGINS.includes(origin)) return origin;
-      return CORS_ORIGINS[0];
+      try {
+        const allowed = await isAllowedCorsOrigin(origin);
+        return allowed ? origin : null;
+      } catch {
+        return null;
+      }
     },
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Branch-Id"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Branch-Id",
+      "X-Organization-Id",
+      "X-Tenant-Host",
+    ],
     allowMethods: ["GET", "HEAD", "PUT", "POST", "DELETE", "PATCH", "OPTIONS"],
     maxAge: 86400,
-  })
+  }),
 );
 app.use("*", secureHeaders());
 app.use("*", logger());
@@ -105,6 +121,7 @@ app.get("/uploads/*", async (c) => {
 });
 app.route("/api/auth", auth);
 app.route("/api/customer", customer);
+app.route("/api/public", publicHost);
 
 // Protected routes (auth middleware applied within each route module)
 app.route("/api/orgs", orgs);
@@ -120,6 +137,7 @@ app.route("/api/inventory", inventory);
 app.route("/api/loyalty", loyalty);
 app.route("/api/staff", staff);
 app.route("/api/reports", reports);
+app.route("/api/analytics", analytics);
 app.route("/api/settings", settings);
 app.route("/api/uploads", uploads);
 app.route("/api/coupons", coupons);

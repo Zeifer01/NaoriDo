@@ -1,35 +1,43 @@
-"use client";
+import { headers } from "next/headers";
+import { normalizeHostname } from "@restai/config";
+import { parseDeliveryThemeId } from "./_components/delivery-theme";
+import { DeliveryShell } from "./delivery-shell";
 
-import { usePathname } from "next/navigation";
-import { deliveryClasses } from "./_components/delivery-theme";
-import { DeliveryHeader } from "./_components/delivery-header";
-import { cn } from "@/lib/utils";
+const API_URL =
+  process.env.API_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:3001";
 
-export default function DeliveryLayout({
+async function resolveMenuTheme(hostname: string): Promise<string> {
+  if (!hostname || hostname === "localhost") return "organic";
+  try {
+    const res = await fetch(
+      `${API_URL.replace(/\/$/, "")}/api/public/resolve-host?host=${encodeURIComponent(hostname)}`,
+      { next: { revalidate: 30 } },
+    );
+    if (!res.ok) return "organic";
+    const json = (await res.json()) as {
+      success?: boolean;
+      data?: { menuTheme?: string };
+    };
+    return parseDeliveryThemeId(json.data?.menuTheme);
+  } catch {
+    return "organic";
+  }
+}
+
+export default async function DeliveryLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const branchSlugMatch = pathname.match(/^\/delivery\/([^/]+)/);
-  const branchSlug = branchSlugMatch?.[1];
-  const isMenuHome = /^\/delivery\/[^/]+\/menu$/.test(pathname);
-  const isLandingPage = /^\/delivery\/[^/]+$/.test(pathname);
-  const isFullscreen = isMenuHome || isLandingPage;
+  const h = await headers();
+  const host = normalizeHostname(
+    h.get("x-forwarded-host") || h.get("host") || "",
+  );
+  const initialTheme = await resolveMenuTheme(host);
 
   return (
-    <div className={deliveryClasses.page}>
-      {branchSlug && !isFullscreen && (
-        <DeliveryHeader branchSlug={branchSlug} />
-      )}
-      <div
-        className={cn(
-          "mx-auto max-w-lg",
-          isFullscreen ? "" : "px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4",
-        )}
-      >
-        {children}
-      </div>
-    </div>
+    <DeliveryShell initialTheme={initialTheme}>{children}</DeliveryShell>
   );
 }

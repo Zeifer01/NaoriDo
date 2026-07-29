@@ -53,6 +53,13 @@ export function BranchTab() {
     menuSubtitle: string;
     menuDeliveryText: string;
     deliveryOfflineMessage: string;
+    pickupEnabled: boolean;
+    pickupAddress: string;
+    pickupHint: string;
+    pickupUnavailableMessage: string;
+    deliveryLabel: string;
+    pickupLabel: string;
+    paymentMethods: string[];
   }>({
     name: "",
     address: "",
@@ -74,6 +81,13 @@ export function BranchTab() {
     menuSubtitle: "",
     menuDeliveryText: "",
     deliveryOfflineMessage: "",
+    pickupEnabled: true,
+    pickupAddress: "",
+    pickupHint: "",
+    pickupUnavailableMessage: "",
+    deliveryLabel: "",
+    pickupLabel: "",
+    paymentMethods: ["cash", "card", "pix"],
   });
 
   useEffect(() => {
@@ -101,6 +115,16 @@ export function BranchTab() {
         menuSubtitle: (branchData.settings?.menu_subtitle as string) || "",
         menuDeliveryText: (branchData.settings?.menu_delivery_text as string) || "",
         deliveryOfflineMessage: (branchData.settings?.delivery_offline_message as string) || "",
+        pickupEnabled: branchData.settings?.pickup_enabled !== false,
+        pickupAddress: (branchData.settings?.pickup_address as string) || "",
+        pickupHint: (branchData.settings?.pickup_hint as string) || "",
+        pickupUnavailableMessage:
+          (branchData.settings?.pickup_unavailable_message as string) || "",
+        deliveryLabel: (branchData.settings?.delivery_label as string) || "",
+        pickupLabel: (branchData.settings?.pickup_label as string) || "",
+        paymentMethods: Array.isArray(branchData.settings?.payment_methods)
+          ? (branchData.settings.payment_methods as string[])
+          : ["cash", "card", "pix"],
       });
     }
   }, [branchData]);
@@ -130,6 +154,13 @@ export function BranchTab() {
         menuSubtitle: branchForm.menuSubtitle,
         menuDeliveryText: branchForm.menuDeliveryText,
         deliveryOfflineMessage: branchForm.deliveryOfflineMessage,
+        pickupEnabled: branchForm.pickupEnabled,
+        pickupAddress: branchForm.pickupAddress,
+        pickupHint: branchForm.pickupHint,
+        pickupUnavailableMessage: branchForm.pickupUnavailableMessage,
+        deliveryLabel: branchForm.deliveryLabel,
+        pickupLabel: branchForm.pickupLabel,
+        paymentMethods: branchForm.paymentMethods,
       });
       toast.success("Filial atualizada com sucesso");
     } catch (err: any) {
@@ -265,7 +296,7 @@ export function BranchTab() {
               <textarea
                 id="deliveryOfflineMessage"
                 rows={4}
-                placeholder="Ex: Olá! Por ora não estamos mais aceitando pedidos, mas não se preocupe — a próxima feira está agendada para X dia. Obrigado pela compreensão!"
+                placeholder="Ex: No momento não estamos aceitando pedidos online. Voltamos em breve — obrigado!"
                 value={branchForm.deliveryOfflineMessage}
                 onChange={(e) =>
                   setBranchForm({ ...branchForm, deliveryOfflineMessage: e.target.value })
@@ -300,7 +331,7 @@ export function BranchTab() {
                     <Label htmlFor="menuSubtitle">Subtítulo</Label>
                     <Input
                       id="menuSubtitle"
-                      placeholder="Produtos naturais, entregues na sua porta"
+                      placeholder="Peça online e receba onde estiver"
                       value={branchForm.menuSubtitle}
                       onChange={(e) =>
                         setBranchForm({ ...branchForm, menuSubtitle: e.target.value })
@@ -322,6 +353,155 @@ export function BranchTab() {
                     <p className="text-xs text-muted-foreground">
                       Se vazio, exibe "Entrega · {"{valor da taxa}"}". Use Enter para quebrar linha.
                     </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Retirada (pickup)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Quando ativo, o cliente pode escolher retirar no local. Quando inativo, o cardápio informa que a retirada não está disponível.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={branchForm.pickupEnabled}
+                      onClick={() =>
+                        setBranchForm({
+                          ...branchForm,
+                          pickupEnabled: !branchForm.pickupEnabled,
+                        })
+                      }
+                      className={cn(
+                        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                        branchForm.pickupEnabled ? "bg-primary" : "bg-muted",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                          branchForm.pickupEnabled ? "translate-x-5" : "translate-x-0",
+                        )}
+                      />
+                    </button>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="deliveryLabel">Rótulo da entrega</Label>
+                      <Input
+                        id="deliveryLabel"
+                        placeholder="Entrega"
+                        value={branchForm.deliveryLabel}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, deliveryLabel: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pickupLabel">Rótulo da retirada</Label>
+                      <Input
+                        id="pickupLabel"
+                        placeholder="Retirada"
+                        value={branchForm.pickupLabel}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, pickupLabel: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+                  {branchForm.pickupEnabled ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="pickupAddress">Endereço de retirada</Label>
+                        <Input
+                          id="pickupAddress"
+                          placeholder="Rua, número, bairro — onde o cliente retira"
+                          value={branchForm.pickupAddress}
+                          onChange={(e) =>
+                            setBranchForm({ ...branchForm, pickupAddress: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="pickupHint">Texto quando retirada está disponível</Label>
+                        <Input
+                          id="pickupHint"
+                          placeholder="Ex: Retire em Worcester · Grátis"
+                          value={branchForm.pickupHint}
+                          onChange={(e) =>
+                            setBranchForm({ ...branchForm, pickupHint: e.target.value })
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Se vazio, usa o endereço de retirada ou “Retire no local · Grátis”.
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="pickupUnavailableMessage">
+                        Mensagem quando retirada está indisponível
+                      </Label>
+                      <textarea
+                        id="pickupUnavailableMessage"
+                        rows={2}
+                        placeholder="No momento não estamos aceitando retirada"
+                        value={branchForm.pickupUnavailableMessage}
+                        onChange={(e) =>
+                          setBranchForm({
+                            ...branchForm,
+                            pickupUnavailableMessage: e.target.value,
+                          })
+                        }
+                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Formas de pagamento no cardápio</p>
+                    <p className="text-xs text-muted-foreground">
+                      Escolha o que o cliente vê no checkout (ex.: EUA = Card link, Zelle, Venmo, Cash).
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(
+                      [
+                        { id: "cash", label: "Dinheiro / Cash" },
+                        { id: "card", label: "Cartão pelo link / Card link" },
+                        { id: "pix", label: "PIX" },
+                        { id: "zelle", label: "Zelle" },
+                        { id: "venmo", label: "Venmo" },
+                        { id: "transfer", label: "Transferência" },
+                      ] as const
+                    ).map((opt) => {
+                      const checked = branchForm.paymentMethods.includes(opt.id);
+                      return (
+                        <label
+                          key={opt.id}
+                          className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = checked
+                                ? branchForm.paymentMethods.filter((m) => m !== opt.id)
+                                : [...branchForm.paymentMethods, opt.id];
+                              setBranchForm({
+                                ...branchForm,
+                                paymentMethods: next.length > 0 ? next : [opt.id],
+                              });
+                            }}
+                          />
+                          {opt.label}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
 

@@ -24,7 +24,11 @@ export function DeliveryLogo({
       <img
         src={resolved}
         alt={alt}
-        className={cn("object-cover border border-[#E8EFE4] bg-white/70", sizeClass, className)}
+        className={cn(
+          "object-cover border border-[var(--d-border-soft)] bg-[var(--d-card)]",
+          sizeClass,
+          className,
+        )}
       />
     );
   }
@@ -32,7 +36,7 @@ export function DeliveryLogo({
   return (
     <div
       className={cn(
-        "flex items-center justify-center bg-[#E8EFE4] text-[#7A9B7E]",
+        "flex items-center justify-center bg-[var(--d-bg-soft)] text-[var(--d-accent)]",
         sizeClass,
         className,
       )}

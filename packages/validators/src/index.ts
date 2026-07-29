@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+/**
+ * Accepts absolute http(s) URLs or same-origin local upload paths (`/uploads/...`).
+ * Local disk storage returns relative paths so they work on any tenant host.
+ */
+export const uploadUrlSchema = z
+  .string()
+  .refine(
+    (value) => {
+      if (value.startsWith("/uploads/")) return value.length > "/uploads/".length;
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "URL inválida" },
+  );
+
+export const optionalUploadUrlSchema = uploadUrlSchema.optional();
+export const nullableUploadUrlSchema = uploadUrlSchema.nullable().optional();
+
 // Auth validators
 export const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
@@ -39,7 +61,7 @@ export const updateBranchSchema = createBranchSchema.partial();
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(500).optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: optionalUploadUrlSchema,
   sortOrder: z.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
 });
@@ -52,7 +74,9 @@ export const createMenuItemSchema = z.object({
   description: z.string().max(1000).optional(),
   price: z.number().int().min(0, "O preço não pode ser negativo"),
   comparePriceCents: z.number().int().min(0).nullable().optional(),
-  imageUrl: z.string().url().optional(),
+  costCents: z.number().int().min(0).nullable().optional(),
+  supplier: z.string().max(255).nullable().optional(),
+  imageUrl: optionalUploadUrlSchema,
   isAvailable: z.boolean().default(true),
   sortOrder: z.number().int().min(0).default(0),
   preparationTimeMin: z.number().int().min(1).max(120).optional(),
@@ -65,6 +89,7 @@ export const createModifierGroupSchema = z.object({
   minSelections: z.number().int().min(0).default(0),
   maxSelections: z.number().int().min(1).default(1),
   isRequired: z.boolean().default(false),
+  freeQuantity: z.number().int().min(0).default(0),
 });
 
 export const createModifierSchema = z.object({
@@ -137,7 +162,9 @@ export const createDeliveryOrderSchema = createOrderSchema
     deliveryAddress: z.string().max(500).optional(),
     deliveryReference: z.string().max(255).optional(),
     deliveryZoneId: z.string().uuid().optional(),
-    paymentMethod: z.enum(["cash", "card", "pix"]).optional(),
+    paymentMethod: z
+      .enum(["cash", "card", "pix", "zelle", "venmo", "transfer", "other"])
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (data.fulfillment === "delivery") {
@@ -237,13 +264,29 @@ export const createCustomerSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().max(20).optional(),
   birthDate: z.string().optional(),
+  city: z.string().max(120).optional(),
+  neighborhood: z.string().max(120).optional(),
+  zipCode: z.string().max(20).optional(),
+  state: z.string().max(80).optional(),
+  country: z.string().max(80).optional(),
 });
 
-// Report validators
+export const updateCustomerSchema = createCustomerSchema.partial();
+
+// Report validators (legacy v1)
 export const reportQuerySchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   branchId: z.string().uuid().optional(),
+});
+
+// Analytics / BI query (reports v2)
+export const analyticsQuerySchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  compareStartDate: z.string().optional(),
+  compareEndDate: z.string().optional(),
+  orgWide: z.coerce.boolean().optional(),
 });
 
 // Pagination
@@ -293,7 +336,7 @@ export const superAdminUpdateOrgSchema = z.object({
     .optional(),
   plan: planValuesSchema.optional(),
   isActive: z.boolean().optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoUrl: nullableUploadUrlSchema,
   // ISO 8601 date string (e.g. "2026-12-31T23:59:59.000Z") or null to clear.
   planExpiresAt: z.string().datetime().nullable().optional(),
 });
@@ -338,8 +381,26 @@ export type SuperAdminResetPasswordInput = z.infer<typeof superAdminResetPasswor
 // Settings validators
 export const updateOrgSettingsSchema = z.object({
   name: z.string().min(2).max(255).optional(),
-  logoUrl: z.string().url().nullable().optional(),
+  logoUrl: nullableUploadUrlSchema,
   settings: z.record(z.unknown()).optional(),
+});
+
+export const createOrganizationDomainSchema = z.object({
+  hostname: z
+    .string()
+    .min(3)
+    .max(255)
+    .transform((s) =>
+      s
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "")
+        .replace(/:\d+$/, ""),
+    )
+    .refine((h) => /^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(h), "Hostname inválido"),
+  isPrimary: z.boolean().optional(),
+  markVerified: z.boolean().optional(),
 });
 
 export const updateBranchSettingsSchema = z.object({
@@ -364,6 +425,19 @@ export const updateBranchSettingsSchema = z.object({
   menuSubtitle: z.string().max(255).optional(),
   menuDeliveryText: z.string().max(255).optional(),
   deliveryOfflineMessage: z.string().max(1000).optional(),
+  /** When true, customers can choose pickup/retirada at checkout. */
+  pickupEnabled: z.boolean().optional(),
+  pickupAddress: z.string().max(500).optional(),
+  pickupHint: z.string().max(255).optional(),
+  pickupUnavailableMessage: z.string().max(500).optional(),
+  deliveryLabel: z.string().max(80).optional(),
+  pickupLabel: z.string().max(80).optional(),
+  /** Checkout payment methods shown on the public storefront. */
+  paymentMethods: z
+    .array(z.enum(["cash", "card", "pix", "zelle", "venmo", "transfer", "other"]))
+    .min(1)
+    .max(10)
+    .optional(),
 });
 
 // Query validators for GET endpoints
@@ -420,7 +494,9 @@ export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>
 export type CreateInventoryMovementInput = z.infer<typeof createInventoryMovementSchema>;
 export type CreateLoyaltyProgramInput = z.infer<typeof createLoyaltyProgramSchema>;
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
+export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
+export type AnalyticsQueryInput = z.infer<typeof analyticsQuerySchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 export type UpdateModifierGroupInput = z.infer<typeof updateModifierGroupSchema>;
 export type UpdateModifierInput = z.infer<typeof updateModifierSchema>;

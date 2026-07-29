@@ -11,7 +11,7 @@ export default function DeliveryError({
 }) {
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center">
-      <h2 className="text-lg font-semibold text-[#2F342E]">Algo deu errado</h2>
+      <h2 className="text-lg font-semibold text-[var(--d-text-strong)]">Algo deu errado</h2>
       <p className={`max-w-sm ${deliveryClasses.muted}`}>
         {error.message || "Não foi possível carregar o cardápio de delivery."}
       </p>

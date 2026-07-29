@@ -134,3 +134,7 @@ export interface Cart {
   tax: number; // cents
   total: number; // cents
 }
+
+// Analytics / BI contracts (UI-agnostic)
+export * from "./analytics";
+

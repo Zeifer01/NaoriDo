@@ -47,6 +47,9 @@ export function ModifierGroupDialog({
     initial?.max_selections?.toString() ?? "1"
   );
   const [isRequired, setIsRequired] = useState(initial?.is_required ?? false);
+  const [freeQty, setFreeQty] = useState(
+    initial?.free_quantity?.toString() ?? "0",
+  );
 
   // For new groups: inline modifiers to create
   const [newModifiers, setNewModifiers] = useState<
@@ -101,6 +104,7 @@ export function ModifierGroupDialog({
           minSelections: parseInt(minSel, 10) || 0,
           maxSelections: parseInt(maxSel, 10) || 1,
           isRequired,
+          freeQuantity: parseInt(freeQty, 10) || 0,
         });
 
         // Add any new modifiers
@@ -127,6 +131,7 @@ export function ModifierGroupDialog({
           minSelections: parseInt(minSel, 10) || 0,
           maxSelections: parseInt(maxSel, 10) || 1,
           isRequired,
+          freeQuantity: parseInt(freeQty, 10) || 0,
         });
 
         for (const mod of validMods) {
@@ -199,9 +204,22 @@ export function ModifierGroupDialog({
                   onChange={(e) => setIsRequired(e.target.checked)}
                   className="rounded border-input accent-primary"
                 />
-                Obligatorio
+                Obrigatório
               </label>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="grp-free">Complementos grátis (free quantity)</Label>
+            <Input
+              id="grp-free"
+              type="number"
+              min="0"
+              value={freeQty}
+              onChange={(e) => setFreeQty(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Ex.: 3 = os 3 primeiros são grátis; a partir do 4º cada um cobra o próprio preço.
+            </p>
           </div>
 
           {/* Existing modifiers (edit mode) */}

@@ -39,7 +39,7 @@ export default async function DeliveryLandingPage({
   return (
     <div
       className="flex min-h-screen flex-col items-center justify-center px-6 py-16 text-center"
-      style={{ background: "#FAF7F2" }}
+      style={{ background: "var(--d-bg)" }}
     >
       {/* Logo */}
       {branch?.logo_url && (
@@ -47,7 +47,7 @@ export default async function DeliveryLandingPage({
           <img
             src={branch.logo_url}
             alt={orgName}
-            className="mx-auto h-28 w-28 rounded-full object-cover shadow-lg ring-4 ring-white"
+            className="mx-auto h-28 w-28 rounded-full object-cover shadow-lg ring-4 ring-[var(--d-border-soft)]"
           />
         </div>
       )}
@@ -56,7 +56,7 @@ export default async function DeliveryLandingPage({
       {orgName && (
         <p
           className="mb-4 text-xs font-semibold uppercase tracking-[0.2em]"
-          style={{ color: "#7A9B7E" }}
+          style={{ color: "var(--d-accent)" }}
         >
           {orgName}
         </p>
@@ -65,7 +65,7 @@ export default async function DeliveryLandingPage({
       {/* Title */}
       <h1
         className="mb-5 max-w-sm text-3xl font-bold leading-tight"
-        style={{ color: "#2F342E" }}
+        style={{ color: "var(--d-text-strong)" }}
       >
         {title}
       </h1>
@@ -73,7 +73,7 @@ export default async function DeliveryLandingPage({
       {/* Description */}
       <p
         className="mb-12 max-w-sm text-left text-base leading-relaxed whitespace-pre-line"
-        style={{ color: "#6B7268" }}
+        style={{ color: "var(--d-text-muted)" }}
       >
         {description}
       </p>
@@ -81,15 +81,15 @@ export default async function DeliveryLandingPage({
       {/* CTA button */}
       <a
         href={buttonUrl}
-        className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-semibold text-white shadow-md transition hover:opacity-90 active:scale-[0.98]"
-        style={{ backgroundColor: "#5C7A5F" }}
+        className="inline-flex items-center gap-2 rounded-2xl px-8 py-4 text-base font-semibold shadow-md transition hover:opacity-90 active:scale-[0.98]"
+        style={{ backgroundColor: "var(--d-accent)", color: "var(--d-on-accent)" }}
       >
         {buttonText}
         <ArrowRight className="h-4 w-4" />
       </a>
 
       {/* Subtle divider + skip link */}
-      <div className="mt-16 text-xs" style={{ color: "#9A9F96" }}>
+      <div className="mt-16 text-xs" style={{ color: "var(--d-placeholder)" }}>
         <a
           href={`/delivery/${branchSlug}/menu`}
           className="underline underline-offset-2 hover:opacity-80"

@@ -15,6 +15,8 @@ import { OrdersTable } from "./_components/orders-table";
 import { EditOrderSheet } from "./_components/edit-order-sheet";
 import { PaymentDialog } from "../payments/_components/payment-dialog";
 import { toast } from "sonner";
+import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
+import { useFeatures } from "@/hooks/use-features";
 
 const PAGE_SIZE = 20;
 
@@ -37,6 +39,7 @@ export default function OrdersPage() {
   const { data: orgSettings } = useOrgSettings();
   const { data: branchSettings } = useBranchSettings();
   const printReceipt = usePrintReceipt();
+  const { kitchenLabel } = useFeatures();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
   const updatingTargetStatus = updateStatus.isPending ? updateStatus.variables?.status ?? null : null;
 
@@ -75,6 +78,18 @@ export default function OrdersPage() {
         total: order.total ?? 0,
         customerName: order.customer_name || undefined,
       });
+    }
+  };
+
+  const handleCopyTicket = async (order: any) => {
+    try {
+      const orderDetail = await apiFetch(`/api/orders/${order.id}`);
+      await copyOrderTicket(
+        orderToTicketInput(orderDetail, { headerLabel: kitchenLabel }),
+      );
+      toast.success("Comanda copiada");
+    } catch (err: any) {
+      toast.error(err?.message || "Não foi possível copiar a comanda");
     }
   };
 
@@ -245,6 +260,7 @@ export default function OrdersPage() {
         activeChargeOrderId={chargeOrderId}
         onUpdateStatus={(id, status) => updateStatus.mutate({ id, status })}
         onPrintReceipt={handlePrintReceipt}
+        onCopyTicket={handleCopyTicket}
         onCharge={(order) => setChargeOrderId(order.id)}
         onEdit={(order) => setEditOrderId(order.id)}
         onDelete={(order) => setDeleteOrderTarget(order)}

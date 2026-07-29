@@ -5,13 +5,24 @@ import { cn } from "@restai/ui";
 import { Input } from "@restai/ui/components/input";
 import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { useBranches, useOrgDomains } from "@/hooks/use-settings";
 
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+function buildMenuUrl(
+  primaryOrigin: string,
+  branchSlug: string,
+  multiBranch: boolean,
+): string {
+  const origin = primaryOrigin.replace(/\/$/, "");
+  if (multiBranch) return `${origin}/${branchSlug}/pedir`;
+  return `${origin}/pedir`;
+}
 
-export function getDeliveryMenuUrl(branchSlug: string): string {
-  return `${APP_URL.replace(/\/$/, "")}/delivery/${branchSlug}/menu`;
+export function getDeliveryMenuUrl(branchSlug: string, primaryOrigin?: string | null): string {
+  const fallback =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  const origin = (primaryOrigin || fallback).replace(/\/$/, "");
+  return `${origin}/pedir`;
 }
 
 export function DeliveryMenuLink({
@@ -21,9 +32,14 @@ export function DeliveryMenuLink({
   branchSlug?: string | null;
   className?: string;
 }) {
+  const { data: domains } = useOrgDomains();
+  const { data: branches } = useBranches();
   if (!branchSlug) return null;
 
-  const url = getDeliveryMenuUrl(branchSlug);
+  const multiBranch = (branches?.length ?? 0) > 1;
+  const url = domains?.primaryOrigin
+    ? buildMenuUrl(domains.primaryOrigin, branchSlug, multiBranch)
+    : getDeliveryMenuUrl(branchSlug, domains?.primaryOrigin);
 
   const copyLink = async () => {
     try {

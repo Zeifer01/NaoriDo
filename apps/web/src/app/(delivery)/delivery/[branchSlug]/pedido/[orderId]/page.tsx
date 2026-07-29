@@ -34,9 +34,9 @@ const statusBadge: Record<string, string> = {
   pending: "bg-[#F5EDD6] text-[#8A7340] ring-[#E8DFC8]",
   confirmed: "bg-[#E3EEF5] text-[#4A6B7A] ring-[#D0E0EA]",
   preparing: "bg-[#EDE8F5] text-[#6B5A7A] ring-[#DDD4EA]",
-  ready: "bg-[#EDF3E8] text-[#5C7A5F] ring-[#D8E6D4]",
-  served: "bg-[#EDF3E8] text-[#5C7A5F] ring-[#D8E6D4]",
-  completed: "bg-[#F0EBE3] text-[#6B7268] ring-[#EDE8DF]",
+  ready: "bg-[var(--d-bg-soft)] text-[var(--d-accent-dark)] ring-[var(--d-border-soft)]",
+  served: "bg-[var(--d-bg-soft)] text-[var(--d-accent-dark)] ring-[var(--d-border-soft)]",
+  completed: "bg-[var(--d-bg-elevated)] text-[var(--d-text-muted)] ring-[var(--d-border)]",
   cancelled: "bg-[#F5E8E8] text-[#8A4A4A] ring-[#EAD4D4]",
 };
 
@@ -211,7 +211,7 @@ export default function DeliveryOrderStatusPage({
   return (
     <div className="space-y-5 pb-4">
       <div className={deliveryClasses.cardInner}>
-        <h1 className="text-xl font-semibold text-[#2F342E]">Acompanhar pedido</h1>
+        <h1 className="text-xl font-semibold text-[var(--d-text-strong)]">Acompanhar pedido</h1>
         <p className={`mt-2 ${deliveryClasses.muted}`}>
           Informe o telefone usado no pedido para ver o status em tempo real.
         </p>
@@ -250,8 +250,8 @@ export default function DeliveryOrderStatusPage({
           <div className={`${deliveryClasses.cardInner} space-y-3`}>
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-[#6B7268]">Pedido</p>
-                <p className="text-lg font-semibold text-[#2F342E]">#{order.order_number}</p>
+                <p className="text-sm text-[var(--d-text-muted)]">Pedido</p>
+                <p className="text-lg font-semibold text-[var(--d-text-strong)]">#{order.order_number}</p>
               </div>
               <span
                 className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ${
@@ -263,18 +263,18 @@ export default function DeliveryOrderStatusPage({
             </div>
             <div className="space-y-1 text-sm">
               <p>
-                <span className="text-[#6B7268]">Cliente:</span> {order.customer_name}
+                <span className="text-[var(--d-text-muted)]">Cliente:</span> {order.customer_name}
               </p>
               <p>
-                <span className="text-[#6B7268]">Endereço:</span> {order.delivery_address}
+                <span className="text-[var(--d-text-muted)]">Endereço:</span> {order.delivery_address}
               </p>
               {order.delivery_reference && (
                 <p>
-                  <span className="text-[#6B7268]">Referência:</span> {order.delivery_reference}
+                  <span className="text-[var(--d-text-muted)]">Referência:</span> {order.delivery_reference}
                 </p>
               )}
               <p>
-                <span className="text-[#6B7268]">Total:</span>{" "}
+                <span className="text-[var(--d-text-muted)]">Total:</span>{" "}
                 {formatCurrency(order.total, currency)}
               </p>
             </div>
@@ -292,9 +292,9 @@ export default function DeliveryOrderStatusPage({
           {/* Items list */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <h2 className="font-medium text-[#2F342E]">Itens</h2>
+              <h2 className="font-medium text-[var(--d-text-strong)]">Itens</h2>
               {canEdit && (
-                <span className="text-xs text-[#7A9B7E]">Toque em × para remover</span>
+                <span className="text-xs text-[var(--d-accent)]">Toque em × para remover</span>
               )}
             </div>
 
@@ -302,12 +302,12 @@ export default function DeliveryOrderStatusPage({
 
             {(order.items || []).map((item: any) => (
               <div key={item.id}>
-                <div className="flex items-center justify-between rounded-xl border border-[#EDE8DF] bg-white/80 px-3 py-2.5 text-sm">
+                <div className="flex items-center justify-between rounded-xl border border-[var(--d-border)] bg-[var(--d-card)] px-3 py-2.5 text-sm">
                   <span>
                     {item.quantity}x {item.name}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-[#5C7A5F]">
+                    <span className="font-medium text-[var(--d-accent-dark)]">
                       {formatCurrency(item.total, currency)}
                     </span>
                     {canEdit && (order.items || []).length > 1 && (
@@ -316,7 +316,7 @@ export default function DeliveryOrderStatusPage({
                         aria-label={`Remover ${item.name}`}
                         onClick={() => setConfirmRemoveId(item.id)}
                         disabled={removingItemId !== null}
-                        className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-[#A8B5A0] transition hover:bg-[#F5E8E8] hover:text-[#8A4A4A] disabled:opacity-40"
+                        className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-[var(--d-placeholder)] transition hover:bg-[#F5E8E8] hover:text-[#8A4A4A] disabled:opacity-40"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -346,7 +346,7 @@ export default function DeliveryOrderStatusPage({
                         type="button"
                         onClick={() => setConfirmRemoveId(null)}
                         disabled={removingItemId !== null}
-                        className="flex-1 rounded-lg border border-[#EDE8DF] py-1.5 text-xs font-medium text-[#6B7268] transition hover:bg-[#F5F0EA] disabled:opacity-50"
+                        className="flex-1 rounded-lg border border-[var(--d-border)] py-1.5 text-xs font-medium text-[var(--d-text-muted)] transition hover:bg-[var(--d-bg-elevated)] disabled:opacity-50"
                       >
                         Cancelar
                       </button>
@@ -379,10 +379,10 @@ export default function DeliveryOrderStatusPage({
               </button>
 
               {showAddItems && (
-                <div className="rounded-2xl border border-[#EDE8DF] bg-white/60 p-4 space-y-4">
+                <div className="rounded-2xl border border-[var(--d-border)] bg-[var(--d-card)] p-4 space-y-4">
                   {menuLoading ? (
                     <div className="flex justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-[#5C7A5F]" />
+                      <Loader2 className="h-6 w-6 animate-spin text-[var(--d-accent-dark)]" />
                     </div>
                   ) : (
                     <>
@@ -393,8 +393,8 @@ export default function DeliveryOrderStatusPage({
                             onClick={() => setSelectedCategory("all")}
                             className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
                               selectedCategory === "all"
-                                ? "bg-[#5C7A5F] text-white"
-                                : "border border-[#EDE8DF] bg-white text-[#6B7268]"
+                                ? "bg-[var(--d-accent-dark)] text-white"
+                                : "border border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
                             }`}
                           >
                             Todos
@@ -405,8 +405,8 @@ export default function DeliveryOrderStatusPage({
                               onClick={() => setSelectedCategory(cat.id)}
                               className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
                                 selectedCategory === cat.id
-                                  ? "bg-[#5C7A5F] text-white"
-                                  : "border border-[#EDE8DF] bg-white text-[#6B7268]"
+                                  ? "bg-[var(--d-accent-dark)] text-white"
+                                  : "border border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
                               }`}
                             >
                               {cat.name}
@@ -418,7 +418,7 @@ export default function DeliveryOrderStatusPage({
                       {/* Items */}
                       <div className="space-y-2">
                         {visibleItems.length === 0 ? (
-                          <p className="py-4 text-center text-sm text-[#9A9F96]">
+                          <p className="py-4 text-center text-sm text-[var(--d-placeholder)]">
                             Nenhum item disponível nesta categoria.
                           </p>
                         ) : (
@@ -427,13 +427,13 @@ export default function DeliveryOrderStatusPage({
                             return (
                               <div
                                 key={item.id}
-                                className="flex items-center gap-3 rounded-xl border border-[#EDE8DF] bg-white px-3 py-2.5"
+                                className="flex items-center gap-3 rounded-xl border border-[var(--d-border)] bg-[var(--d-card-solid)] px-3 py-2.5"
                               >
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium leading-snug text-[#2F342E]">
+                                  <p className="text-sm font-medium leading-snug text-[var(--d-text-strong)]">
                                     {item.name}
                                   </p>
-                                  <p className="text-xs text-[#5C7A5F]">
+                                  <p className="text-xs text-[var(--d-accent-dark)]">
                                     {formatCurrency(item.price, currency)}
                                   </p>
                                 </div>
@@ -443,11 +443,11 @@ export default function DeliveryOrderStatusPage({
                                       <button
                                         type="button"
                                         onClick={() => changeAddition(item.id, -1)}
-                                        className="flex h-7 w-7 items-center justify-center rounded-full border border-[#EDE8DF] bg-white text-[#5C7A5F] transition active:scale-95"
+                                        className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-accent-dark)] transition active:scale-95"
                                       >
                                         <Minus className="h-3.5 w-3.5" />
                                       </button>
-                                      <span className="min-w-[1rem] text-center text-sm font-semibold text-[#2F342E]">
+                                      <span className="min-w-[1rem] text-center text-sm font-semibold text-[var(--d-text-strong)]">
                                         {qty}
                                       </span>
                                     </>
@@ -455,7 +455,7 @@ export default function DeliveryOrderStatusPage({
                                   <button
                                     type="button"
                                     onClick={() => changeAddition(item.id, 1)}
-                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-[#5C7A5F] text-white transition active:scale-95"
+                                    className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--d-accent-dark)] text-white transition active:scale-95"
                                   >
                                     <Plus className="h-3.5 w-3.5" />
                                   </button>
@@ -507,8 +507,8 @@ export default function DeliveryOrderStatusPage({
                   className={cn(
                     "rounded-xl border p-2.5",
                     active
-                      ? "border-[#7A9B7E] bg-[#EDF3E8] text-[#5C7A5F]"
-                      : "border-[#EDE8DF] bg-white/50 text-[#9A9F96] opacity-70",
+                      ? "border-[var(--d-accent)] bg-[var(--d-bg-soft)] text-[var(--d-accent-dark)]"
+                      : "border-[var(--d-border)] bg-white/50 text-[var(--d-placeholder)] opacity-70",
                   )}
                 >
                   <Icon className="mx-auto mb-1 h-4 w-4" />

@@ -14,6 +14,7 @@ import { Badge } from "@restai/ui/components/badge";
 import { Check, ChevronDown, Plus, Minus, Loader2, UtensilsCrossed } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useItemModifierGroups } from "@/hooks/use-menu";
+import { calcModifiersChargeCents, calcModifierSnapshotPrices } from "@restai/config";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,28 +72,41 @@ export function ModifierDialog({
   // If no modifier groups, the useEffect above handles auto-add
   if (!isLoading && modifierGroups.length === 0) return null;
 
-  const toggleModifier = (groupId: string, modId: string, maxSelections: number, isSingle: boolean) => {
+  const setModifierQty = (
+    groupId: string,
+    modId: string,
+    maxSelections: number,
+    isSingle: boolean,
+    nextQty: number,
+  ) => {
     setSelected((prev) => {
       const curr = prev[groupId] || [];
       if (isSingle) {
-        return { ...prev, [groupId]: curr.includes(modId) ? [] : [modId] };
+        return { ...prev, [groupId]: nextQty > 0 ? [modId] : [] };
       }
-      if (curr.includes(modId)) {
-        return { ...prev, [groupId]: curr.filter((id) => id !== modId) };
-      }
-      if (maxSelections && curr.length >= maxSelections) return prev;
-      return { ...prev, [groupId]: [...curr, modId] };
+      const without = curr.filter((id) => id !== modId);
+      const clamped = Math.max(0, Math.min(nextQty, Math.max(0, maxSelections - without.length)));
+      return {
+        ...prev,
+        [groupId]: [...without, ...Array.from({ length: clamped }, () => modId)],
+      };
     });
   };
 
-  const modifiersTotal = Object.entries(selected).reduce((sum, [groupId, modIds]) => {
-    const group = modifierGroups.find((g: any) => g.id === groupId);
-    if (!group) return sum;
-    return sum + modIds.reduce((ms, modId) => {
-      const mod = group.modifiers.find((m: any) => m.id === modId);
-      return ms + (mod?.price || 0);
-    }, 0);
-  }, 0);
+  const modifiersTotal = (() => {
+    const selectedMods: { id: string; groupId: string; price: number }[] = [];
+    const groupsCfg: { id: string; freeQuantity: number }[] = [];
+    for (const [groupId, modIds] of Object.entries(selected)) {
+      const group = modifierGroups.find((g: any) => g.id === groupId);
+      if (!group || modIds.length === 0) continue;
+      groupsCfg.push({ id: groupId, freeQuantity: group.free_quantity ?? 0 });
+      for (const modId of modIds) {
+        const mod = group.modifiers.find((m: any) => m.id === modId);
+        if (mod) selectedMods.push({ id: mod.id, groupId, price: mod.price || 0 });
+      }
+    }
+    return calcModifiersChargeCents(selectedMods, groupsCfg);
+  })();
 
   const lineTotal = (item.price + modifiersTotal) * quantity;
 
@@ -103,15 +117,40 @@ export function ModifierDialog({
   });
 
   const handleConfirm = () => {
-    const cartMods: CartModifier[] = [];
+    const selectedMods: { id: string; groupId: string; price: number; name: string }[] = [];
+    const groupsCfg: { id: string; freeQuantity: number }[] = [];
     for (const [groupId, modIds] of Object.entries(selected)) {
       const group = modifierGroups.find((g: any) => g.id === groupId);
       if (!group) continue;
+      if (modIds.length) {
+        groupsCfg.push({ id: groupId, freeQuantity: group.free_quantity ?? 0 });
+      }
       for (const modId of modIds) {
         const mod = group.modifiers.find((m: any) => m.id === modId);
-        if (mod) cartMods.push({ modifierId: mod.id, name: mod.name, price: mod.price || 0 });
+        if (mod) {
+          selectedMods.push({
+            id: mod.id,
+            groupId,
+            price: mod.price || 0,
+            name: mod.name,
+          });
+        }
       }
     }
+    const snapshots = calcModifierSnapshotPrices(
+      selectedMods.map((m) => ({ id: m.id, groupId: m.groupId, price: m.price })),
+      groupsCfg,
+    );
+    const remaining = [...snapshots];
+    const cartMods: CartModifier[] = selectedMods.map((m) => {
+      const idx = remaining.findIndex((s) => s.id === m.id);
+      const snap = idx >= 0 ? remaining.splice(idx, 1)[0] : null;
+      return {
+        modifierId: m.id,
+        name: m.name,
+        price: snap?.effectivePrice ?? m.price,
+      };
+    });
     onAdd(item, quantity, cartMods, notes);
     onClose();
   };
@@ -194,38 +233,87 @@ export function ModifierDialog({
                     <div className="overflow-hidden">
                       <div className="space-y-1">
                         {(group.modifiers || []).filter((m: any) => m.is_available !== false).map((mod: any) => {
-                          const isSelected = sel.includes(mod.id);
+                          const qty = sel.filter((id: string) => id === mod.id).length;
+                          const isSelected = qty > 0;
+
+                          if (isSingle) {
+                            return (
+                              <button
+                                key={mod.id}
+                                type="button"
+                                onClick={() =>
+                                  setModifierQty(group.id, mod.id, group.max_selections, true, isSelected ? 0 : 1)
+                                }
+                                className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                                  isSelected
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border hover:border-primary/40"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className={`flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 transition-colors ${
+                                      isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                                    }`}
+                                  >
+                                    {isSelected && (
+                                      <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                    )}
+                                  </div>
+                                  <span className={isSelected ? "font-medium" : ""}>{mod.name}</span>
+                                </div>
+                                {mod.price > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    +{formatCurrency(mod.price)}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          }
+
                           return (
-                            <button
+                            <div
                               key={mod.id}
-                              type="button"
-                              onClick={() => toggleModifier(group.id, mod.id, group.max_selections, isSingle)}
-                              className={`w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-sm transition-colors ${
-                                isSelected
-                                  ? "border-primary bg-primary/5"
-                                  : "border-border hover:border-primary/40"
+                              className={`w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-sm ${
+                                isSelected ? "border-primary bg-primary/5" : "border-border"
                               }`}
                             >
-                              <div className="flex items-center gap-2.5">
-                                <div
-                                  className={`flex h-4.5 w-4.5 items-center justify-center ${
-                                    isSingle ? "rounded-full" : "rounded"
-                                  } border-2 transition-colors ${
-                                    isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
-                                  }`}
-                                >
-                                  {isSelected && (
-                                    <Check className="h-2.5 w-2.5 text-primary-foreground" />
-                                  )}
-                                </div>
-                                <span className={isSelected ? "font-medium" : ""}>{mod.name}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className={isSelected ? "font-medium" : ""}>{mod.name}</p>
+                                {mod.price > 0 && (
+                                  <p className="text-xs text-muted-foreground">
+                                    +{formatCurrency(mod.price)} cada
+                                  </p>
+                                )}
                               </div>
-                              {mod.price > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                  +{formatCurrency(mod.price)}
-                                </span>
-                              )}
-                            </button>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled={qty === 0}
+                                  onClick={() =>
+                                    setModifierQty(group.id, mod.id, group.max_selections, false, qty - 1)
+                                  }
+                                >
+                                  <Minus className="h-3.5 w-3.5" />
+                                </Button>
+                                <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled={selCount >= group.max_selections}
+                                  onClick={() =>
+                                    setModifierQty(group.id, mod.id, group.max_selections, false, qty + 1)
+                                  }
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
                           );
                         })}
                       </div>

@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@restai/ui/components/card";
 import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
-import { ChevronLeft, ChevronRight, DollarSign, Eye, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, DollarSign, Eye, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -59,6 +59,7 @@ interface OrdersTableProps {
   activeChargeOrderId?: string | null;
   onUpdateStatus: (id: string, status: string) => void;
   onPrintReceipt: (order: any) => void;
+  onCopyTicket?: (order: any) => void;
   onCharge?: (order: any) => void;
   onEdit?: (order: any) => void;
   onDelete?: (order: any) => void;
@@ -81,6 +82,7 @@ export function OrdersTable({
   activeChargeOrderId,
   onUpdateStatus,
   onPrintReceipt,
+  onCopyTicket,
   onCharge,
   onEdit,
   onDelete,
@@ -286,6 +288,17 @@ export function OrdersTable({
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
+                            {onCopyTicket && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => onCopyTicket(order)}
+                                title="Copiar comanda"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            )}
                             {onDelete && (
                               <Button
                                 variant="ghost"

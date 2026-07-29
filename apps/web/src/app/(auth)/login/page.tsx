@@ -8,13 +8,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@restai/ui/components/input";
 import { Label } from "@restai/ui/components/label";
 import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { buildPlatformAppOrigin, isPlatformControlHost } from "@restai/config";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isControlPlane, setIsControlPlane] = useState(false);
+
+  useEffect(() => {
+    setIsControlPlane(isPlatformControlHost(window.location.hostname));
+  }, []);
 
   const {
     register,
@@ -40,10 +46,18 @@ export default function LoginPage() {
     <Card>
       <CardHeader className="text-center">
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-          <span className="text-2xl font-bold text-primary-foreground">R</span>
+          <span className="text-2xl font-bold text-primary-foreground">
+            {isControlPlane ? "A" : "R"}
+          </span>
         </div>
-        <CardTitle className="text-2xl">RestAI</CardTitle>
-        <CardDescription>Entre na sua conta</CardDescription>
+        <CardTitle className="text-2xl">
+          {isControlPlane ? "Automatizappy" : "RestAI"}
+        </CardTitle>
+        <CardDescription>
+          {isControlPlane
+            ? "Painel da plataforma — acesso exclusivo do super admin"
+            : "Entre na sua conta"}
+        </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
@@ -83,12 +97,25 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Entrando..." : "Entrar"}
           </Button>
-          <p className="text-sm text-muted-foreground">
-            Não tem conta?{" "}
-            <Link href="/register" className="text-primary hover:underline">
-              Cadastre-se
-            </Link>
-          </p>
+          {!isControlPlane && (
+            <p className="text-sm text-muted-foreground">
+              Não tem conta?{" "}
+              <Link href="/register" className="text-primary hover:underline">
+                Cadastre-se
+              </Link>
+            </p>
+          )}
+          {!isControlPlane && (
+            <p className="text-xs text-muted-foreground text-center">
+              Dono da plataforma?{" "}
+              <a
+                href={`${buildPlatformAppOrigin()}/login`}
+                className="text-primary hover:underline"
+              >
+                app.automatizappy.com
+              </a>
+            </p>
+          )}
         </CardFooter>
       </form>
     </Card>

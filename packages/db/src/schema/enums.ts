@@ -60,6 +60,8 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "yape",
   "plin",
   "pix",
+  "zelle",
+  "venmo",
   "transfer",
   "other",
 ]);

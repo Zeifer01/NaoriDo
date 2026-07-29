@@ -17,10 +17,11 @@ import { redis } from "../lib/redis.js";
 import { db, schema } from "@restai/db";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
+import { getOrganizationPrimaryOrigin } from "../lib/tenant-host.js";
 
 export { getWhatsAppMessageTemplates, type WhatsAppMessageTemplates };
 
-const APP_URL =
+const FALLBACK_APP_URL =
   process.env.APP_URL ||
   (process.env.CORS_ORIGINS || "http://localhost:3000").split(",")[0]?.trim() ||
   "http://localhost:3000";
@@ -59,8 +60,53 @@ function branchNotificationsEnabled(branch: BranchLike): boolean {
   return settings.whatsapp_notifications_enabled !== false;
 }
 
-function trackingUrl(branchSlug: string, orderId: string): string {
-  return `${APP_URL.replace(/\/$/, "")}/delivery/${branchSlug}/pedido/${orderId}`;
+async function resolveTenantOrigin(organizationId?: string | null): Promise<string> {
+  if (organizationId) {
+    const origin = await getOrganizationPrimaryOrigin(organizationId);
+    if (origin) return origin.replace(/\/$/, "");
+  }
+  return FALLBACK_APP_URL.replace(/\/$/, "");
+}
+
+async function trackingUrl(
+  branch: BranchLike,
+  orderId: string,
+): Promise<string> {
+  const origin = await resolveTenantOrigin(branch.organization_id);
+  if (branch.organization_id) {
+    const branches = await db
+      .select({ id: schema.branches.id })
+      .from(schema.branches)
+      .where(
+        and(
+          eq(schema.branches.organization_id, branch.organization_id),
+          eq(schema.branches.is_active, true),
+        ),
+      );
+    if (branches.length > 1) {
+      return `${origin}/${branch.slug}/pedido/${orderId}`;
+    }
+  }
+  return `${origin}/pedido/${orderId}`;
+}
+
+async function menuUrlForBranch(branch: BranchLike): Promise<string> {
+  const origin = await resolveTenantOrigin(branch.organization_id);
+  if (branch.organization_id) {
+    const branches = await db
+      .select({ id: schema.branches.id })
+      .from(schema.branches)
+      .where(
+        and(
+          eq(schema.branches.organization_id, branch.organization_id),
+          eq(schema.branches.is_active, true),
+        ),
+      );
+    if (branches.length > 1) {
+      return `${origin}/${branch.slug}/pedir`;
+    }
+  }
+  return `${origin}/pedir`;
 }
 
 export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
@@ -147,7 +193,7 @@ export async function notifyOrderEdited(
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
   const total = formatMoney(order.total, branch.currency || "BRL");
-  const link = trackingUrl(branch.slug, order.id);
+  const link = await trackingUrl(branch, order.id);
 
   const message = renderWhatsAppTemplate(templates.order_edited, {
     cliente: customer,
@@ -166,7 +212,7 @@ export async function notifyDeliveryOrderCreated(
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
   const total = formatMoney(order.total, branch.currency || "BRL");
-  const link = trackingUrl(branch.slug, order.id);
+  const link = await trackingUrl(branch, order.id);
   const endereco_bloco = order.delivery_address
     ? `Endereço: ${order.delivery_address}`
     : "";
@@ -236,7 +282,7 @@ export async function handleIncomingWebhook(
   await redis.setex(dedupeKey, 300, "1");
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
-  const menuUrl = `${APP_URL.replace(/\/$/, "")}/delivery/${branch.slug}/menu`;
+  const menuUrl = await menuUrlForBranch(branch);
 
   const message = renderWhatsAppTemplate(templates.auto_reply, {
     estabelecimento: branch.name,
@@ -268,7 +314,7 @@ export async function sendCampaignMessage(
     ));
 
   const instanceName = getBranchInstanceName(branch);
-  const menuUrl = `${APP_URL.replace(/\/$/, "")}/delivery/${branch.slug}/menu`;
+  const menuUrl = await menuUrlForBranch(branch);
 
   let sent = 0;
   let failed = 0;
@@ -330,7 +376,7 @@ export async function notifyItemUnavailable(
       `*Total: ${formatMoney(order.total, currency)}*`;
   }
 
-  const editLink = trackingUrl(branch.slug, order.id);
+  const editLink = await trackingUrl(branch, order.id);
 
   const message =
     `Olá, ${customer}! 😔\n\n` +
@@ -361,7 +407,7 @@ export async function notifyDeliveryOrderStatusUpdated(
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
-  const link = trackingUrl(branch.slug, order.id);
+  const link = await trackingUrl(branch, order.id);
 
   const message = renderWhatsAppTemplate(templates[templateKey], {
     cliente: customer,

@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { Button } from "@restai/ui/components/button";
-import { RefreshCw, Building2, MapPin, Store, MessageCircle } from "lucide-react";
+import { RefreshCw, Building2, MapPin, Store, MessageCircle, Globe } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { useOrgSettings, useBranchSettings } from "@/hooks/use-settings";
 import { OrgTab } from "./_components/org-tab";
 import { BranchTab } from "./_components/branch-tab";
 import { FiliaisTab } from "./_components/sedes-tab";
 import { WhatsAppTab } from "./_components/whatsapp-tab";
+import { DomainsTab } from "./_components/domains-tab";
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"org" | "branch" | "sedes" | "whatsapp">("org");
+  const [activeTab, setActiveTab] = useState<"org" | "branch" | "sedes" | "whatsapp" | "domains">("org");
 
   const { error: orgError, refetch: refetchOrg } = useOrgSettings();
   const { error: branchError, refetch: refetchBranch } = useBranchSettings();
@@ -72,12 +73,21 @@ export default function SettingsPage() {
           <MessageCircle className="h-4 w-4 mr-2" />
           WhatsApp
         </Button>
+        <Button
+          variant={activeTab === "domains" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setActiveTab("domains")}
+        >
+          <Globe className="h-4 w-4 mr-2" />
+          Domínios
+        </Button>
       </div>
 
       {activeTab === "org" && <OrgTab />}
       {activeTab === "branch" && <BranchTab />}
       {activeTab === "sedes" && <FiliaisTab />}
       {activeTab === "whatsapp" && <WhatsAppTab />}
+      {activeTab === "domains" && <DomainsTab />}
     </div>
   );
 }

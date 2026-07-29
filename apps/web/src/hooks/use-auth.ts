@@ -2,6 +2,7 @@
 
 import { useAuthStore } from "@/stores/auth-store";
 import { useRouter } from "next/navigation";
+import { isPlatformControlHost } from "@restai/config";
 
 export function useAuth() {
   const {
@@ -16,11 +17,16 @@ export function useAuth() {
   const router = useRouter();
 
   const login = async (email: string, password: string) => {
+    const tenantHost =
+      typeof window !== "undefined" ? window.location.host : "";
     const res = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(tenantHost ? { "x-tenant-host": tenantHost } : {}),
+        },
         body: JSON.stringify({ email, password }),
       }
     );
@@ -31,7 +37,14 @@ export function useAuth() {
     if (data.data.user.branches?.length > 0) {
       setSelectedBranch(data.data.user.branches[0]);
     }
-    router.push("/orders");
+    const onControl =
+      typeof window !== "undefined" &&
+      isPlatformControlHost(window.location.hostname);
+    if (data.data.user.role === "super_admin" || onControl) {
+      router.push("/super-admin");
+    } else {
+      router.push("/orders");
+    }
   };
 
   const register = async (input: {

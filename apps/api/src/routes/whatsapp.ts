@@ -30,7 +30,11 @@ import {
   type WhatsAppMessageKey,
 } from "../lib/whatsapp-messages.js";
 
-const API_PUBLIC_URL = (process.env.API_PUBLIC_URL || "https://api.naorido.com.br").replace(/\/$/, "");
+import { buildPlatformApiOrigin } from "@restai/config";
+
+const API_PUBLIC_URL = (
+  process.env.API_PUBLIC_URL || buildPlatformApiOrigin()
+).replace(/\/$/, "");
 
 const whatsapp = new Hono<AppEnv>();
 

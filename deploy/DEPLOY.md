@@ -1,20 +1,24 @@
-# Naori — Deploy em VPS (Ubuntu 24.04)
+# Automatizappy / Naori — Deploy em VPS (Ubuntu 24.04)
 
 Guia passo a passo para subir o sistema em uma VPS de produção (Contabo / Hostinger / Hetzner / qualquer KVM com Ubuntu 24.04).
 
-> **Arquitetura final:**
-> - `https://naorido.com.br` → Frontend Next.js
-> - `https://api.naorido.com.br` → Backend Bun + Hono
+> **Arquitetura (plataforma multi-tenant):**
+> - `https://api.automatizappy.com` → Backend Bun + Hono
+> - `https://app.automatizappy.com` / `https://automatizappy.com` → Painel (web)
+> - `https://{orgSlug}.automatizappy.com` → Site público do tenant (`/menu`, QR, etc.)
+> - Domínios customizados (ex.: `naorido.com.br`) → mesmo web, resolvidos via `organization_domains`
 > - Postgres, Redis e Evolution API rodam **internamente** (não expostos).
-> - Caddy faz reverse proxy + SSL automático via Let's Encrypt.
+> - Caddy: reverse proxy + SSL (wildcard + On-Demand TLS para custom domains).
 > - Backup diário do Postgres → Cloudflare R2.
+>
+> **Migração:** blocos `naorido.com.br` / `api.naorido.com.br` permanecem no Caddyfile até o cutover completo.
 
 ---
 
 ## Pré-requisitos (antes de comprar a VPS)
 
-- [ ] **Domínio comprado**. Neste guia: `naorido.com.br`.
-- [ ] **DNS Cloudflare ativo** para o domínio.
+- [ ] **Domínio da plataforma** `automatizappy.com` (e opcionalmente manter `naorido.com.br` como custom da Naori Do).
+- [ ] **DNS Cloudflare** para a plataforma (apex + wildcard `*`).
 - [ ] **Bucket R2** criado no Cloudflare para uploads (`naori`) e outro para backups (`naori-backups`).
 - [ ] **API Token R2** com permissão Read+Write nos buckets.
 - [ ] **Chave SSH** local gerada (no Windows, com PowerShell):
@@ -49,22 +53,40 @@ Quando vier por e-mail o IP e a senha root, anote.
 
 ## Etapa 2 — Apontar o DNS para a VPS
 
-No painel do **Cloudflare** → DNS de `naorido.com.br`:
+No painel do **Cloudflare** → DNS de `automatizappy.com`:
 
-| Tipo | Nome | Conteúdo (IP da VPS) | Proxy |
-|------|------|----------------------|-------|
-| A | `@`   | `<IP da sua VPS>` | **🔘 DNS only (cinza)** |
-| A | `www` | `<IP da sua VPS>` | **🔘 DNS only (cinza)** |
-| A | `api` | `<IP da sua VPS>` | **🔘 DNS only (cinza)** |
+| Tipo | Nome | Conteúdo | Proxy | Notas |
+|------|------|----------|-------|-------|
+| A | `@` | `<IP da VPS>` | **DNS only (cinza)** | Apex da plataforma |
+| A | `www` | `<IP da VPS>` | **DNS only** | |
+| A | `app` | `<IP da VPS>` | **DNS only** | Painel |
+| A | `api` | `<IP da VPS>` | **DNS only** | API |
+| A | `*` | `<IP da VPS>` | **DNS only** | Wildcard tenants `{slug}.automatizappy.com` |
 
-> **Importante:** comece com **DNS only (nuvem cinza)**. Depois que o Caddy emitir o SSL com sucesso (~2 min), você pode trocar para **proxied (nuvem laranja)** se quiser CDN/DDoS protection. Se já começar com proxied, o Let's Encrypt vai falhar na validação.
+Para **wildcard TLS** no Caddy/Let's Encrypt, use DNS challenge (Cloudflare API token) ou certificado Cloudflare Origin + proxy laranja após a 1ª emissão.
+
+**Custom domain do cliente** (ex. Naori Do):
+
+| Tipo | Nome | Conteúdo | Proxy |
+|------|------|----------|-------|
+| A / CNAME | `@` / `www` em `naorido.com.br` | IP da VPS ou CNAME para `automatizappy.com` | DNS only na 1ª vez |
+
+On-Demand TLS: Caddy consulta `GET http://127.0.0.1:3001/api/public/domain-verify-ask?domain=...` (só hostnames verificados em `organization_domains` ou subdomínios da plataforma).
+
+> **Importante:** comece com **DNS only (nuvem cinza)**. Depois que o SSL emitir, pode ligar o proxy laranja se quiser CDN/DDoS.
 
 Verifique a propagação:
 ```powershell
-nslookup naorido.com.br
-nslookup api.naorido.com.br
+nslookup automatizappy.com
+nslookup api.automatizappy.com
+nslookup app.automatizappy.com
 ```
-Deve retornar o IP da VPS. Pode levar de **2 minutos a 4 horas**.
+
+Após migrate + seed de domínios:
+```bash
+bun run db:migrate
+bun run db:seed-domains
+```
 
 ---
 
@@ -182,7 +204,7 @@ sudo systemctl reload caddy
 sudo journalctl -u caddy -f
 ```
 
-Quando aparecer "certificate obtained successfully" para `naorido.com.br` e `api.naorido.com.br`, o SSL está pronto. Apertar `Ctrl+C` para sair do `journalctl`.
+Quando aparecer "certificate obtained successfully" para `automatizappy.com` / `api.automatizappy.com` (e `naorido.com.br` na migração), o SSL está pronto. Apertar `Ctrl+C` para sair do `journalctl`.
 
 > **Se falhar:** os erros mais comuns são DNS não propagado ainda (volte na etapa 2) ou Cloudflare com proxy ligado (volte para DNS only).
 
@@ -247,8 +269,9 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml exec api 
 ## Etapa 10 — Testar
 
 Abra no navegador:
-- https://naorido.com.br → painel de login
-- https://api.naorido.com.br/health → deve retornar `{ "status": "ok" }`
+- https://app.automatizappy.com → painel de login
+- https://api.automatizappy.com/health → deve retornar `{ "status": "ok" }`
+- https://naorido.com.br → Naori Do (custom domain, após `db:seed-domains`)
 
 Faça login com as credenciais que você usou no seed (`admin@restai.pe` / `admin12345`).
 

@@ -4,17 +4,20 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, and, inArray, or, isNotNull, sql, ne } from "drizzle-orm";
 import { db, schema } from "@restai/db";
-import { getDeliveryFeeCents } from "@restai/config";
+import { getDeliveryFeeCents, parseDeliveryPaymentMethods } from "@restai/config";
 import {
   createDeliveryOrderSchema,
   deliveryOrderStatusQuerySchema,
 } from "@restai/validators";
 import { createOrder, OrderValidationError } from "../services/order.service.js";
+import { findOrCreateByPhone } from "../services/customer.service.js";
 import {
   notifyDeliveryOrderCreated,
 } from "../services/whatsapp.service.js";
 import { wsManager } from "../ws/manager.js";
 import { orgHasFeature } from "../lib/features.js";
+import { resolveHost } from "../lib/tenant-host.js";
+import type { Context } from "hono";
 
 const delivery = new Hono<AppEnv>();
 
@@ -22,13 +25,37 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-async function getActiveBranch(branchSlug: string) {
+/** Resolve organization from Host / X-Organization-Id when present (multi-tenant isolation). */
+async function resolveOrganizationId(c: Context): Promise<string | null> {
+  const headerOrg = c.req.header("x-organization-id")?.trim();
+  if (headerOrg) return headerOrg;
+
+  const host =
+    c.req.header("x-forwarded-host") ||
+    c.req.header("host") ||
+    "";
+  const resolved = await resolveHost(host);
+  return resolved?.organizationId ?? null;
+}
+
+async function findBranchBySlug(branchSlug: string, organizationId: string | null) {
   const [branch] = await db
     .select()
     .from(schema.branches)
-    .where(eq(schema.branches.slug, branchSlug))
+    .where(
+      organizationId
+        ? and(
+            eq(schema.branches.slug, branchSlug),
+            eq(schema.branches.organization_id, organizationId),
+          )
+        : eq(schema.branches.slug, branchSlug),
+    )
     .limit(1);
+  return branch ?? null;
+}
 
+async function getActiveBranch(branchSlug: string, organizationId: string | null = null) {
+  const branch = await findBranchBySlug(branchSlug, organizationId);
   if (!branch || !branch.is_active) return null;
 
   const settings = (branch.settings || {}) as Record<string, unknown>;
@@ -43,17 +70,15 @@ async function getActiveBranch(branchSlug: string) {
 }
 
 // Like getActiveBranch but returns even when delivery is disabled (for showing the offline message).
-async function getBranchForMenu(branchSlug: string): Promise<
+async function getBranchForMenu(
+  branchSlug: string,
+  organizationId: string | null = null,
+): Promise<
   | { branch: typeof schema.branches.$inferSelect; disabled: false }
   | { branch: typeof schema.branches.$inferSelect; disabled: true; offlineMessage: string }
   | null
 > {
-  const [branch] = await db
-    .select()
-    .from(schema.branches)
-    .where(eq(schema.branches.slug, branchSlug))
-    .limit(1);
-
+  const branch = await findBranchBySlug(branchSlug, organizationId);
   if (!branch || !branch.is_active) return null;
 
   const settings = (branch.settings || {}) as Record<string, unknown>;
@@ -74,7 +99,8 @@ async function getBranchForMenu(branchSlug: string): Promise<
 
 delivery.get("/:branchSlug/zones", async (c) => {
   const branchSlug = c.req.param("branchSlug");
-  const branch = await getActiveBranch(branchSlug);
+  const organizationId = await resolveOrganizationId(c);
+  const branch = await getActiveBranch(branchSlug, organizationId);
   if (!branch) {
     return c.json({ success: true, data: [] });
   }
@@ -83,12 +109,31 @@ delivery.get("/:branchSlug/zones", async (c) => {
     .from(schema.deliveryZones)
     .where(and(eq(schema.deliveryZones.branch_id, branch.id), eq(schema.deliveryZones.is_active, true)))
     .orderBy(schema.deliveryZones.sort_order, schema.deliveryZones.name);
-  return c.json({ success: true, data: zones });
+
+  const settings = (branch.settings || {}) as Record<string, unknown>;
+  const paymentMethods = parseDeliveryPaymentMethods(settings.payment_methods);
+  return c.json({
+    success: true,
+    data: zones,
+    meta: {
+      pickup_enabled: settings.pickup_enabled !== false,
+      pickup_address:
+        (settings.pickup_address as string) || branch.address || null,
+      pickup_hint: (settings.pickup_hint as string) || null,
+      pickup_unavailable_message:
+        (settings.pickup_unavailable_message as string) || null,
+      delivery_label: (settings.delivery_label as string) || null,
+      pickup_label: (settings.pickup_label as string) || null,
+      payment_methods: paymentMethods,
+      currency: branch.currency,
+    },
+  });
 });
 
 delivery.get("/:branchSlug/menu", async (c) => {
   const branchSlug = c.req.param("branchSlug");
-  const result = await getBranchForMenu(branchSlug);
+  const organizationId = await resolveOrganizationId(c);
+  const result = await getBranchForMenu(branchSlug, organizationId);
 
   if (!result) {
     return c.json(
@@ -111,10 +156,17 @@ delivery.get("/:branchSlug/menu", async (c) => {
     .select({
       name: schema.organizations.name,
       logo_url: schema.organizations.logo_url,
+      settings: schema.organizations.settings,
     })
     .from(schema.organizations)
     .where(eq(schema.organizations.id, branch.organization_id))
     .limit(1);
+
+  const orgSettings = (org?.settings || {}) as Record<string, unknown>;
+  const menuTheme =
+    (typeof settings.menu_theme === "string" && settings.menu_theme) ||
+    (typeof orgSettings.menu_theme === "string" && orgSettings.menu_theme) ||
+    "organic";
 
   const categories = await db
     .select()
@@ -174,6 +226,15 @@ delivery.get("/:branchSlug/menu", async (c) => {
         menu_subtitle: (settings.menu_subtitle as string) || null,
         menu_delivery_text: (settings.menu_delivery_text as string) || null,
         all_products_tab_sort_order: typeof settings.all_products_tab_sort_order === "number" ? settings.all_products_tab_sort_order : null,
+        menu_theme: menuTheme,
+        pickup_enabled: settings.pickup_enabled !== false,
+        pickup_address: (settings.pickup_address as string) || null,
+        pickup_hint: (settings.pickup_hint as string) || null,
+        pickup_unavailable_message:
+          (settings.pickup_unavailable_message as string) || null,
+        delivery_label: (settings.delivery_label as string) || null,
+        pickup_label: (settings.pickup_label as string) || null,
+        branch_address: branch.address || null,
       },
       landing: {
         enabled: settings.landing_enabled === true,
@@ -191,7 +252,8 @@ delivery.get("/:branchSlug/menu", async (c) => {
 delivery.get("/:branchSlug/menu/items/:itemId/modifiers", async (c) => {
   const branchSlug = c.req.param("branchSlug");
   const itemId = c.req.param("itemId");
-  const branch = await getActiveBranch(branchSlug);
+  const organizationId = await resolveOrganizationId(c);
+  const branch = await getActiveBranch(branchSlug, organizationId);
 
   if (!branch) {
     return c.json(
@@ -260,13 +322,46 @@ delivery.post(
   async (c) => {
     const branchSlug = c.req.param("branchSlug");
     const body = c.req.valid("json");
-    const branch = await getActiveBranch(branchSlug);
+    const organizationId = await resolveOrganizationId(c);
+    const branch = await getActiveBranch(branchSlug, organizationId);
 
     if (!branch) {
       return c.json(
         { success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada ou delivery indisponível" } },
         404,
       );
+    }
+
+    const branchSettings = (branch.settings || {}) as Record<string, unknown>;
+    if (body.fulfillment === "pickup" && branchSettings.pickup_enabled === false) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "PICKUP_DISABLED",
+            message:
+              (branchSettings.pickup_unavailable_message as string) ||
+              "No momento não estamos aceitando retirada",
+          },
+        },
+        403,
+      );
+    }
+
+    if (body.paymentMethod) {
+      const allowed = parseDeliveryPaymentMethods(branchSettings.payment_methods);
+      if (!allowed.includes(body.paymentMethod as (typeof allowed)[number])) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: "BAD_REQUEST",
+              message: "Forma de pagamento não disponível nesta loja",
+            },
+          },
+          400,
+        );
+      }
     }
 
     const orderType = body.fulfillment === "pickup" ? "takeout" : "delivery";
@@ -288,6 +383,21 @@ delivery.post(
       if (zone) deliveryFeeOverrideCents = zone.fee_cents;
     }
 
+    let customerId: string | null = null;
+    if (body.deliveryPhone?.trim()) {
+      try {
+        const linked = await findOrCreateByPhone({
+          organizationId: branch.organization_id,
+          phone: normalizePhone(body.deliveryPhone) || body.deliveryPhone.trim(),
+          name: body.customerName?.trim() || "Cliente",
+        });
+        customerId = linked.customer.id;
+      } catch {
+        // Non-blocking: order still proceeds without CRM link
+        customerId = null;
+      }
+    }
+
     let result;
     try {
       result = await createOrder({
@@ -296,6 +406,7 @@ delivery.post(
         items: body.items,
         type: orderType,
         customerName: body.customerName,
+        customerId,
         notes: body.notes,
         deliveryPhone: body.deliveryPhone,
         deliveryAddress: orderType === "delivery" ? body.deliveryAddress : null,
@@ -350,7 +461,8 @@ delivery.get(
     const branchSlug = c.req.param("branchSlug");
     const orderId = c.req.param("id");
     const { phone } = c.req.valid("query");
-    const branch = await getActiveBranch(branchSlug);
+    const organizationId = await resolveOrganizationId(c);
+    const branch = await getActiveBranch(branchSlug, organizationId);
 
     if (!branch) {
       return c.json(
@@ -427,7 +539,8 @@ delivery.delete(
     const orderId = c.req.param("orderId");
     const itemId = c.req.param("itemId");
     const { phone } = c.req.valid("query");
-    const branch = await getActiveBranch(branchSlug);
+    const organizationId = await resolveOrganizationId(c);
+    const branch = await getActiveBranch(branchSlug, organizationId);
 
     if (!branch) {
       return c.json(
@@ -530,7 +643,8 @@ delivery.post(
     const orderId = c.req.param("orderId");
     const { phone } = c.req.valid("query");
     const { items: newItems } = c.req.valid("json");
-    const branch = await getActiveBranch(branchSlug);
+    const organizationId = await resolveOrganizationId(c);
+    const branch = await getActiveBranch(branchSlug, organizationId);
 
     if (!branch) {
       return c.json(

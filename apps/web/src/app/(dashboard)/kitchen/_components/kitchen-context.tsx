@@ -14,6 +14,7 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useKitchenOrders, useUpdateKitchenItemStatus } from "@/hooks/use-kitchen";
 import { useUpdateOrderStatus } from "@/hooks/use-orders";
 import { usePrintKitchenTicket } from "@/components/print-ticket";
+import { useFeatures } from "@/hooks/use-features";
 import type { WsMessage } from "@restai/types";
 
 // ── Time helpers ──
@@ -83,6 +84,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
   const updateItemStatus = useUpdateKitchenItemStatus();
   const updateOrderStatus = useUpdateOrderStatus();
   const printKitchenTicket = usePrintKitchenTicket();
+  const { kitchenLabel } = useFeatures();
 
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
@@ -135,30 +137,37 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
         tableNumber: order.tableName || order.table_name || undefined,
         customerName: order.customerName || order.customer_name || undefined,
         createdAt: order.createdAt || order.created_at || new Date().toISOString(),
+        deliveryAddress: order.deliveryAddress || order.delivery_address || undefined,
+        deliveryReference: order.deliveryReference || order.delivery_reference || undefined,
+        paymentMethod: order.paymentMethod || order.payment_method || undefined,
+        headerLabel: kitchenLabel,
         items: (order.items || []).map((i: any) => ({
           name: i.name,
           quantity: i.quantity,
           unit_price: i.unit_price || 0,
           total: i.total || 0,
           notes: i.notes,
+          modifiers: i.modifiers || [],
         })),
         notes: order.notes,
       });
     },
-    [printKitchenTicket]
+    [printKitchenTicket, kitchenLabel]
   );
 
   const orders: any[] = data ?? [];
 
   const columns = {
-    pending: orders.filter((o: any) => o.status === "pending"),
+    pending: orders.filter(
+      (o: any) => o.status === "pending" || o.status === "confirmed",
+    ),
     preparing: orders.filter((o: any) => o.status === "preparing"),
     ready: orders.filter((o: any) => o.status === "ready"),
   };
 
   const advanceOrder = (orderId: string, currentStatus: string) => {
     const newStatus =
-      currentStatus === "pending"
+      currentStatus === "pending" || currentStatus === "confirmed"
         ? "preparing"
         : currentStatus === "preparing"
           ? "ready"

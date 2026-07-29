@@ -5,12 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { createDeliveryOrderSchema } from "@restai/validators";
-import { Banknote, Bike, CreditCard, Loader2, Minus, Plus, QrCode, ShoppingBag, Trash2 } from "lucide-react";
+import { Banknote, Bike, CreditCard, Loader2, Minus, Plus, QrCode, ShoppingBag, Smartphone, Trash2, Wallet } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { useDeliveryCartStore } from "@/stores/delivery-cart-store";
 import { useDeliveryStore } from "@/stores/delivery-store";
 import { useDeliveryBranch } from "@/hooks/use-delivery-branch";
 import { deliveryClasses } from "@/app/(delivery)/_components/delivery-theme";
+import {
+  DEFAULT_DELIVERY_PAYMENT_METHODS,
+  deliveryPaymentLabel,
+  type DeliveryPaymentMethodId,
+} from "@restai/config";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -53,21 +58,50 @@ export default function DeliveryCartPage({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "pix" | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<DeliveryPaymentMethodId | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<DeliveryPaymentMethodId[]>(
+    DEFAULT_DELIVERY_PAYMENT_METHODS,
+  );
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [pickupEnabled, setPickupEnabled] = useState(true);
+  const [pickupAddress, setPickupAddress] = useState<string | null>(null);
+  const [pickupHint, setPickupHint] = useState<string | null>(null);
+  const [pickupUnavailableMessage, setPickupUnavailableMessage] = useState<string | null>(null);
+  const [deliveryLabel, setDeliveryLabel] = useState("Entrega");
+  const [pickupLabel, setPickupLabel] = useState("Retirada");
+  const preferEnglish = currency === "USD";
 
   useEffect(() => {
     void fetch(`${API_URL}/api/delivery/${branchSlug}/zones`)
       .then((r) => r.json())
       .then((res) => {
-        if (res.success && res.data.length > 0) {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setZones(res.data);
           setSelectedZoneId(res.data[0].id);
         }
+        const meta = res.meta ?? {};
+        const enabled = meta.pickup_enabled !== false;
+        setPickupEnabled(enabled);
+        setPickupAddress(meta.pickup_address ?? null);
+        setPickupHint(meta.pickup_hint ?? null);
+        setPickupUnavailableMessage(meta.pickup_unavailable_message ?? null);
+        if (meta.delivery_label) setDeliveryLabel(meta.delivery_label);
+        if (meta.pickup_label) setPickupLabel(meta.pickup_label);
+        if (Array.isArray(meta.payment_methods) && meta.payment_methods.length > 0) {
+          setPaymentMethods(meta.payment_methods as DeliveryPaymentMethodId[]);
+        }
+        if (!enabled) setFulfillment("delivery");
       })
       .catch(() => {});
-  }, [branchSlug]);
+  }, [branchSlug, setFulfillment]);
+
+  const pickupSubtitle = pickupEnabled
+    ? pickupHint ||
+      (pickupAddress
+        ? `Retire em: ${pickupAddress}`
+        : "Retire no local · Grátis")
+    : pickupUnavailableMessage || "No momento não estamos aceitando retirada";
 
   const {
     register,
@@ -174,52 +208,65 @@ export default function DeliveryCartPage({
   return (
     <div className="space-y-5 pb-4">
       <div>
-        <h1 className="text-xl font-semibold text-[#2F342E]">Carrinho</h1>
+        <h1 className="text-xl font-semibold text-[var(--d-text-strong)]">Carrinho</h1>
         <p className={deliveryClasses.muted}>
           Revise os itens e escolha como deseja receber
         </p>
       </div>
 
       <div className={`${deliveryClasses.cardInner} space-y-2`}>
-        <p className="text-sm font-semibold text-[#2F342E]">Como deseja receber?</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-sm font-semibold text-[var(--d-text-strong)]">Como deseja receber?</p>
+        <div className={`grid gap-2 ${pickupEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
           <button
             type="button"
             onClick={() => setFulfillment("delivery")}
             className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 text-sm transition ${
               !isPickup
-                ? "border-[#5C7A5F] bg-[#EDF3E8] text-[#2F342E]"
-                : "border-[#E5DFD4] bg-white text-[#6B7268]"
+                ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
+                : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
             }`}
           >
             <Bike className="h-5 w-5" />
-            <span className="font-medium">Entrega no lar</span>
+            <span className="font-medium">{deliveryLabel}</span>
             <span className="text-[11px]">
-              {zones.length > 0 ? "A partir de " : "+ "}{formatCurrency(zones.length > 0 ? Math.min(...zones.map((z) => z.fee_cents)) : deliveryFee, currency)}
+              {zones.length > 0 ? "A partir de " : "+ "}
+              {formatCurrency(
+                zones.length > 0 ? Math.min(...zones.map((z) => z.fee_cents)) : deliveryFee,
+                currency,
+              )}
             </span>
           </button>
-          <button
-            type="button"
-            onClick={() => setFulfillment("pickup")}
-            className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 text-sm transition ${
-              isPickup
-                ? "border-[#5C7A5F] bg-[#EDF3E8] text-[#2F342E]"
-                : "border-[#E5DFD4] bg-white text-[#6B7268]"
-            }`}
-          >
-            <ShoppingBag className="h-5 w-5" />
-            <span className="font-medium">Retirada Presencial</span>
-            <span className="text-[11px] font-semibold text-[#5C7A5F]">
-              Oportunidade para prestigiar nossa feira Orgânica
-            </span>
-          </button>
+          {pickupEnabled ? (
+            <button
+              type="button"
+              onClick={() => setFulfillment("pickup")}
+              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 text-sm transition ${
+                isPickup
+                  ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
+                  : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
+              }`}
+            >
+              <ShoppingBag className="h-5 w-5" />
+              <span className="font-medium">{pickupLabel}</span>
+              <span className="text-[11px] font-semibold text-[var(--d-accent-dark)] text-center leading-snug">
+                {pickupSubtitle}
+              </span>
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[var(--d-border)] bg-[var(--d-bg-elevated)]/60 px-3 py-3 text-center">
+              <p className="text-xs font-medium text-[var(--d-text-muted)]">{pickupLabel} indisponível</p>
+              <p className="mt-1 text-[11px] leading-snug text-[var(--d-text-soft)]">
+                {pickupSubtitle}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {!isPickup && zones.length > 0 && (
         <div className={`${deliveryClasses.cardInner} space-y-2`}>
-          <p className="text-sm font-semibold text-[#2F342E]">Zona de entrega</p>
-          <p className="text-xs text-[#6B7268]">Selecione seu bairro para calcular o frete</p>
+          <p className="text-sm font-semibold text-[var(--d-text-strong)]">Zona de entrega</p>
+          <p className="text-xs text-[var(--d-text-muted)]">Selecione seu bairro para calcular o frete</p>
           <div className="space-y-1.5">
             {zones.map((zone) => (
               <button
@@ -228,12 +275,12 @@ export default function DeliveryCartPage({
                 onClick={() => setSelectedZoneId(zone.id)}
                 className={`w-full flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition ${
                   selectedZoneId === zone.id
-                    ? "border-[#5C7A5F] bg-[#EDF3E8] text-[#2F342E]"
-                    : "border-[#E5DFD4] bg-white text-[#6B7268]"
+                    ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
+                    : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
                 }`}
               >
                 <span className="font-medium">{zone.name}</span>
-                <span className={`font-semibold ${selectedZoneId === zone.id ? "text-[#5C7A5F]" : ""}`}>
+                <span className={`font-semibold ${selectedZoneId === zone.id ? "text-[var(--d-accent-dark)]" : ""}`}>
                   {formatCurrency(zone.fee_cents, currency)}
                 </span>
               </button>
@@ -251,19 +298,27 @@ export default function DeliveryCartPage({
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-[#2F342E]">{item.name}</p>
+                    <p className="font-medium text-[var(--d-text-strong)]">{item.name}</p>
                     {item.modifiers.length > 0 && (
-                      <p className="mt-1 text-xs text-[#6B7268]">
-                        {item.modifiers.map((m) => m.name).join(", ")}
+                      <p className="mt-1 text-xs text-[var(--d-text-muted)]">
+                        {(() => {
+                          const counts = new Map<string, number>();
+                          for (const m of item.modifiers) {
+                            counts.set(m.name, (counts.get(m.name) || 0) + 1);
+                          }
+                          return [...counts.entries()]
+                            .map(([name, qty]) => (qty > 1 ? `${name} ×${qty}` : name))
+                            .join(", ");
+                        })()}
                       </p>
                     )}
                     {item.notes && (
-                      <p className="mt-1 text-xs text-[#6B7268]">Obs: {item.notes}</p>
+                      <p className="mt-1 text-xs text-[var(--d-text-muted)]">Obs: {item.notes}</p>
                     )}
                   </div>
                   <button
                     type="button"
-                    className="rounded-full p-2 text-[#9A9F96] transition hover:bg-[#F0EBE3] active:scale-95"
+                    className="rounded-full p-2 text-[var(--d-placeholder)] transition hover:bg-[var(--d-bg-elevated)] active:scale-95"
                     onClick={() => removeItem(item.lineId)}
                     aria-label="Remover item"
                   >
@@ -271,10 +326,10 @@ export default function DeliveryCartPage({
                   </button>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2 rounded-full bg-[#EDF3E8] px-1 py-1">
+                  <div className="flex items-center gap-2 rounded-full bg-[var(--d-bg-soft)] px-1 py-1">
                     <button
                       type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#5C7A5F] shadow-sm touch-manipulation"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--d-card-solid)] text-[var(--d-accent-dark)] shadow-sm touch-manipulation"
                       onClick={() => updateQuantity(item.lineId, item.quantity - 1)}
                     >
                       <Minus className="h-4 w-4" />
@@ -282,13 +337,13 @@ export default function DeliveryCartPage({
                     <span className="w-6 text-center text-sm font-medium">{item.quantity}</span>
                     <button
                       type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#7A9B7E] text-white shadow-sm touch-manipulation"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--d-accent)] text-[var(--d-on-accent)] shadow-sm touch-manipulation"
                       onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
                     >
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
-                  <span className="font-semibold text-[#5C7A5F]">
+                  <span className="font-semibold text-[var(--d-accent-dark)]">
                     {formatCurrency(lineTotal, currency)}
                   </span>
                 </div>
@@ -300,22 +355,22 @@ export default function DeliveryCartPage({
 
       <div className={`${deliveryClasses.cardInner} space-y-2 text-sm`}>
         <div className="flex justify-between">
-          <span className="text-[#6B7268]">Subtotal</span>
+          <span className="text-[var(--d-text-muted)]">Subtotal</span>
           <span>{formatCurrency(subtotal, currency)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-[#6B7268]">Taxas</span>
+          <span className="text-[var(--d-text-muted)]">Taxas</span>
           <span>{formatCurrency(tax, currency)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-[#6B7268]">
+          <span className="text-[var(--d-text-muted)]">
             {isPickup ? "Retirada" : selectedZone ? selectedZone.name : "Entrega"}
           </span>
-          <span className={isPickup ? "font-semibold text-[#5C7A5F]" : ""}>
+          <span className={isPickup ? "font-semibold text-[var(--d-accent-dark)]" : ""}>
             {isPickup ? "Grátis" : formatCurrency(effectiveDeliveryFee, currency)}
           </span>
         </div>
-        <div className="flex justify-between border-t border-[#F0EBE3] pt-2 text-base font-semibold text-[#2F342E]">
+        <div className="flex justify-between border-t border-[var(--d-bg-elevated)] pt-2 text-base font-semibold text-[var(--d-text-strong)]">
           <span>Total</span>
           <span>{formatCurrency(total, currency)}</span>
         </div>
@@ -323,34 +378,46 @@ export default function DeliveryCartPage({
 
       {/* Payment method */}
       <div className={`${deliveryClasses.cardInner} space-y-3`}>
-        <p className="text-sm font-semibold text-[#2F342E]">Forma de pagamento</p>
-        <div className="grid grid-cols-3 gap-2">
-          {(
-            [
-              { value: "cash", label: "Dinheiro", Icon: Banknote },
-              { value: "card", label: "Cartão", Icon: CreditCard },
-              { value: "pix", label: "PIX", Icon: QrCode },
-            ] as const
-          ).map(({ value, label, Icon }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => { setPaymentMethod(value); setError(null); }}
-              className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-sm transition ${
-                paymentMethod === value
-                  ? "border-[#5C7A5F] bg-[#EDF3E8] text-[#2F342E]"
-                  : "border-[#E5DFD4] bg-white text-[#6B7268]"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="font-medium">{label}</span>
-            </button>
-          ))}
+        <p className="text-sm font-semibold text-[var(--d-text-strong)]">
+          {preferEnglish ? "Payment method" : "Forma de pagamento"}
+        </p>
+        <div className={`grid gap-2 ${paymentMethods.length > 3 ? "grid-cols-2" : "grid-cols-3"}`}>
+          {paymentMethods.map((value) => {
+            const Icon =
+              value === "cash"
+                ? Banknote
+                : value === "card"
+                  ? CreditCard
+                  : value === "pix"
+                    ? QrCode
+                    : value === "zelle" || value === "venmo"
+                      ? Smartphone
+                      : Wallet;
+            const label = deliveryPaymentLabel(value, preferEnglish);
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setPaymentMethod(value);
+                  setError(null);
+                }}
+                className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-sm transition ${
+                  paymentMethod === value
+                    ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
+                    : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="font-medium text-center leading-tight">{label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className={`${deliveryClasses.cardInner} space-y-4`}>
-        <h2 className="font-semibold text-[#2F342E]">
+        <h2 className="font-semibold text-[var(--d-text-strong)]">
           {isPickup ? "Dados para retirada" : "Dados de entrega"}
         </h2>
 

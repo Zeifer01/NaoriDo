@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents } from "@restai/config";
+import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -90,7 +90,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
 
   let modifierMap = new Map<
     string,
-    { id: string; name: string; price: number }
+    { id: string; name: string; price: number; groupId: string; freeQuantity: number }
   >();
   if (allModifierIds.length > 0) {
     const modifierRecords = await db
@@ -98,10 +98,27 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
         id: schema.modifiers.id,
         name: schema.modifiers.name,
         price: schema.modifiers.price,
+        groupId: schema.modifiers.group_id,
+        freeQuantity: schema.modifierGroups.free_quantity,
       })
       .from(schema.modifiers)
+      .innerJoin(
+        schema.modifierGroups,
+        eq(schema.modifiers.group_id, schema.modifierGroups.id),
+      )
       .where(inArray(schema.modifiers.id, allModifierIds));
-    modifierMap = new Map(modifierRecords.map((m) => [m.id, m]));
+    modifierMap = new Map(
+      modifierRecords.map((m) => [
+        m.id,
+        {
+          id: m.id,
+          name: m.name,
+          price: m.price,
+          groupId: m.groupId,
+          freeQuantity: m.freeQuantity,
+        },
+      ]),
+    );
   }
 
   // Validate items and calculate totals
@@ -113,7 +130,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     quantity: number;
     total: number;
     notes?: string;
-    modifiers: Array<{ modifierId: string }>;
+    modifiers: Array<{ modifierId: string; name: string; price: number }>;
   }> = [];
 
   for (const item of items) {
@@ -125,13 +142,32 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       throw new OrderValidationError(`Item indisponível: ${menuItem.name}`);
     }
 
-    let modifierPricePerUnit = 0;
-    if (item.modifiers?.length) {
-      for (const mod of item.modifiers) {
-        const modifier = modifierMap.get(mod.modifierId);
-        if (modifier) modifierPricePerUnit += modifier.price;
-      }
-    }
+    const selectedMods = (item.modifiers ?? [])
+      .map((mod) => modifierMap.get(mod.modifierId))
+      .filter(Boolean) as Array<{
+      id: string;
+      name: string;
+      price: number;
+      groupId: string;
+      freeQuantity: number;
+    }>;
+
+    const groupConfigs = [
+      ...new Map(
+        selectedMods.map((m) => [m.groupId, { id: m.groupId, freeQuantity: m.freeQuantity }]),
+      ).values(),
+    ];
+
+    const priced = selectedMods.map((m) => ({
+      id: m.id,
+      groupId: m.groupId,
+      price: m.price,
+    }));
+    const modifierPricePerUnit = calcModifiersChargeCents(priced, groupConfigs);
+    const snapshots = calcModifierSnapshotPrices(priced, groupConfigs);
+    // Consume snapshots one-by-one so duplicate modifier ids keep distinct prices
+    // (e.g. Nutella ×3 with free_quantity).
+    const remainingSnaps = [...snapshots];
 
     const itemTotal = (menuItem.price + modifierPricePerUnit) * item.quantity;
     subtotal += itemTotal;
@@ -143,7 +179,15 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       quantity: item.quantity,
       total: itemTotal,
       notes: item.notes,
-      modifiers: item.modifiers || [],
+      modifiers: selectedMods.map((m) => {
+        const snapIdx = remainingSnaps.findIndex((s) => s.id === m.id);
+        const snap = snapIdx >= 0 ? remainingSnaps.splice(snapIdx, 1)[0] : null;
+        return {
+          modifierId: m.id,
+          name: m.name,
+          price: snap?.effectivePrice ?? m.price,
+        };
+      }),
     });
   }
 
@@ -238,15 +282,12 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       const itemData = orderItemsData[i];
       if (itemData.modifiers.length > 0) {
         await tx.insert(schema.orderItemModifiers).values(
-          itemData.modifiers.map((mod) => {
-            const modifier = modifierMap.get(mod.modifierId);
-            return {
-              order_item_id: createdItems[i].id,
-              modifier_id: mod.modifierId,
-              name: modifier?.name || "Modificador",
-              price: modifier?.price || 0,
-            };
-          }),
+          itemData.modifiers.map((mod) => ({
+            order_item_id: createdItems[i].id,
+            modifier_id: mod.modifierId,
+            name: mod.name,
+            price: mod.price,
+          })),
         );
       }
     }
@@ -929,7 +970,10 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
     throw new OrderValidationError("Produto pertence a outra filial");
   }
 
-  let modifierMap = new Map<string, { id: string; name: string; price: number }>();
+  let modifierMap = new Map<
+    string,
+    { id: string; name: string; price: number; groupId: string; freeQuantity: number }
+  >();
   if (modifiers?.length) {
     const ids = modifiers.map((m) => m.modifierId);
     const rows = await db
@@ -937,16 +981,51 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
         id: schema.modifiers.id,
         name: schema.modifiers.name,
         price: schema.modifiers.price,
+        groupId: schema.modifiers.group_id,
+        freeQuantity: schema.modifierGroups.free_quantity,
       })
       .from(schema.modifiers)
+      .innerJoin(
+        schema.modifierGroups,
+        eq(schema.modifiers.group_id, schema.modifierGroups.id),
+      )
       .where(inArray(schema.modifiers.id, ids));
-    modifierMap = new Map(rows.map((r) => [r.id, r]));
+    modifierMap = new Map(
+      rows.map((r) => [
+        r.id,
+        {
+          id: r.id,
+          name: r.name,
+          price: r.price,
+          groupId: r.groupId,
+          freeQuantity: r.freeQuantity,
+        },
+      ]),
+    );
   }
 
-  const modifierPricePerUnit = (modifiers || []).reduce(
-    (sum, m) => sum + (modifierMap.get(m.modifierId)?.price ?? 0),
-    0,
-  );
+  const selectedMods = (modifiers || [])
+    .map((m) => modifierMap.get(m.modifierId))
+    .filter(Boolean) as Array<{
+    id: string;
+    name: string;
+    price: number;
+    groupId: string;
+    freeQuantity: number;
+  }>;
+  const groupConfigs = [
+    ...new Map(
+      selectedMods.map((m) => [m.groupId, { id: m.groupId, freeQuantity: m.freeQuantity }]),
+    ).values(),
+  ];
+  const priced = selectedMods.map((m) => ({
+    id: m.id,
+    groupId: m.groupId,
+    price: m.price,
+  }));
+  const modifierPricePerUnit = calcModifiersChargeCents(priced, groupConfigs);
+  const snapshots = calcModifierSnapshotPrices(priced, groupConfigs);
+  const remainingSnaps = [...snapshots];
   const lineTotal = (menuItem.price + modifierPricePerUnit) * quantity;
 
   await db.transaction(async (tx) => {
@@ -964,14 +1043,18 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
       })
       .returning();
 
-    if (modifiers?.length) {
+    if (selectedMods.length) {
       await tx.insert(schema.orderItemModifiers).values(
-        modifiers.map((m) => ({
-          order_item_id: item.id,
-          modifier_id: m.modifierId,
-          name: modifierMap.get(m.modifierId)?.name || "Modificador",
-          price: modifierMap.get(m.modifierId)?.price ?? 0,
-        })),
+        selectedMods.map((m) => {
+          const snapIdx = remainingSnaps.findIndex((s) => s.id === m.id);
+          const snap = snapIdx >= 0 ? remainingSnaps.splice(snapIdx, 1)[0] : null;
+          return {
+            order_item_id: item.id,
+            modifier_id: m.id,
+            name: m.name,
+            price: snap?.effectivePrice ?? m.price,
+          };
+        }),
       );
     }
 

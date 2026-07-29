@@ -1,6 +1,18 @@
 // Plan catalog (Fase 2)
 export * from "./plans";
 
+// Per-org UX feature flags (reports_ux / kitchen_ux)
+export * from "./org-ux";
+
+// Complemento / modifier pricing with free_quantity
+export * from "./modifier-pricing";
+
+// Platform domain identity (Automatizappy)
+export * from "./platform";
+
+// Delivery checkout payment methods
+export * from "./delivery-payments";
+
 // Roles hierarchy and permissions
 export const ROLES = {
   super_admin: { level: 0, label: "Super Admin" },

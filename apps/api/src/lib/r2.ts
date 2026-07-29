@@ -109,7 +109,8 @@ export function getPublicUrl(key: string): string {
   if (isR2Configured()) {
     return `${R2_PUBLIC_URL.replace(/\/$/, "")}/${key}`;
   }
-  return `${WEB_PUBLIC_BASE.replace(/\/$/, "")}/uploads/${key}`;
+  // Relative path — works on any tenant host via Next.js /uploads rewrite to API.
+  return `/uploads/${key}`;
 }
 
 export function isUsingLocalStorage(): boolean {

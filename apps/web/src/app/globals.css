@@ -110,3 +110,65 @@
   0% { transform: translateX(-100px); }
   50%, 100% { transform: translateX(500px); }
 }
+
+/* ── Relatórios v2: impressão / Salvar como PDF ─────────────────────────── */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm 10mm 14mm;
+  }
+
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Esconde chrome do dashboard; só o relatório fica visível */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .report-print-root,
+  .report-print-root * {
+    visibility: visible !important;
+  }
+
+  .report-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: white !important;
+  }
+
+  .report-print-root .print\:hidden,
+  .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .report-print-header,
+  .report-print-footer,
+  .report-print-header *,
+  .report-print-footer * {
+    visibility: visible !important;
+  }
+
+  /* Evita cortes feios em cards/tabelas */
+  .report-print-root .rounded-xl,
+  .report-print-root table,
+  .report-print-root tr {
+    break-inside: avoid;
+  }
+
+  /* Recharts SVG precisa de tamanho estável na impressão */
+  .report-print-root .recharts-responsive-container {
+    min-height: 200px !important;
+  }
+}
+

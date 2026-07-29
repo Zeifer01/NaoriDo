@@ -299,7 +299,28 @@ orders.get(
       .from(schema.orderItems)
       .where(eq(schema.orderItems.order_id, order.id));
 
-    return c.json({ success: true, data: { ...order, items } });
+    const itemIds = items.map((i) => i.id);
+    const allMods =
+      itemIds.length > 0
+        ? await db
+            .select()
+            .from(schema.orderItemModifiers)
+            .where(inArray(schema.orderItemModifiers.order_item_id, itemIds))
+        : [];
+
+    const modsByItem = new Map<string, typeof allMods>();
+    for (const mod of allMods) {
+      const list = modsByItem.get(mod.order_item_id) ?? [];
+      list.push(mod);
+      modsByItem.set(mod.order_item_id, list);
+    }
+
+    const itemsWithMods = items.map((item) => ({
+      ...item,
+      modifiers: modsByItem.get(item.id) ?? [],
+    }));
+
+    return c.json({ success: true, data: { ...order, items: itemsWithMods } });
   },
 );
 

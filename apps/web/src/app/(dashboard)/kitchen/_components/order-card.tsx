@@ -10,9 +10,17 @@ import {
   ChevronDown,
   ChevronUp,
   Printer,
+  Copy,
+  MapPin,
+  CreditCard,
+  User,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
+import { deliveryPaymentLabel } from "@restai/config";
 import { getTimeDiff, getTimeUrgency } from "./kitchen-context";
+import { useFeatures } from "@/hooks/use-features";
 
 const VISIBLE_ITEMS_LIMIT = 4;
 
@@ -28,10 +36,16 @@ function ItemRow({
   onItemReady: (itemId: string) => void;
 }) {
   const isItemReady = item.status === "ready";
+  const modifiers: Array<{ name: string }> = item.modifiers || [];
+  const modCounts = new Map<string, number>();
+  for (const m of modifiers) {
+    modCounts.set(m.name, (modCounts.get(m.name) || 0) + 1);
+  }
+
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm",
+        "flex items-start justify-between gap-2 px-3 py-2 rounded-md text-sm",
         isItemReady
           ? "bg-green-500/10 text-muted-foreground"
           : "bg-muted/50"
@@ -42,6 +56,15 @@ function ItemRow({
           <span className="font-bold text-foreground mr-1">{item.quantity}x</span>
           <span className="font-medium">{item.name}</span>
         </span>
+        {modCounts.size > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {[...modCounts.entries()].map(([name, qty]) => (
+              <li key={name} className="text-xs text-muted-foreground leading-snug">
+                · {qty > 1 ? `${name} ×${qty}` : name}
+              </li>
+            ))}
+          </ul>
+        )}
         {item.notes && (
           <p className="text-xs mt-0.5 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 font-medium leading-tight">
             {item.notes}
@@ -50,7 +73,7 @@ function ItemRow({
       </div>
       {columnStatus === "preparing" && (
         isItemReady ? (
-          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
+          <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
         ) : (
           <button
             className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 px-2 py-1 rounded transition-colors shrink-0"
@@ -106,11 +129,23 @@ export function KitchenOrderCard({
   isNew?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { kitchenLabel } = useFeatures();
   const orderNum = order.orderNumber || order.order_number || order.id;
   const tableName = order.tableName || order.table_name || "";
   const createdAt = order.createdAt || order.created_at || "";
   const items: any[] = order.items || [];
   const urgency = createdAt ? getTimeUrgency(createdAt) : "normal";
+  const customerName = order.customerName || order.customer_name || "";
+  const address = order.deliveryAddress || order.delivery_address || "";
+  const reference = order.deliveryReference || order.delivery_reference || "";
+  const paymentMethod = order.paymentMethod || order.payment_method || "";
+  const clockTime = createdAt
+    ? new Date(createdAt).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "";
 
   const hasOverflow = items.length > VISIBLE_ITEMS_LIMIT;
   const visibleItems = expanded ? items : items.slice(0, VISIBLE_ITEMS_LIMIT);
@@ -193,12 +228,47 @@ export function KitchenOrderCard({
             ) : (
               <>
                 <ChevronDown className="h-3.5 w-3.5" />
-                y {hiddenCount} mas...
+                + {hiddenCount} mais...
               </>
             )}
           </button>
         )}
       </div>
+
+      {/* Customer / address / payment */}
+      {(customerName || address || paymentMethod || clockTime) && (
+        <div className="mx-2 mb-2 px-3 py-2 rounded-md bg-muted/40 space-y-1 text-xs text-muted-foreground">
+          {customerName && (
+            <p className="flex items-start gap-1.5 text-foreground font-medium">
+              <User className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                {customerName}
+                {clockTime ? (
+                  <span className="font-normal text-muted-foreground"> · {clockTime}</span>
+                ) : null}
+              </span>
+            </p>
+          )}
+          {!customerName && clockTime && (
+            <p className="text-muted-foreground">{clockTime}</p>
+          )}
+          {address && (
+            <p className="flex items-start gap-1.5">
+              <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                {address}
+                {reference ? ` (${reference})` : ""}
+              </span>
+            </p>
+          )}
+          {paymentMethod && (
+            <p className="flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 shrink-0" />
+              {deliveryPaymentLabel(paymentMethod as any) || paymentMethod}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Order-level notes */}
       {order.notes && (
@@ -208,7 +278,7 @@ export function KitchenOrderCard({
       )}
 
       {/* Action Button - touch friendly */}
-      <div className="p-2 pt-0">
+      <div className="p-2 pt-0 space-y-2">
         {columnStatus === "pending" && (
           <Button
             className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold h-12 text-base"
@@ -237,9 +307,28 @@ export function KitchenOrderCard({
             onClick={() => onAdvance(order.id, "ready")}
           >
             <UtensilsCrossed className="h-5 w-5 mr-2" />
-            Entregado
+            Entregue
           </Button>
         )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="w-full h-9 text-xs"
+          onClick={async () => {
+            try {
+              await copyOrderTicket(
+                orderToTicketInput(order, { headerLabel: kitchenLabel }),
+              );
+              toast.success("Comanda copiada");
+            } catch {
+              toast.error("Não foi possível copiar");
+            }
+          }}
+        >
+          <Copy className="h-3.5 w-3.5 mr-1.5" />
+          Copiar comanda
+        </Button>
       </div>
     </div>
   );

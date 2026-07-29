@@ -40,6 +40,8 @@ export async function apiFetch<T = any>(path: string, options?: ApiFetchOptions)
   } = options ?? {};
 
   const makeRequest = async (token: string | null) => {
+    const tenantHost =
+      typeof window !== "undefined" ? window.location.host : "";
     return fetch(`${API_URL}${path}`, {
       ...requestOptions,
       headers: {
@@ -48,6 +50,7 @@ export async function apiFetch<T = any>(path: string, options?: ApiFetchOptions)
         ...(includeBranchHeader && selectedBranchId
           ? { "x-branch-id": selectedBranchId }
           : {}),
+        ...(tenantHost ? { "x-tenant-host": tenantHost } : {}),
         ...customHeaders,
       },
     });

@@ -10,8 +10,7 @@ import {
 } from "@restai/ui/components/dialog";
 import { Download } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.hosteleria.me";
+import { useOrgDomains } from "@/hooks/use-settings";
 
 interface QrDialogProps {
   table: any | null;
@@ -20,7 +19,14 @@ interface QrDialogProps {
 }
 
 export function QrDialog({ table, branchSlug, onClose }: QrDialogProps) {
-  const qrUrl = table ? `${APP_URL}/${branchSlug}/${table.qr_code}` : "";
+  const { data: domains } = useOrgDomains();
+  const origin = (
+    domains?.primaryOrigin ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "")
+  ).replace(/\/$/, "");
+
+  const qrUrl = table && origin ? `${origin}/${branchSlug}/${table.qr_code}` : "";
 
   const handleDownloadQR = () => {
     if (!table) return;
@@ -57,10 +63,10 @@ export function QrDialog({ table, branchSlug, onClose }: QrDialogProps) {
               className="bg-white p-4 rounded-lg"
               id={`qr-svg-${table.id}`}
             >
-              <QRCodeSVG value={qrUrl} size={240} level="M" />
+              {qrUrl ? <QRCodeSVG value={qrUrl} size={240} level="M" /> : null}
             </div>
             <p className="text-sm text-muted-foreground text-center break-all">
-              {qrUrl}
+              {qrUrl || "Carregando domínio…"}
             </p>
             <p className="text-xs text-muted-foreground">
               Codigo: {table.qr_code}
@@ -71,7 +77,7 @@ export function QrDialog({ table, branchSlug, onClose }: QrDialogProps) {
           <Button variant="outline" onClick={onClose}>
             Fechar
           </Button>
-          <Button onClick={handleDownloadQR}>
+          <Button onClick={handleDownloadQR} disabled={!qrUrl}>
             <Download className="h-4 w-4 mr-2" />
             Descargar PNG
           </Button>

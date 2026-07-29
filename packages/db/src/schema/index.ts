@@ -1,5 +1,6 @@
 export * from "./enums";
 export * from "./tenants";
+export * from "./domains";
 export * from "./auth";
 export * from "./tables";
 export * from "./menu";

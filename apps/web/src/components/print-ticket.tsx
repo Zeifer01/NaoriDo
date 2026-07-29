@@ -8,6 +8,7 @@ interface OrderItem {
   unit_price: number;
   total: number;
   notes?: string;
+  modifiers?: Array<{ name: string }>;
 }
 
 interface KitchenTicketData {
@@ -17,7 +18,12 @@ interface KitchenTicketData {
   createdAt: string;
   items: OrderItem[];
   notes?: string;
+  deliveryAddress?: string;
+  deliveryReference?: string;
+  paymentMethod?: string;
+  headerLabel?: string;
 }
+
 
 interface ReceiptTicketData {
   businessName: string;
@@ -59,40 +65,67 @@ const methodLabels: Record<string, string> = {
   yape: "Yape",
   plin: "Plin",
   transfer: "Transferência",
+  zelle: "Zelle",
+  venmo: "Venmo",
   other: "Outro",
 };
 
+function formatModifierHtml(mods: Array<{ name: string }> | undefined): string {
+  if (!mods?.length) return "";
+  const counts = new Map<string, number>();
+  for (const m of mods) {
+    counts.set(m.name, (counts.get(m.name) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(
+      ([name, qty]) =>
+        `<div style="font-size:10px;padding-left:8px;">· ${qty > 1 ? `${name} ×${qty}` : name}</div>`,
+    )
+    .join("");
+}
+
 function buildKitchenTicketHtml(data: KitchenTicketData): string {
+  const header = (data.headerLabel || "COZINHA").toUpperCase();
   const itemsHtml = data.items
     .map(
       (item) =>
         `<tr>
-          <td style="text-align:left;padding:2px 0;">${item.quantity}x ${item.name}${item.notes ? `<br><span style="font-size:10px;color:#666;">* ${item.notes}</span>` : ""}</td>
-        </tr>`
+          <td style="text-align:left;padding:2px 0;">
+            ${item.quantity}x ${item.name}
+            ${formatModifierHtml(item.modifiers)}
+            ${item.notes ? `<br><span style="font-size:10px;color:#666;">* ${item.notes}</span>` : ""}
+          </td>
+        </tr>`,
     )
     .join("");
+
+  const addressLine = data.deliveryAddress
+    ? `${data.deliveryAddress}${data.deliveryReference ? ` (${data.deliveryReference})` : ""}`
+    : "";
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Ticket Cozinha - #${data.orderNumber}</title>
+  <title>${header} - #${data.orderNumber}</title>
   <style>
     ${thermalStyles(80)}
     .order-num { font-size: 28px; font-weight: bold; text-align: center; letter-spacing: 2px; }
   </style>
 </head>
 <body>
-  <div class="center bold" style="font-size:14px;">COZINHA</div>
+  <div class="center bold" style="font-size:14px;">${header}</div>
   <div class="divider"></div>
   <div class="order-num">#${data.orderNumber}</div>
   <div class="divider"></div>
   <table>
     <tr>
-      <td>${data.tableNumber ? `Mesa: ${data.tableNumber}` : "Para viagem"}</td>
+      <td>${data.tableNumber ? `Mesa: ${data.tableNumber}` : data.deliveryAddress ? "Delivery" : "Para viagem"}</td>
       <td style="text-align:right;">${formatDateTime(data.createdAt)}</td>
     </tr>
     ${data.customerName ? `<tr><td colspan="2">Cliente: ${data.customerName}</td></tr>` : ""}
+    ${addressLine ? `<tr><td colspan="2">End.: ${addressLine}</td></tr>` : ""}
+    ${data.paymentMethod ? `<tr><td colspan="2">Pag.: ${methodLabels[data.paymentMethod] || data.paymentMethod}</td></tr>` : ""}
   </table>
   <div class="divider"></div>
   <table>${itemsHtml}</table>
@@ -102,6 +135,7 @@ function buildKitchenTicketHtml(data: KitchenTicketData): string {
 </body>
 </html>`;
 }
+
 
 function thermalStyles(widthMm: number = 80): string {
   const contentWidth = widthMm - 4;

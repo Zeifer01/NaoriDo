@@ -244,3 +244,79 @@ export function useResetOrgUserPassword(orgId: string) {
     },
   });
 }
+
+export type SuperAdminDomain = {
+  id: string;
+  hostname: string;
+  isPrimary: boolean;
+  verifiedAt: string | null;
+  sslStatus: string;
+  origin: string;
+  createdAt: string;
+};
+
+export function useSuperAdminOrgDomains(orgId: string) {
+  return useQuery({
+    queryKey: ["super-admin", "orgs", orgId, "domains"],
+    queryFn: () =>
+      apiFetch<SuperAdminDomain[]>(`/api/super-admin/orgs/${orgId}/domains`, baseOpts),
+    enabled: !!orgId,
+  });
+}
+
+export function useAddSuperAdminDomain(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { hostname: string; isPrimary?: boolean; markVerified?: boolean }) =>
+      apiFetch(`/api/super-admin/orgs/${orgId}/domains`, {
+        method: "POST",
+        body: JSON.stringify(data),
+        ...baseOpts,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super-admin", "orgs", orgId, "domains"] });
+    },
+  });
+}
+
+export function useSetSuperAdminPrimaryDomain(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (domainId: string) =>
+      apiFetch(`/api/super-admin/orgs/${orgId}/domains/${domainId}/primary`, {
+        method: "POST",
+        ...baseOpts,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super-admin", "orgs", orgId, "domains"] });
+    },
+  });
+}
+
+export function useVerifySuperAdminDomain(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (domainId: string) =>
+      apiFetch(`/api/super-admin/orgs/${orgId}/domains/${domainId}/verify`, {
+        method: "POST",
+        ...baseOpts,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super-admin", "orgs", orgId, "domains"] });
+    },
+  });
+}
+
+export function useDeleteSuperAdminDomain(orgId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (domainId: string) =>
+      apiFetch(`/api/super-admin/orgs/${orgId}/domains/${domainId}`, {
+        method: "DELETE",
+        ...baseOpts,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["super-admin", "orgs", orgId, "domains"] });
+    },
+  });
+}

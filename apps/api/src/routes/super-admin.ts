@@ -12,11 +12,21 @@ import {
   superAdminUpdateUserSchema,
   superAdminResetPasswordSchema,
   superAdminRecordPaymentSchema,
+  createOrganizationDomainSchema,
 } from "@restai/validators";
 import { authMiddleware } from "../middleware/auth.js";
 import { requireSuperAdmin } from "../middleware/super-admin.js";
 import { hashPassword } from "../lib/hash.js";
 import { invalidateOrgPlanCache } from "../lib/features.js";
+import {
+  addOrganizationDomain,
+  domainPublicView,
+  ensurePlatformDomain,
+  listOrganizationDomains,
+  markDomainVerified,
+  removeOrganizationDomain,
+  setPrimaryDomain,
+} from "../services/organization-domains.service.js";
 
 const superAdmin = new Hono<AppEnv>();
 
@@ -164,6 +174,8 @@ superAdmin.post(
 
       return { org, branch, user };
     });
+
+    await ensurePlatformDomain(result.org.id, result.org.slug);
 
     return c.json({ success: true, data: result }, 201);
   },
@@ -614,6 +626,123 @@ superAdmin.patch(
     await db.delete(schema.refreshTokens).where(eq(schema.refreshTokens.user_id, userId));
 
     return c.json({ success: true, data: { id: userId } });
+  },
+);
+
+// ── Organization domains (super-admin) ─────────────────────────────────────
+
+superAdmin.get(
+  "/orgs/:id/domains",
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const [org] = await db
+      .select({ id: schema.organizations.id, slug: schema.organizations.slug })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, id))
+      .limit(1);
+    if (!org) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Organização não encontrada" } },
+        404,
+      );
+    }
+    await ensurePlatformDomain(org.id, org.slug);
+    const domains = await listOrganizationDomains(org.id);
+    return c.json({ success: true, data: domains.map(domainPublicView) });
+  },
+);
+
+superAdmin.post(
+  "/orgs/:id/domains",
+  zValidator("param", idParamSchema),
+  zValidator("json", createOrganizationDomainSchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const [org] = await db
+      .select({ id: schema.organizations.id })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, id))
+      .limit(1);
+    if (!org) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Organização não encontrada" } },
+        404,
+      );
+    }
+    try {
+      const created = await addOrganizationDomain({
+        organizationId: org.id,
+        hostname: body.hostname,
+        isPrimary: body.isPrimary,
+        markVerified: body.markVerified ?? true,
+      });
+      return c.json({ success: true, data: domainPublicView(created) }, 201);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "ERROR";
+      if (code === "HOSTNAME_TAKEN") {
+        return c.json(
+          { success: false, error: { code: "CONFLICT", message: "Domínio já em uso" } },
+          409,
+        );
+      }
+      return c.json(
+        { success: false, error: { code: "BAD_REQUEST", message: "Hostname inválido" } },
+        400,
+      );
+    }
+  },
+);
+
+superAdmin.post(
+  "/orgs/:id/domains/:domainId/primary",
+  zValidator("param", z.object({ id: z.string().uuid(), domainId: z.string().uuid() })),
+  async (c) => {
+    const { id, domainId } = c.req.valid("param");
+    try {
+      const updated = await setPrimaryDomain(id, domainId);
+      return c.json({ success: true, data: domainPublicView(updated) });
+    } catch {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Domínio não encontrado" } },
+        404,
+      );
+    }
+  },
+);
+
+superAdmin.post(
+  "/orgs/:id/domains/:domainId/verify",
+  zValidator("param", z.object({ id: z.string().uuid(), domainId: z.string().uuid() })),
+  async (c) => {
+    const { id, domainId } = c.req.valid("param");
+    try {
+      const updated = await markDomainVerified(id, domainId);
+      return c.json({ success: true, data: domainPublicView(updated) });
+    } catch {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Domínio não encontrado" } },
+        404,
+      );
+    }
+  },
+);
+
+superAdmin.delete(
+  "/orgs/:id/domains/:domainId",
+  zValidator("param", z.object({ id: z.string().uuid(), domainId: z.string().uuid() })),
+  async (c) => {
+    const { id, domainId } = c.req.valid("param");
+    try {
+      await removeOrganizationDomain(id, domainId);
+      return c.json({ success: true });
+    } catch {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Domínio não encontrado" } },
+        404,
+      );
+    }
   },
 );
 

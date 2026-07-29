@@ -8,12 +8,24 @@ import {
   updateBranchSettingsSchema,
   createDeliveryZoneSchema,
   updateDeliveryZoneSchema,
+  createOrganizationDomainSchema,
 } from "@restai/validators";
 import { idParamSchema } from "@restai/validators";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
+import {
+  addOrganizationDomain,
+  domainPublicView,
+  ensurePlatformDomain,
+  getPrimaryHostname,
+  listOrganizationDomains,
+  markDomainVerified,
+  removeOrganizationDomain,
+  setPrimaryDomain,
+} from "../services/organization-domains.service.js";
+import { buildTenantOrigin } from "@restai/config";
 
 const settings = new Hono<AppEnv>();
 settings.use("*", authMiddleware, tenantMiddleware);
@@ -38,7 +50,15 @@ settings.patch("/org", requirePermission("org:update"), zValidator("json", updat
   const updateData: any = { updated_at: new Date() };
   if (body.name !== undefined) updateData.name = body.name;
   if (body.logoUrl !== undefined) updateData.logo_url = body.logoUrl;
-  if (body.settings !== undefined) updateData.settings = body.settings;
+  if (body.settings !== undefined) {
+    const [existing] = await db
+      .select({ settings: schema.organizations.settings })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, tenant.organizationId));
+    const current =
+      (existing?.settings as Record<string, unknown> | null) ?? {};
+    updateData.settings = { ...current, ...body.settings };
+  }
 
   const [updated] = await db.update(schema.organizations)
     .set(updateData)
@@ -91,7 +111,14 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.menuDisplayName !== undefined ||
     body.menuSubtitle !== undefined ||
     body.menuDeliveryText !== undefined ||
-    body.deliveryOfflineMessage !== undefined;
+    body.deliveryOfflineMessage !== undefined ||
+    body.pickupEnabled !== undefined ||
+    body.pickupAddress !== undefined ||
+    body.pickupHint !== undefined ||
+    body.pickupUnavailableMessage !== undefined ||
+    body.deliveryLabel !== undefined ||
+    body.pickupLabel !== undefined ||
+    body.paymentMethods !== undefined;
 
   if (hasSettingsFields) {
     // Fetch current settings to merge
@@ -117,6 +144,15 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.menuSubtitle !== undefined) merged.menu_subtitle = body.menuSubtitle;
     if (body.menuDeliveryText !== undefined) merged.menu_delivery_text = body.menuDeliveryText;
     if (body.deliveryOfflineMessage !== undefined) merged.delivery_offline_message = body.deliveryOfflineMessage;
+    if (body.pickupEnabled !== undefined) merged.pickup_enabled = body.pickupEnabled;
+    if (body.pickupAddress !== undefined) merged.pickup_address = body.pickupAddress;
+    if (body.pickupHint !== undefined) merged.pickup_hint = body.pickupHint;
+    if (body.pickupUnavailableMessage !== undefined) {
+      merged.pickup_unavailable_message = body.pickupUnavailableMessage;
+    }
+    if (body.deliveryLabel !== undefined) merged.delivery_label = body.deliveryLabel;
+    if (body.pickupLabel !== undefined) merged.pickup_label = body.pickupLabel;
+    if (body.paymentMethods !== undefined) merged.payment_methods = body.paymentMethods;
     updateData.settings = merged;
   }
 
@@ -196,6 +232,128 @@ settings.delete(
       .delete(schema.deliveryZones)
       .where(and(eq(schema.deliveryZones.id, id), eq(schema.deliveryZones.branch_id, tenant.branchId)));
     return c.json({ success: true });
+  },
+);
+
+// ── Organization domains ───────────────────────────────────────────────────
+
+settings.get("/domains", requirePermission("settings:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const [org] = await db
+    .select({ id: schema.organizations.id, slug: schema.organizations.slug })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, tenant.organizationId))
+    .limit(1);
+  if (!org) {
+    return c.json(
+      { success: false, error: { code: "NOT_FOUND", message: "Organização não encontrada" } },
+      404,
+    );
+  }
+
+  await ensurePlatformDomain(org.id, org.slug);
+  const domains = await listOrganizationDomains(org.id);
+  const primaryHostname = await getPrimaryHostname(org.id, org.slug);
+
+  return c.json({
+    success: true,
+    data: {
+      primaryHostname,
+      primaryOrigin: buildTenantOrigin(primaryHostname),
+      domains: domains.map(domainPublicView),
+    },
+  });
+});
+
+settings.post(
+  "/domains",
+  requirePermission("settings:*"),
+  zValidator("json", createOrganizationDomainSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const body = c.req.valid("json");
+    try {
+      const created = await addOrganizationDomain({
+        organizationId: tenant.organizationId,
+        hostname: body.hostname,
+        isPrimary: body.isPrimary,
+        markVerified: false,
+      });
+      return c.json({ success: true, data: domainPublicView(created) }, 201);
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "ERROR";
+      if (code === "HOSTNAME_TAKEN") {
+        return c.json(
+          { success: false, error: { code: "CONFLICT", message: "Domínio já em uso" } },
+          409,
+        );
+      }
+      if (code === "HOSTNAME_INVALID") {
+        return c.json(
+          { success: false, error: { code: "BAD_REQUEST", message: "Hostname inválido" } },
+          400,
+        );
+      }
+      throw err;
+    }
+  },
+);
+
+settings.post(
+  "/domains/:id/primary",
+  requirePermission("settings:*"),
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { id } = c.req.valid("param");
+    try {
+      const updated = await setPrimaryDomain(tenant.organizationId, id);
+      return c.json({ success: true, data: domainPublicView(updated) });
+    } catch {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Domínio não encontrado" } },
+        404,
+      );
+    }
+  },
+);
+
+settings.post(
+  "/domains/:id/verify",
+  requirePermission("settings:*"),
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { id } = c.req.valid("param");
+    // MVP: org_admin can mark verified after pointing DNS (ops may also use super-admin).
+    try {
+      const updated = await markDomainVerified(tenant.organizationId, id);
+      return c.json({ success: true, data: domainPublicView(updated) });
+    } catch {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Domínio não encontrado" } },
+        404,
+      );
+    }
+  },
+);
+
+settings.delete(
+  "/domains/:id",
+  requirePermission("settings:*"),
+  zValidator("param", idParamSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { id } = c.req.valid("param");
+    try {
+      await removeOrganizationDomain(tenant.organizationId, id);
+      return c.json({ success: true });
+    } catch {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Domínio não encontrado" } },
+        404,
+      );
+    }
   },
 );
 

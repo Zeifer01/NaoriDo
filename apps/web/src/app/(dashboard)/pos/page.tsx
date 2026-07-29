@@ -8,6 +8,8 @@ import { ProductGrid } from "./_components/product-grid";
 import { CartSidebar } from "./_components/cart-sidebar";
 import { ModifierDialog, type CartModifier } from "./_components/modifier-dialog";
 import { SuccessDialog } from "./_components/success-dialog";
+import type { OrderTicketInput } from "@/lib/order-ticket";
+import { useFeatures } from "@/hooks/use-features";
 
 // ---------------------------------------------------------------------------
 // Types (exported for child components)
@@ -42,6 +44,7 @@ export default function PosPage() {
   const [orderType, setOrderType] = useState<"dine_in" | "takeout">("dine_in");
   const [successDialog, setSuccessDialog] = useState(false);
   const [lastOrderNumber, setLastOrderNumber] = useState("");
+  const [lastTicket, setLastTicket] = useState<OrderTicketInput | null>(null);
 
   // Modifier dialog state
   const [modDialogItem, setModDialogItem] = useState<any>(null);
@@ -50,6 +53,7 @@ export default function PosPage() {
   const { data: categories } = useCategories();
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
   const createOrder = useCreateOrder();
+  const { kitchenLabel } = useFeatures();
 
   const allItems: any[] = menuItems ?? [];
 
@@ -106,6 +110,21 @@ export default function PosPage() {
   const handleCreateOrder = async () => {
     if (cart.length === 0) return;
     try {
+      const ticketPreview: OrderTicketInput = {
+        orderNumber: "…",
+        customerName: customerName || "Cliente PDV",
+        type: orderType,
+        notes: orderNotes || undefined,
+        headerLabel: kitchenLabel,
+        createdAt: new Date().toISOString(),
+        items: cart.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          notes: item.notes,
+          modifiers: item.modifiers.map((m) => ({ name: m.name })),
+        })),
+      };
+
       const result = await createOrder.mutateAsync({
         type: orderType,
         customerName: customerName || "Cliente PDV",
@@ -118,7 +137,9 @@ export default function PosPage() {
         notes: orderNotes || undefined,
       });
 
-      setLastOrderNumber(result.order_number || result.orderNumber || "");
+      const orderNumber = result.order_number || result.orderNumber || result.order?.order_number || "";
+      setLastOrderNumber(orderNumber);
+      setLastTicket({ ...ticketPreview, orderNumber });
       setCart([]);
       setCustomerName("");
       setOrderNotes("");
@@ -162,6 +183,7 @@ export default function PosPage() {
         open={successDialog}
         onOpenChange={setSuccessDialog}
         orderNumber={lastOrderNumber}
+        ticket={lastTicket}
       />
 
       <ModifierDialog

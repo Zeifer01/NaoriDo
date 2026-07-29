@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { authMiddleware } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { uploadUrlSchema } from "@restai/validators";
 
 const orgs = new Hono<AppEnv>();
 
@@ -73,7 +74,7 @@ orgs.patch(
     "json",
     z.object({
       name: z.string().min(2).max(255).optional(),
-      logo_url: z.string().url().optional().nullable(),
+      logo_url: uploadUrlSchema.optional().nullable(),
       settings: z.record(z.unknown()).optional(),
     }),
   ),

@@ -13,7 +13,27 @@ import {
 } from "../lib/jwt.js";
 import { authMiddleware } from "../middleware/auth.js";
 
+import { resolveHost } from "../lib/tenant-host.js";
+import {
+  buildPlatformAppOrigin,
+  isLocalHostname,
+  isPlatformControlHost,
+  parseHostname,
+} from "@restai/config";
+
 const auth = new Hono<AppEnv>();
+
+function getClientHostname(c: { req: { header: (name: string) => string | undefined } }): string {
+  const explicit = c.req.header("x-tenant-host");
+  if (explicit) return parseHostname(explicit);
+  const origin = c.req.header("origin");
+  if (!origin) return "";
+  try {
+    return parseHostname(new URL(origin).host);
+  } catch {
+    return "";
+  }
+}
 
 // POST /register
 auth.post("/register", zValidator("json", registerOrgSchema), async (c) => {
@@ -147,6 +167,52 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
       { success: false, error: { code: "UNAUTHORIZED", message: "Credenciales inválidas" } },
       401,
     );
+  }
+
+  // Host-based access split (prod):
+  // - app.automatizappy.com → only super_admin (SaaS owner control plane)
+  // - tenant domains → only that org's staff (never super_admin)
+  // Localhost skips exclusive control-plane rules.
+  const clientHost = getClientHostname(c);
+  if (clientHost && isPlatformControlHost(clientHost)) {
+    if (user.role !== "super_admin") {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Este painel é exclusivo do administrador da plataforma",
+          },
+        },
+        403,
+      );
+    }
+  } else if (clientHost && !isLocalHostname(clientHost)) {
+    if (user.role === "super_admin") {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: `Acesse o painel da plataforma em ${buildPlatformAppOrigin()}`,
+          },
+        },
+        403,
+      );
+    }
+    const tenant = await resolveHost(clientHost);
+    if (tenant && tenant.organizationId !== user.organization_id) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "FORBIDDEN",
+            message: "Este usuário não pertence a esta plataforma",
+          },
+        },
+        403,
+      );
+    }
   }
 
   // Get user branches

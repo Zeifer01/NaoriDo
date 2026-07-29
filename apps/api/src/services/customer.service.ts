@@ -14,9 +14,25 @@ async function insertAndEnroll(
     email?: string;
     phone?: string;
     birthDate?: string;
+    city?: string;
+    neighborhood?: string;
+    zipCode?: string;
+    state?: string;
+    country?: string;
   },
 ) {
-  const { organizationId, name, email, phone, birthDate } = params;
+  const {
+    organizationId,
+    name,
+    email,
+    phone,
+    birthDate,
+    city,
+    neighborhood,
+    zipCode,
+    state,
+    country,
+  } = params;
 
   const [customer] = await tx
     .insert(schema.customers)
@@ -26,6 +42,11 @@ async function insertAndEnroll(
       email,
       phone,
       birth_date: birthDate,
+      city,
+      neighborhood,
+      zip_code: zipCode,
+      state,
+      country,
     })
     .returning();
 
@@ -47,6 +68,11 @@ export async function createCustomer(params: {
   email?: string;
   phone?: string;
   birthDate?: string;
+  city?: string;
+  neighborhood?: string;
+  zipCode?: string;
+  state?: string;
+  country?: string;
 }) {
   return db.transaction((tx) => insertAndEnroll(tx, params));
 }
@@ -158,8 +184,24 @@ export async function findOrCreateByPhone(params: {
   name: string;
   email?: string;
   birthDate?: string;
+  city?: string;
+  neighborhood?: string;
+  zipCode?: string;
+  state?: string;
+  country?: string;
 }) {
-  const { organizationId, phone, name, email, birthDate } = params;
+  const {
+    organizationId,
+    phone,
+    name,
+    email,
+    birthDate,
+    city,
+    neighborhood,
+    zipCode,
+    state,
+    country,
+  } = params;
 
   return db.transaction(async (tx) => {
     const [existing] = await tx
@@ -174,24 +216,31 @@ export async function findOrCreateByPhone(params: {
       .limit(1);
 
     if (existing) {
-      // Backfill missing fields
-      if ((email && !existing.email) || (birthDate && !existing.birth_date)) {
-        await tx
+      const patch: Record<string, unknown> = {};
+      if (email && !existing.email) patch.email = email;
+      if (birthDate && !existing.birth_date) patch.birth_date = birthDate;
+      if (city && !existing.city) patch.city = city;
+      if (neighborhood && !existing.neighborhood) patch.neighborhood = neighborhood;
+      if (zipCode && !existing.zip_code) patch.zip_code = zipCode;
+      if (state && !existing.state) patch.state = state;
+      if (country && !existing.country) patch.country = country;
+
+      let customer = existing;
+      if (Object.keys(patch).length > 0) {
+        const [updated] = await tx
           .update(schema.customers)
-          .set({
-            ...(email && !existing.email ? { email } : {}),
-            ...(birthDate && !existing.birth_date
-              ? { birth_date: birthDate }
-              : {}),
-          })
-          .where(eq(schema.customers.id, existing.id));
+          .set(patch)
+          .where(eq(schema.customers.id, existing.id))
+          .returning();
+        customer = updated;
       }
+
       const [loyaltyInfo] = await tx
         .select()
         .from(schema.customerLoyalty)
-        .where(eq(schema.customerLoyalty.customer_id, existing.id))
+        .where(eq(schema.customerLoyalty.customer_id, customer.id))
         .limit(1);
-      return { customer: existing, loyalty: loyaltyInfo || null, isNew: false };
+      return { customer, loyalty: loyaltyInfo || null, isNew: false };
     }
 
     const result = await insertAndEnroll(tx, {
@@ -200,6 +249,11 @@ export async function findOrCreateByPhone(params: {
       email,
       phone,
       birthDate,
+      city,
+      neighborhood,
+      zipCode,
+      state,
+      country,
     });
     return { ...result, isNew: true };
   });

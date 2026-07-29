@@ -40,6 +40,9 @@ export const menuItems = pgTable("menu_items", {
   description: text("description"),
   price: integer("price").notNull(), // stored in cents
   compare_price_cents: integer("compare_price_cents"), // retail price for "De Para" display
+  /** Optional COGS in cents — enables margin analytics when set. */
+  cost_cents: integer("cost_cents"),
+  supplier: varchar("supplier", { length: 255 }),
   image_url: text("image_url"),
   is_available: boolean("is_available").default(true).notNull(),
   sort_order: integer("sort_order").default(0).notNull(),
@@ -61,6 +64,8 @@ export const modifierGroups = pgTable("modifier_groups", {
   min_selections: integer("min_selections").default(0).notNull(),
   max_selections: integer("max_selections").default(1).notNull(),
   is_required: boolean("is_required").default(false).notNull(),
+  /** First N selections in this group are free; from N+1 each charges its price. */
+  free_quantity: integer("free_quantity").default(0).notNull(),
 });
 
 export const modifiers = pgTable("modifiers", {

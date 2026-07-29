@@ -176,6 +176,11 @@ loyalty.post(
       name: body.name,
       email: body.email,
       birthDate: body.birthDate,
+      city: body.city,
+      neighborhood: body.neighborhood,
+      zipCode: body.zipCode,
+      state: body.state,
+      country: body.country,
     });
 
     return c.json({ success: true, data: { ...customer, loyalty } }, 201);

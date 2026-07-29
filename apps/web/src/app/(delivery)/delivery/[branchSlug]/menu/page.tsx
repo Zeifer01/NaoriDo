@@ -9,6 +9,11 @@ import { formatCurrency, cn, resolveUploadUrl } from "@/lib/utils";
 import { useDeliveryStore } from "@/stores/delivery-store";
 import { useDeliveryCartStore } from "@/stores/delivery-cart-store";
 import { DeliveryLogo } from "@/app/(delivery)/_components/delivery-logo";
+import { useDeliveryTheme } from "@/app/(delivery)/_components/delivery-theme-provider";
+import {
+  CATEGORY_BG_VARS,
+  parseDeliveryThemeId,
+} from "@/app/(delivery)/_components/delivery-theme";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const ALL_PRODUCTS = "all";
@@ -44,6 +49,12 @@ interface MenuData {
     menu_subtitle?: string | null;
     menu_delivery_text?: string | null;
     all_products_tab_sort_order?: number | null;
+    menu_theme?: string | null;
+    pickup_enabled?: boolean;
+    pickup_address?: string | null;
+    pickup_hint?: string | null;
+    pickup_unavailable_message?: string | null;
+    pickup_label?: string | null;
   };
   categories: Category[];
   items: MenuItem[];
@@ -57,6 +68,7 @@ export default function DeliveryMenuPage({
   const { branchSlug } = use(params);
   const router = useRouter();
   const setBranch = useDeliveryStore((s) => s.setBranch);
+  const { setThemeId } = useDeliveryTheme();
   const { addItem, updateQuantity, items, getItemCount } = useDeliveryCartStore();
 
   const [menuData, setMenuData] = useState<MenuData | null>(null);
@@ -79,6 +91,7 @@ export default function DeliveryMenuPage({
           return;
         }
         setMenuData(result.data);
+        setThemeId(parseDeliveryThemeId(result.data.branch.menu_theme));
         setBranch({
           branchSlug,
           branchName: result.data.branch.name,
@@ -97,7 +110,7 @@ export default function DeliveryMenuPage({
         setError("Erro inesperado ao carregar cardápio");
         setLoading(false);
       });
-  }, [branchSlug, setBranch]);
+  }, [branchSlug, setBranch, setThemeId]);
 
   useEffect(() => {
     loadMenu();
@@ -111,19 +124,10 @@ export default function DeliveryMenuPage({
     [menuData],
   );
 
-  // Subtle palette for per-category background (earthy/organic, same family)
-  const CATEGORY_BG = [
-    "#EDF3E8", // sage green tint
-    "#F5EFE8", // warm cream/amber
-    "#EEF4F0", // pale mint
-    "#F0EBE3", // warm sand
-    "#F4F0EB", // bone/ivory
-  ];
-
   const activeBg = useMemo(() => {
-    if (activeCategory === ALL_PRODUCTS) return "#FAF7F2";
+    if (activeCategory === ALL_PRODUCTS) return "var(--d-bg)";
     const idx = sortedCategories.findIndex((c) => c.id === activeCategory);
-    return CATEGORY_BG[idx % CATEGORY_BG.length] ?? "#FAF7F2";
+    return CATEGORY_BG_VARS[idx % CATEGORY_BG_VARS.length] ?? "var(--d-bg)";
   }, [activeCategory, sortedCategories]);
 
   const categoryOrder = useMemo(
@@ -180,8 +184,8 @@ export default function DeliveryMenuPage({
 
   if (loading) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-[#FAF7F2]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#7A9B7E]" />
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--d-bg)]">
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--d-accent)]" />
       </div>
     );
   }
@@ -189,13 +193,13 @@ export default function DeliveryMenuPage({
   if (error || !menuData) {
     if (errorCode === "DELIVERY_DISABLED") {
       return (
-        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-6 bg-[#FAF7F2] px-8 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#EDF3E8]">
-            <ShoppingBag className="h-8 w-8 text-[#7A9B7E]" />
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-6 bg-[var(--d-bg)] px-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--d-bg-soft)]">
+            <ShoppingBag className="h-8 w-8 text-[var(--d-accent)]" />
           </div>
           <div className="max-w-sm space-y-2">
-            <h1 className="text-lg font-semibold text-[#3A3F38]">Pedidos temporariamente suspensos</h1>
-            <p className="text-sm leading-relaxed text-[#5C6356]" style={{ whiteSpace: "pre-line" }}>
+            <h1 className="text-lg font-semibold text-[var(--d-text)]">Pedidos temporariamente suspensos</h1>
+            <p className="text-sm leading-relaxed text-[var(--d-text-soft)]" style={{ whiteSpace: "pre-line" }}>
               {error}
             </p>
           </div>
@@ -203,12 +207,12 @@ export default function DeliveryMenuPage({
       );
     }
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#FAF7F2] px-6 text-center">
-        <p className="text-sm text-[#5C6356]">{error || "Cardápio indisponível"}</p>
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[var(--d-bg)] px-6 text-center">
+        <p className="text-sm text-[var(--d-text-soft)]">{error || "Cardápio indisponível"}</p>
         <button
           type="button"
           onClick={loadMenu}
-          className="rounded-full bg-[#7A9B7E] px-6 py-2.5 text-sm font-medium text-white"
+          className="rounded-full bg-[var(--d-accent)] px-6 py-2.5 text-sm font-medium text-[var(--d-on-accent)]"
         >
           Tentar novamente
         </button>
@@ -218,15 +222,26 @@ export default function DeliveryMenuPage({
 
   const currency = menuData.branch.currency;
   const displayName = menuData.branch.menu_display_name || menuData.branch.org_name || menuData.branch.name;
-  const menuSubtitle = menuData.branch.menu_subtitle || "Produtos naturais, entregues na sua porta";
+  const menuSubtitle = menuData.branch.menu_subtitle || "Peça online e receba onde estiver";
   const deliveryText = menuData.branch.menu_delivery_text || `Entrega · ${formatCurrency(menuData.branch.delivery_fee || 1200, currency)}`;
+  const pickupEnabled = menuData.branch.pickup_enabled !== false;
+  const pickupLabel = menuData.branch.pickup_label || "Retirada";
+  const pickupStatusText = pickupEnabled
+    ? menuData.branch.pickup_hint ||
+      (menuData.branch.pickup_address
+        ? `${pickupLabel} · ${menuData.branch.pickup_address}`
+        : `${pickupLabel} disponível`)
+    : menuData.branch.pickup_unavailable_message ||
+      `No momento não estamos aceitando ${pickupLabel.toLowerCase()}`;
 
   return (
-    <div className="min-h-[100dvh] text-[#3A3F38] -mx-0" style={{ backgroundColor: activeBg, transition: "background-color 0.3s ease" }}>
-      {/* Hero */}
-      <header className="relative overflow-hidden bg-gradient-to-b from-[#EDF3E8] to-[#FAF7F2] px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
-        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#E8EFE4]/80 blur-2xl" />
-        <div className="pointer-events-none absolute -left-6 top-16 h-24 w-24 rounded-full bg-[#F0EBE3]/90 blur-xl" />
+    <div
+      className="min-h-[100dvh] text-[var(--d-text)] -mx-0"
+      style={{ backgroundColor: activeBg, transition: "background-color 0.3s ease" }}
+    >
+      <header className="relative overflow-hidden bg-gradient-to-b from-[var(--d-hero-from)] to-[var(--d-hero-to)] px-5 pb-5 pt-[max(1.25rem,env(safe-area-inset-top))]">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[var(--d-purple)]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-8 top-20 h-28 w-28 rounded-full bg-[var(--d-accent)]/10 blur-2xl" />
 
         <div className="relative mx-auto flex max-w-lg items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -236,25 +251,34 @@ export default function DeliveryMenuPage({
               size="lg"
               className="mb-3 p-2 shadow-sm backdrop-blur-sm"
             />
-            <h1 className="text-2xl font-semibold tracking-tight text-[#2F342E]">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--d-text-strong)]">
               {displayName}
             </h1>
-            <p className="mt-1 text-sm leading-relaxed text-[#6B7268]">
+            <p className="mt-1 text-sm leading-relaxed text-[var(--d-text-muted)]">
               {menuSubtitle}
             </p>
-            <p className="mt-2 inline-flex items-center rounded-full bg-white/60 px-3 py-1 text-xs text-[#5C6356] ring-1 ring-[#E8EFE4] whitespace-pre-line">
+            <p className="mt-2 inline-flex items-center rounded-full bg-[var(--d-card)] px-3 py-1 text-xs text-[var(--d-text-soft)] ring-1 ring-[var(--d-border-soft)] whitespace-pre-line">
               {deliveryText}
+            </p>
+            <p
+              className={`mt-2 inline-flex max-w-full items-center rounded-full px-3 py-1 text-xs ring-1 whitespace-pre-line ${
+                pickupEnabled
+                  ? "bg-[var(--d-bg-soft)] text-[var(--d-accent-dark)] ring-[var(--d-border-soft)]"
+                  : "bg-[var(--d-bg-elevated)] text-[var(--d-text-muted)] ring-[var(--d-border)]"
+              }`}
+            >
+              {pickupStatusText}
             </p>
           </div>
 
           <Link
             href={`/delivery/${branchSlug}/cart`}
-            className="relative mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#5C7A5F] shadow-sm ring-1 ring-[#E8EFE4] transition active:scale-95"
+            className="relative mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--d-card)] text-[var(--d-accent-dark)] shadow-sm ring-1 ring-[var(--d-border-soft)] transition active:scale-95"
             aria-label="Ver carrinho"
           >
             <ShoppingBag className="h-5 w-5" strokeWidth={1.75} />
             {cartCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#7A9B7E] px-1 text-[10px] font-bold text-white">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--d-accent)] px-1 text-[10px] font-bold text-[var(--d-on-accent)]">
                 {cartCount}
               </span>
             )}
@@ -262,9 +286,14 @@ export default function DeliveryMenuPage({
         </div>
       </header>
 
-      {/* Categories — sticky */}
       {(sortedCategories.length > 0 || (menuData?.items.length ?? 0) > 0) && (
-        <div className="sticky top-0 z-20 border-b border-[#EDE8DF]/80 backdrop-blur-md" style={{ backgroundColor: `color-mix(in srgb, ${activeBg} 90%, transparent)`, transition: "background-color 0.3s ease" }}>
+        <div
+          className="sticky top-0 z-20 border-b border-[var(--d-border)]/80 backdrop-blur-md"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${activeBg} 90%, transparent)`,
+            transition: "background-color 0.3s ease",
+          }}
+        >
           <div className="mx-auto max-w-lg px-4 py-3">
             <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {(() => {
@@ -280,8 +309,8 @@ export default function DeliveryMenuPage({
                     className={cn(
                       "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
                       activeCategory === ALL_PRODUCTS
-                        ? "bg-[#7A9B7E] text-white shadow-sm"
-                        : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
+                        ? "bg-[var(--d-accent)] text-[var(--d-on-accent)] shadow-sm"
+                        : "bg-[var(--d-bg-elevated)] text-[var(--d-text-soft)] hover:bg-[var(--d-bg-soft)]",
                     )}
                   >
                     Todos os produtos
@@ -295,8 +324,8 @@ export default function DeliveryMenuPage({
                     className={cn(
                       "shrink-0 snap-start rounded-full px-4 py-2 text-sm font-medium transition-all active:scale-95",
                       activeCategory === cat.id
-                        ? "bg-[#7A9B7E] text-white shadow-sm"
-                        : "bg-[#F0EBE3] text-[#5C6356] hover:bg-[#E8EFE4]",
+                        ? "bg-[var(--d-accent)] text-[var(--d-on-accent)] shadow-sm"
+                        : "bg-[var(--d-bg-elevated)] text-[var(--d-text-soft)] hover:bg-[var(--d-bg-soft)]",
                     )}
                   >
                     {cat.name}
@@ -309,12 +338,11 @@ export default function DeliveryMenuPage({
         </div>
       )}
 
-      {/* Products */}
       <main className="mx-auto max-w-lg px-4 py-5 pb-[max(6rem,env(safe-area-inset-bottom))]">
         {visibleItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#E0DDD4] bg-[#F5F0E8]/50 px-6 py-12 text-center">
-            <Leaf className="mx-auto mb-3 h-8 w-8 text-[#A8B5A0]" strokeWidth={1.5} />
-            <p className="text-sm text-[#6B7268]">
+          <div className="rounded-2xl border border-dashed border-[var(--d-border)] bg-[var(--d-bg-elevated)]/50 px-6 py-12 text-center">
+            <Leaf className="mx-auto mb-3 h-8 w-8 text-[var(--d-placeholder)]" strokeWidth={1.5} />
+            <p className="text-sm text-[var(--d-text-muted)]">
               {activeCategory === ALL_PRODUCTS
                 ? "Nenhum produto disponível no cardápio"
                 : "Nenhum produto disponível nesta categoria"}
@@ -329,13 +357,13 @@ export default function DeliveryMenuPage({
               return (
                 <li
                   key={item.id}
-                  className="overflow-hidden rounded-2xl border border-[#EDE8DF] bg-white/80 shadow-[0_2px_16px_-4px_rgba(58,63,56,0.08)]"
+                  className="overflow-hidden rounded-2xl border border-[var(--d-border)] bg-[var(--d-card)] shadow-[0_2px_16px_-4px_var(--d-shadow)]"
                 >
                   <Link
                     href={`/delivery/${branchSlug}/menu/${item.id}`}
                     className="flex gap-0 sm:gap-0"
                   >
-                    <div className="relative h-28 w-28 shrink-0 bg-[#F0EBE3] sm:h-32 sm:w-32">
+                    <div className="relative h-28 w-28 shrink-0 bg-[var(--d-bg-elevated)] sm:h-32 sm:w-32">
                       {itemImage ? (
                         <Image
                           src={itemImage}
@@ -346,37 +374,37 @@ export default function DeliveryMenuPage({
                           sizes="128px"
                         />
                       ) : (
-                        <div className="flex h-full w-full items-center justify-center text-[#A8B5A0]">
+                        <div className="flex h-full w-full items-center justify-center text-[var(--d-placeholder)]">
                           <Leaf className="h-8 w-8" strokeWidth={1.25} />
                         </div>
                       )}
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col justify-center px-4 py-3">
-                      <p className="font-medium leading-snug text-[#2F342E]">
+                      <p className="font-medium leading-snug text-[var(--d-text-strong)]">
                         {item.name}
                       </p>
                       {item.description && (
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[#6B7268]">
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--d-text-muted)]">
                           {item.description}
                         </p>
                       )}
                       <div className="mt-2">
                         {item.compare_price_cents && item.compare_price_cents > item.price ? (
                           <>
-                            <p className="text-xs leading-none text-[#A8B5A0] line-through">
+                            <p className="text-xs leading-none text-[var(--d-placeholder)] line-through">
                               {formatCurrency(item.compare_price_cents, currency)} nas lojas
                             </p>
                             <div className="flex items-center gap-2">
-                              <p className="text-base font-semibold text-[#5C7A5F]">
+                              <p className="text-base font-semibold text-[var(--d-accent-dark)]">
                                 {formatCurrency(item.price, currency)}
                               </p>
-                              <span className="rounded-full bg-[#EDF3E8] px-1.5 py-0.5 text-[10px] font-semibold text-[#5C7A5F]">
+                              <span className="rounded-full bg-[var(--d-bg-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--d-purple)]">
                                 -{Math.round((1 - item.price / item.compare_price_cents) * 100)}%
                               </span>
                             </div>
                           </>
                         ) : (
-                          <p className="text-base font-semibold text-[#5C7A5F]">
+                          <p className="text-base font-semibold text-[var(--d-accent-dark)]">
                             {formatCurrency(item.price, currency)}
                           </p>
                         )}
@@ -384,13 +412,13 @@ export default function DeliveryMenuPage({
                     </div>
                   </Link>
 
-                  <div className="flex items-center justify-end gap-2 border-t border-[#F0EBE3] px-4 py-3">
+                  <div className="flex items-center justify-end gap-2 border-t border-[var(--d-bg-elevated)] px-4 py-3">
                     {qty > 0 ? (
-                      <div className="flex items-center gap-3 rounded-full bg-[#EDF3E8] px-1 py-1">
+                      <div className="flex items-center gap-3 rounded-full bg-[var(--d-bg-soft)] px-1 py-1">
                         <button
                           type="button"
                           aria-label="Remover um"
-                          className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#5C7A5F] shadow-sm transition active:scale-95 touch-manipulation"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--d-card-solid)] text-[var(--d-accent-dark)] shadow-sm transition active:scale-95 touch-manipulation"
                           onClick={() => {
                             const line = items.find(
                               (i) =>
@@ -402,13 +430,13 @@ export default function DeliveryMenuPage({
                         >
                           <Minus className="h-4 w-4" />
                         </button>
-                        <span className="min-w-[1.25rem] text-center text-sm font-semibold text-[#3A3F38]">
+                        <span className="min-w-[1.25rem] text-center text-sm font-semibold text-[var(--d-text)]">
                           {qty}
                         </span>
                         <button
                           type="button"
                           aria-label="Adicionar um"
-                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#7A9B7E] text-white shadow-sm transition active:scale-95 touch-manipulation"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--d-accent)] text-[var(--d-on-accent)] shadow-sm transition active:scale-95 touch-manipulation"
                           onClick={() => handleQuickAdd(item)}
                         >
                           <Plus className="h-4 w-4" />
@@ -418,7 +446,7 @@ export default function DeliveryMenuPage({
                       <button
                         type="button"
                         onClick={() => handleQuickAdd(item)}
-                        className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[#7A9B7E] px-5 text-sm font-medium text-white shadow-sm transition active:scale-95"
+                        className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[var(--d-accent)] px-5 text-sm font-medium text-[var(--d-on-accent)] shadow-sm transition active:scale-95"
                       >
                         <Plus className="h-4 w-4" />
                         Adicionar
@@ -432,14 +460,13 @@ export default function DeliveryMenuPage({
         )}
       </main>
 
-      {/* Floating cart */}
       {cartCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#EDE8DF] bg-[#FAF7F2]/95 px-4 py-3 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--d-border)] bg-[var(--d-bg)]/95 px-4 py-3 backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto max-w-lg">
             <button
               type="button"
               onClick={() => router.push(`/delivery/${branchSlug}/cart`)}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7A9B7E] py-3.5 text-base font-semibold text-white shadow-lg shadow-[#7A9B7E]/25 transition active:scale-[0.99]"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[var(--d-accent)] py-3.5 text-base font-semibold text-[var(--d-on-accent)] shadow-lg transition active:scale-[0.99]"
             >
               <ShoppingBag className="h-5 w-5" />
               Ver carrinho · {cartCount} {cartCount === 1 ? "item" : "itens"}
