@@ -42,13 +42,44 @@ export function getBranchInstanceName(branch: {
   return `${WHATSAPP_INSTANCE_PREFIX}-${slug || branch.id.slice(0, 8)}`;
 }
 
-export function formatPhoneForWhatsApp(phone: string): string {
+/**
+ * Normalize a phone for Evolution API.
+ * `defaultCountryCode` comes from branch settings (e.g. "55" BR, "1" US).
+ */
+export function formatPhoneForWhatsApp(
+  phone: string,
+  defaultCountryCode = "55",
+): string {
   const digits = phone.replace(/\D/g, "");
   if (!digits) return "";
-  if (digits.length <= 11 && !digits.startsWith("55")) {
-    return `55${digits}`;
+
+  const cc = defaultCountryCode.replace(/\D/g, "") || "55";
+
+  // Already looks international (E.164 without +)
+  if (digits.length >= 12) return digits;
+
+  if (cc === "1") {
+    if (digits.length === 10) return `1${digits}`;
+    if (digits.length === 11 && digits.startsWith("1")) return digits;
+  }
+
+  if (!digits.startsWith(cc)) {
+    return `${cc}${digits}`;
   }
   return digits;
+}
+
+/** Phone or WhatsApp group JID (`…@g.us`). */
+export function resolveWhatsAppRecipient(
+  phoneOrJid: string,
+  defaultCountryCode = "55",
+): string {
+  const trimmed = phoneOrJid.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("@")) {
+    return trimmed;
+  }
+  return formatPhoneForWhatsApp(trimmed, defaultCountryCode);
 }
 
 async function evolutionFetch<T = Record<string, unknown>>(
@@ -312,12 +343,16 @@ export async function setupWebhook(instanceName: string, webhookUrl: string): Pr
 
 export async function sendWhatsAppText(
   instanceName: string,
-  phone: string,
+  phoneOrJid: string,
   text: string,
+  options?: { countryCode?: string },
 ): Promise<void> {
-  const number = formatPhoneForWhatsApp(phone);
+  const number = resolveWhatsAppRecipient(
+    phoneOrJid,
+    options?.countryCode || "55",
+  );
   if (!number) {
-    throw new WhatsAppError("Telefone inválido", 400);
+    throw new WhatsAppError("Destinatário WhatsApp inválido", 400);
   }
 
   await evolutionFetch(`/message/sendText/${encodeURIComponent(instanceName)}`, {

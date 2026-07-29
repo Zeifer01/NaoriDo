@@ -23,16 +23,17 @@ import {
   useKitchenContext,
   type KitchenColumnStatus,
 } from "./kitchen-context";
+import { useFeatures } from "@/hooks/use-features";
 
 type TabKey = KitchenColumnStatus;
 
-const COLUMN_CONFIG: Record<
+const COLUMN_ICONS: Record<
   TabKey,
-  { icon: React.ComponentType<{ className?: string }>; label: string; emptyLabel: string }
+  { icon: React.ComponentType<{ className?: string }>; emptyLabel: string }
 > = {
-  pending: { icon: Clock, label: "Pendentes", emptyLabel: "Sem pedidos pendentes" },
-  preparing: { icon: ChefHat, label: "Em Preparação", emptyLabel: "Sem pedidos em preparação" },
-  ready: { icon: CheckCircle, label: "Prontos", emptyLabel: "Sem pedidos prontos" },
+  pending: { icon: Clock, emptyLabel: "Sem pedidos pendentes" },
+  preparing: { icon: ChefHat, emptyLabel: "Sem pedidos em preparação" },
+  ready: { icon: CheckCircle, emptyLabel: "Sem pedidos prontos" },
 };
 
 const COLUMN_DROP_IDS: Record<TabKey, string> = {
@@ -123,7 +124,9 @@ function DraggableOrderCard({
 
 function KanbanColumn({ status }: { status: TabKey }) {
   const { columns, newOrderIds } = useKitchenContext();
-  const config = COLUMN_CONFIG[status];
+  const { kitchenColumnLabels } = useFeatures();
+  const config = COLUMN_ICONS[status];
+  const label = kitchenColumnLabels[status];
   const columnOrders = columns[status];
   const { setNodeRef, isOver } = useDroppable({
     id: COLUMN_DROP_IDS[status],
@@ -141,7 +144,7 @@ function KanbanColumn({ status }: { status: TabKey }) {
     >
       <ColumnHeader
         icon={config.icon}
-        label={config.label}
+        label={label}
         count={columnOrders.length}
         variant={status}
         pulse={status === "pending" && columnOrders.length > 0}

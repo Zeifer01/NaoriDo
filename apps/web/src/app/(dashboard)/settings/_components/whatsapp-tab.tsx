@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@restai/ui/components/card";
 import { Button } from "@restai/ui/components/button";
 import { Badge } from "@restai/ui/components/badge";
+import { Input } from "@restai/ui/components/input";
+import { Label } from "@restai/ui/components/label";
 import { Loader2, MessageCircle, Megaphone, Pencil, QrCode, Send, Unplug, Webhook } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,9 @@ export function WhatsAppTab() {
   const [messagesDialogOpen, setMessagesDialogOpen] = useState(false);
   const [campaignMessage, setCampaignMessage] = useState("");
   const [campaignResult, setCampaignResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
+  const [kitchenGroupJid, setKitchenGroupJid] = useState("");
+  const [defaultEtaMinutes, setDefaultEtaMinutes] = useState("30");
+  const [phoneCountryCode, setPhoneCountryCode] = useState("55");
 
   const { data: status, isLoading, isError, error } = useWhatsAppStatus({ pollWhileConnecting: pollConnecting });
   const connect = useConnectWhatsApp();
@@ -46,6 +51,13 @@ export function WhatsAppTab() {
       setPollConnecting(false);
     }
   }, [status?.connected]);
+
+  useEffect(() => {
+    if (!status) return;
+    setKitchenGroupJid(status.kitchenGroupJid || "");
+    setDefaultEtaMinutes(String(status.defaultEtaMinutes ?? 30));
+    setPhoneCountryCode(status.phoneCountryCode || "55");
+  }, [status?.kitchenGroupJid, status?.defaultEtaMinutes, status?.phoneCountryCode]);
 
   const normalizeQrcode = (value: string) =>
     value.startsWith("data:") ? value : `data:image/png;base64,${value}`;
@@ -115,6 +127,45 @@ export function WhatsAppTab() {
       );
     } catch (err: any) {
       toast.error(err.message || "Erro ao salvar preferência");
+    }
+  };
+
+  const handleToggleAutoStatusNotify = async () => {
+    if (!status) return;
+    try {
+      await updateSettings.mutateAsync({
+        autoStatusNotify: !(status.autoStatusNotify !== false),
+      });
+      toast.success(
+        status.autoStatusNotify !== false
+          ? "Notificação automática de status desativada (só manual nas Comandas)"
+          : "Notificação automática de status ativada",
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar preferência");
+    }
+  };
+
+  const handleSaveComandasSettings = async () => {
+    const eta = Number(defaultEtaMinutes);
+    if (!Number.isFinite(eta) || eta < 1 || eta > 180) {
+      toast.error("Estimativa padrão deve ser entre 1 e 180 minutos");
+      return;
+    }
+    const cc = phoneCountryCode.replace(/\D/g, "");
+    if (!cc) {
+      toast.error("Informe o DDI (ex.: 1 para EUA, 55 para Brasil)");
+      return;
+    }
+    try {
+      await updateSettings.mutateAsync({
+        kitchenGroupJid: kitchenGroupJid.trim() || null,
+        defaultEtaMinutes: Math.round(eta),
+        phoneCountryCode: cc,
+      });
+      toast.success("Configurações de Comandas / WhatsApp salvas");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar");
     }
   };
 
@@ -356,6 +407,33 @@ export function WhatsAppTab() {
                 : "Nenhuma mensagem será enviada automaticamente."}
             </p>
 
+            <div className="flex items-center gap-3 pt-2 border-t">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={status.autoStatusNotify !== false}
+                onClick={handleToggleAutoStatusNotify}
+                disabled={updateSettings.isPending}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  status.autoStatusNotify !== false ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition",
+                    status.autoStatusNotify !== false ? "translate-x-5" : "translate-x-0",
+                  )}
+                />
+              </button>
+              <div className="text-sm">
+                <p className="font-medium">Auto ao mudar status</p>
+                <p className="text-xs text-muted-foreground">
+                  Se desligado, a atendente usa os botões nas Comandas (recomendado para Açaí).
+                </p>
+              </div>
+            </div>
+
             <Button
               type="button"
               variant="outline"
@@ -370,6 +448,62 @@ export function WhatsAppTab() {
               onOpenChange={setMessagesDialogOpen}
               templates={status.messageTemplates ?? DEFAULT_WHATSAPP_TEMPLATES}
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {status?.configured && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Comandas → WhatsApp</CardTitle>
+            <CardDescription>
+              Grupo da cozinha (JID) e estimativa padrão para o botão &quot;Notificar cliente&quot;.
+              No WhatsApp do celular, abra as infos do grupo e copie o ID, ou use o JID no formato{" "}
+              <code className="text-xs bg-muted px-1 rounded">120363…@g.us</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="kitchen-group-jid">Grupo da cozinha (JID)</Label>
+              <Input
+                id="kitchen-group-jid"
+                placeholder="120363xxxxxxxxxx@g.us"
+                value={kitchenGroupJid}
+                onChange={(e) => setKitchenGroupJid(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="default-eta">Estimativa padrão (min)</Label>
+                <Input
+                  id="default-eta"
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={defaultEtaMinutes}
+                  onChange={(e) => setDefaultEtaMinutes(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone-cc">DDI telefone (país)</Label>
+                <Input
+                  id="phone-cc"
+                  placeholder="1 = EUA · 55 = BR"
+                  value={phoneCountryCode}
+                  onChange={(e) => setPhoneCountryCode(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={handleSaveComandasSettings}
+              disabled={updateSettings.isPending}
+            >
+              {updateSettings.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Salvar Comandas / WhatsApp
+            </Button>
           </CardContent>
         </Card>
       )}

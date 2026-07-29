@@ -39,6 +39,7 @@ import {
   type KitchenColumnStatus,
 } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
+import { OrderNotifyActions } from "./order-notify-actions";
 
 type TypeFilter = "all" | "dine_in" | "takeout" | "delivery";
 
@@ -290,6 +291,12 @@ function CompactCard({
             <Copy className="h-3 w-3 mr-1" />
             Copiar
           </Button>
+          <OrderNotifyActions
+            orderId={order.id}
+            columnStatus={columnStatus}
+            hasPhone={Boolean(order.delivery_phone || order.deliveryPhone)}
+            compact
+          />
           {minutes >= 15 && (
             <p className="text-[10px] text-center text-red-600 font-semibold mt-1">
               Atrasado · {minutes} min
@@ -354,6 +361,7 @@ function DenseColumn({
 
 export function KitchenV2Board() {
   const { columns, newOrderIds, orders, moveOrderToColumn } = useKitchenContext();
+  const { kitchenColumnLabels } = useFeatures();
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [onlyLate, setOnlyLate] = useState(false);
@@ -462,21 +470,21 @@ export function KitchenV2Board() {
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 flex-1 min-h-0">
           <DenseColumn
-            title="Pendentes"
+            title={kitchenColumnLabels.pending}
             status="pending"
             orders={pending}
             newOrderIds={newOrderIds}
             accent="bg-amber-50 dark:bg-amber-950/30"
           />
           <DenseColumn
-            title="Preparando"
+            title={kitchenColumnLabels.preparing}
             status="preparing"
             orders={preparing}
             newOrderIds={newOrderIds}
             accent="bg-blue-50 dark:bg-blue-950/30"
           />
           <DenseColumn
-            title="Prontos"
+            title={kitchenColumnLabels.ready}
             status="ready"
             orders={ready}
             newOrderIds={newOrderIds}

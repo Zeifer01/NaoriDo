@@ -55,7 +55,8 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido está *em preparo* na cozinha.",
+    "Seu pedido foi *aceito* e está sendo preparado.",
+    "{estimativa_bloco}",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -63,7 +64,7 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido está *pronto* e sairá para entrega em instantes.",
+    "O delivery saiu com o seu pedido! 🛵",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -98,11 +99,50 @@ export const WHATSAPP_TEMPLATE_VARIABLES = [
   "{pedido}",
   "{total}",
   "{endereco_bloco}",
+  "{estimativa}",
+  "{estimativa_bloco}",
   "{link}",
   "{estabelecimento}",
   "{link_cardapio}",
   "{nome}",
 ] as const;
+
+export function getWhatsAppPhoneCountryCode(settings?: unknown): string {
+  const raw = (settings || {}) as Record<string, unknown>;
+  const code = raw.whatsapp_phone_country_code;
+  if (typeof code === "string" && code.replace(/\D/g, "").length > 0) {
+    return code.replace(/\D/g, "");
+  }
+  return "55";
+}
+
+export function getWhatsAppKitchenGroupJid(settings?: unknown): string | null {
+  const raw = (settings || {}) as Record<string, unknown>;
+  const jid = raw.whatsapp_kitchen_group_jid;
+  if (typeof jid === "string" && jid.trim()) {
+    return jid.trim();
+  }
+  return null;
+}
+
+export function getWhatsAppDefaultEtaMinutes(settings?: unknown): number {
+  const raw = (settings || {}) as Record<string, unknown>;
+  const value = raw.whatsapp_default_eta_minutes;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.min(180, Math.round(value));
+  }
+  if (typeof value === "string" && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return Math.min(180, Math.round(n));
+  }
+  return 30;
+}
+
+/** When false, status changes do not auto-message the customer (manual notify only). */
+export function isWhatsAppAutoStatusNotifyEnabled(settings?: unknown): boolean {
+  const raw = (settings || {}) as Record<string, unknown>;
+  return raw.whatsapp_auto_status_notify !== false;
+}
 
 const STATUS_KEY_BY_ORDER_STATUS: Partial<Record<string, WhatsAppMessageKey>> = {
   confirmed: "status_confirmed",

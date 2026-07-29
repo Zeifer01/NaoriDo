@@ -65,7 +65,8 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido está *em preparo* na cozinha.",
+    "Seu pedido foi *aceito* e está sendo preparado.",
+    "{estimativa_bloco}",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -73,7 +74,7 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido está *pronto* e sairá para entrega em instantes.",
+    "O delivery saiu com o seu pedido! 🛵",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -241,6 +242,19 @@ export function WhatsAppMessagesDialog({
                     pedido recebido) · <code className="bg-muted px-1 rounded">{"{link}"}</code> link de
                     acompanhamento
                   </p>
+                  {activeKey === "status_preparing" && (
+                    <p>
+                      <code className="bg-muted px-1 rounded">{"{estimativa}"}</code> minutos ·{" "}
+                      <code className="bg-muted px-1 rounded">{"{estimativa_bloco}"}</code> frase completa
+                      da estimativa
+                    </p>
+                  )}
+                  {activeKey === "status_ready" && (
+                    <p>
+                      Use o botão <strong>Notificar cliente</strong> nas Comandas quando o status for
+                      &quot;pronto / aguardando retirada&quot; (ex.: delivery saiu).
+                    </p>
+                  )}
                 </>
               )}
               <p>Deixe uma linha em branco entre os blocos para criar espaçamento no WhatsApp.</p>

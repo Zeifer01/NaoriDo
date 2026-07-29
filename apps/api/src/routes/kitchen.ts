@@ -5,11 +5,15 @@ import { eq, and, inArray, asc, sql } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { updateOrderItemStatusSchema, idParamSchema, kitchenQuerySchema } from "@restai/validators";
 import { ORDER_ITEM_STATUS_TRANSITIONS } from "@restai/config";
+import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
+import { requireFeature } from "../middleware/feature.js";
 import { wsManager } from "../ws/manager.js";
+import { sendManualOrderNotify } from "../services/whatsapp.service.js";
+import { WhatsAppError } from "../lib/whatsapp.js";
 
 const kitchen = new Hono<AppEnv>();
 
@@ -198,6 +202,102 @@ kitchen.patch(
     }
 
     return c.json({ success: true, data: updated });
+  },
+);
+
+// POST /orders/:id/notify — manual WhatsApp notify (kitchen group or customer)
+kitchen.post(
+  "/orders/:id/notify",
+  requirePermission("orders:update"),
+  requireFeature("whatsapp"),
+  zValidator("param", idParamSchema),
+  zValidator(
+    "json",
+    z.object({
+      target: z.enum(["kitchen", "customer"]),
+      etaMinutes: z.number().int().min(1).max(180).optional(),
+    }),
+  ),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { target, etaMinutes } = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    const [order] = await db
+      .select({
+        id: schema.orders.id,
+        order_number: schema.orders.order_number,
+        status: schema.orders.status,
+        type: schema.orders.type,
+        total: schema.orders.total,
+        delivery_phone: schema.orders.delivery_phone,
+        delivery_address: schema.orders.delivery_address,
+        delivery_reference: schema.orders.delivery_reference,
+        payment_method: schema.orders.payment_method,
+        customer_name: schema.orders.customer_name,
+        notes: schema.orders.notes,
+        created_at: schema.orders.created_at,
+        branch_id: schema.orders.branch_id,
+      })
+      .from(schema.orders)
+      .where(eq(schema.orders.id, id))
+      .limit(1);
+
+    if (!order || order.branch_id !== tenant.branchId) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Pedido não encontrado" } },
+        404,
+      );
+    }
+
+    const [branch] = await db
+      .select()
+      .from(schema.branches)
+      .where(eq(schema.branches.id, tenant.branchId))
+      .limit(1);
+
+    if (!branch) {
+      return c.json(
+        { success: false, error: { code: "BAD_REQUEST", message: "Filial não encontrada" } },
+        400,
+      );
+    }
+
+    try {
+      const result = await sendManualOrderNotify(
+        { ...branch, organization_id: tenant.organizationId },
+        {
+          id: order.id,
+          order_number: order.order_number,
+          status: order.status,
+          type: order.type,
+          total: order.total,
+          delivery_phone: order.delivery_phone,
+          delivery_address: order.delivery_address,
+          delivery_reference: order.delivery_reference,
+          payment_method: order.payment_method,
+          customer_name: order.customer_name,
+          notes: order.notes,
+          created_at: order.created_at,
+        },
+        target,
+        { etaMinutes },
+      );
+      return c.json({ success: true, data: result });
+    } catch (err) {
+      if (err instanceof WhatsAppError) {
+        const code = err.statusCode === 503 ? 503 : 400;
+        return c.json(
+          { success: false, error: { code: "WHATSAPP_ERROR", message: err.message } },
+          code,
+        );
+      }
+      const message = err instanceof Error ? err.message : "Erro ao notificar";
+      return c.json(
+        { success: false, error: { code: "WHATSAPP_ERROR", message } },
+        502,
+      );
+    }
   },
 );
 

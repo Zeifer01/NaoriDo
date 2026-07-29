@@ -22,6 +22,10 @@ export type WhatsAppStatus = {
   instanceName: string;
   notificationsEnabled: boolean;
   autoReplyEnabled: boolean;
+  autoStatusNotify: boolean;
+  kitchenGroupJid: string | null;
+  defaultEtaMinutes: number;
+  phoneCountryCode: string;
   messageTemplates: WhatsAppMessageTemplates;
 };
 
@@ -69,15 +73,24 @@ export function useUpdateWhatsAppSettings() {
     mutationFn: (data: {
       notificationsEnabled?: boolean;
       autoReplyEnabled?: boolean;
+      autoStatusNotify?: boolean;
+      kitchenGroupJid?: string | null;
+      defaultEtaMinutes?: number;
+      phoneCountryCode?: string;
       messageTemplates?: Partial<WhatsAppMessageTemplates>;
     }) =>
-      apiFetch<{ notificationsEnabled: boolean; autoReplyEnabled: boolean; messageTemplates: WhatsAppMessageTemplates }>(
-        "/api/whatsapp/settings",
-        {
-          method: "PATCH",
-          body: JSON.stringify(data),
-        },
-      ),
+      apiFetch<{
+        notificationsEnabled: boolean;
+        autoReplyEnabled: boolean;
+        autoStatusNotify: boolean;
+        kitchenGroupJid: string | null;
+        defaultEtaMinutes: number;
+        phoneCountryCode: string;
+        messageTemplates: WhatsAppMessageTemplates;
+      }>("/api/whatsapp/settings", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["whatsapp", "status"] });
     },

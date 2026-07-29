@@ -25,7 +25,6 @@ import {
 } from "../services/whatsapp.service.js";
 import { logger } from "../lib/logger.js";
 import {
-  DEFAULT_WHATSAPP_MESSAGE_TEMPLATES,
   WHATSAPP_MESSAGE_KEYS,
   type WhatsAppMessageKey,
 } from "../lib/whatsapp-messages.js";
@@ -173,12 +172,29 @@ const updateSettingsSchema = z
   .object({
     notificationsEnabled: z.boolean().optional(),
     autoReplyEnabled: z.boolean().optional(),
+    autoStatusNotify: z.boolean().optional(),
+    kitchenGroupJid: z
+      .string()
+      .max(120)
+      .optional()
+      .nullable()
+      .transform((v) => (v == null ? v : v.trim())),
+    defaultEtaMinutes: z.number().int().min(1).max(180).optional(),
+    phoneCountryCode: z
+      .string()
+      .max(6)
+      .optional()
+      .transform((v) => (v == null ? v : v.replace(/\D/g, ""))),
     messageTemplates: messageTemplatesSchema.partial().optional(),
   })
   .refine(
     (data) =>
       data.notificationsEnabled !== undefined ||
       data.autoReplyEnabled !== undefined ||
+      data.autoStatusNotify !== undefined ||
+      data.kitchenGroupJid !== undefined ||
+      data.defaultEtaMinutes !== undefined ||
+      data.phoneCountryCode !== undefined ||
       data.messageTemplates !== undefined,
     { message: "Informe ao menos uma configuração para atualizar" },
   );
@@ -218,6 +234,22 @@ whatsapp.patch(
       ...(body.autoReplyEnabled !== undefined
         ? { whatsapp_auto_reply_enabled: body.autoReplyEnabled }
         : {}),
+      ...(body.autoStatusNotify !== undefined
+        ? { whatsapp_auto_status_notify: body.autoStatusNotify }
+        : {}),
+      ...(body.kitchenGroupJid !== undefined
+        ? {
+            whatsapp_kitchen_group_jid: body.kitchenGroupJid
+              ? body.kitchenGroupJid
+              : null,
+          }
+        : {}),
+      ...(body.defaultEtaMinutes !== undefined
+        ? { whatsapp_default_eta_minutes: body.defaultEtaMinutes }
+        : {}),
+      ...(body.phoneCountryCode !== undefined && body.phoneCountryCode
+        ? { whatsapp_phone_country_code: body.phoneCountryCode }
+        : {}),
       ...(body.messageTemplates ? { whatsapp_message_templates: mergedTemplates } : {}),
     };
 
@@ -227,17 +259,18 @@ whatsapp.patch(
       .where(eq(schema.branches.id, branch.id))
       .returning();
 
-    const updatedSettings = (updated.settings || {}) as Record<string, unknown>;
+    const status = await getWhatsAppStatusForBranch(updated);
 
     return c.json({
       success: true,
       data: {
-        notificationsEnabled: updatedSettings.whatsapp_notifications_enabled !== false,
-        autoReplyEnabled: updatedSettings.whatsapp_auto_reply_enabled === true,
-        messageTemplates: {
-          ...DEFAULT_WHATSAPP_MESSAGE_TEMPLATES,
-          ...((updatedSettings.whatsapp_message_templates as Record<string, string>) || {}),
-        },
+        notificationsEnabled: status.notificationsEnabled,
+        autoReplyEnabled: status.autoReplyEnabled,
+        autoStatusNotify: status.autoStatusNotify,
+        kitchenGroupJid: status.kitchenGroupJid,
+        defaultEtaMinutes: status.defaultEtaMinutes,
+        phoneCountryCode: status.phoneCountryCode,
+        messageTemplates: status.messageTemplates,
       },
     });
   },

@@ -5,7 +5,9 @@ import {
   getPlan,
   getOrgUxFlags,
   getKitchenLabel,
+  getKitchenColumnLabels,
   planHasFeature,
+  type KitchenColumnLabels,
   type OrgUxFlags,
   type PlanFeature,
   type PlanId,
@@ -33,6 +35,8 @@ interface UseFeaturesResult {
   kitchenUx: UxVersion;
   /** Nav/page label for kitchen board (default "Cozinha"). */
   kitchenLabel: string;
+  /** Column titles on the kitchen / comandas board. */
+  kitchenColumnLabels: KitchenColumnLabels;
   /** Expiry timestamp (`null` = no expiry configured). */
   planExpiresAt: Date | null;
   /**
@@ -108,6 +112,7 @@ export function useFeatures(): UseFeaturesResult {
       reportsUx: ux.reports_ux,
       kitchenUx: ux.kitchen_ux,
       kitchenLabel: getKitchenLabel(raw.settings),
+      kitchenColumnLabels: getKitchenColumnLabels(raw.settings),
       planExpiresAt,
       daysRemaining,
       status,

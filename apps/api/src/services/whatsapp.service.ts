@@ -1,21 +1,28 @@
-import { CURRENCIES } from "@restai/config";
+import { CURRENCIES, getKitchenLabel } from "@restai/config";
 import {
   getStatusMessageKey,
+  getWhatsAppDefaultEtaMinutes,
+  getWhatsAppKitchenGroupJid,
   getWhatsAppMessageTemplates,
+  getWhatsAppPhoneCountryCode,
+  isWhatsAppAutoStatusNotifyEnabled,
   renderWhatsAppTemplate,
+  type WhatsAppMessageKey,
   type WhatsAppMessageTemplates,
 } from "../lib/whatsapp-messages.js";
+import { formatOrderTicketText } from "../lib/order-ticket.js";
 import {
   fetchConnectionState,
   formatPhoneForWhatsApp,
   getBranchInstanceName,
   isWhatsAppConfigured,
   sendWhatsAppText,
+  WhatsAppError,
   type WhatsAppConnectionState,
 } from "../lib/whatsapp.js";
 import { redis } from "../lib/redis.js";
 import { db, schema } from "@restai/db";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and, isNotNull, inArray, asc } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getOrganizationPrimaryOrigin } from "../lib/tenant-host.js";
 
@@ -43,7 +50,12 @@ type OrderLike = {
   total: number;
   delivery_phone?: string | null;
   delivery_address?: string | null;
+  delivery_reference?: string | null;
+  payment_method?: string | null;
   customer_name?: string | null;
+  notes?: string | null;
+  created_at?: Date | string | null;
+  table_name?: string | null;
 };
 
 function formatMoney(cents: number, currency = "BRL"): string {
@@ -116,12 +128,20 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
   instanceName: string;
   notificationsEnabled: boolean;
   autoReplyEnabled: boolean;
+  autoStatusNotify: boolean;
+  kitchenGroupJid: string | null;
+  defaultEtaMinutes: number;
+  phoneCountryCode: string;
   messageTemplates: WhatsAppMessageTemplates;
 }> {
   const instanceName = getBranchInstanceName(branch);
   const notificationsEnabled = branchNotificationsEnabled(branch);
   const settings = (branch.settings || {}) as Record<string, unknown>;
   const autoReplyEnabled = settings.whatsapp_auto_reply_enabled === true;
+  const autoStatusNotify = isWhatsAppAutoStatusNotifyEnabled(branch.settings);
+  const kitchenGroupJid = getWhatsAppKitchenGroupJid(branch.settings);
+  const defaultEtaMinutes = getWhatsAppDefaultEtaMinutes(branch.settings);
+  const phoneCountryCode = getWhatsAppPhoneCountryCode(branch.settings);
   const messageTemplates = getWhatsAppMessageTemplates(branch.settings);
 
   if (!isWhatsAppConfigured()) {
@@ -132,6 +152,10 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
       instanceName,
       notificationsEnabled,
       autoReplyEnabled,
+      autoStatusNotify,
+      kitchenGroupJid,
+      defaultEtaMinutes,
+      phoneCountryCode,
       messageTemplates,
     };
   }
@@ -144,6 +168,10 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
     instanceName,
     notificationsEnabled,
     autoReplyEnabled,
+    autoStatusNotify,
+    kitchenGroupJid,
+    defaultEtaMinutes,
+    phoneCountryCode,
     messageTemplates,
   };
 }
@@ -167,14 +195,168 @@ async function sendDeliveryMessage(
     return;
   }
 
+  const countryCode = getWhatsAppPhoneCountryCode(branch.settings);
   try {
-    await sendWhatsAppText(instanceName, phone, message);
+    await sendWhatsAppText(instanceName, phone, message, { countryCode });
   } catch (err) {
     logger.error(
-      { err, branchId: branch.id, orderId: order.id, phone: formatPhoneForWhatsApp(phone) },
+      { err, branchId: branch.id, orderId: order.id, phone: formatPhoneForWhatsApp(phone, countryCode) },
       "Failed to send WhatsApp message",
     );
   }
+}
+
+async function assertWhatsAppReady(branch: BranchLike): Promise<string> {
+  if (!isWhatsAppConfigured()) {
+    throw new WhatsAppError("WhatsApp não configurado na API", 503);
+  }
+  if (!branchNotificationsEnabled(branch)) {
+    throw new WhatsAppError("Notificações WhatsApp desativadas nesta filial", 400);
+  }
+  const instanceName = getBranchInstanceName(branch);
+  const { connected } = await fetchConnectionState(instanceName);
+  if (!connected) {
+    throw new WhatsAppError("WhatsApp desconectado. Conecte em Configurações.", 400);
+  }
+  return instanceName;
+}
+
+function estimativaVars(etaMinutes?: number | null): {
+  estimativa: string;
+  estimativa_bloco: string;
+} {
+  if (etaMinutes == null || !Number.isFinite(etaMinutes) || etaMinutes <= 0) {
+    return { estimativa: "", estimativa_bloco: "" };
+  }
+  const mins = Math.round(etaMinutes);
+  return {
+    estimativa: String(mins),
+    estimativa_bloco: `Nossa estimativa para entrega é de *${mins} minutos*.`,
+  };
+}
+
+async function loadOrderItemsForTicket(orderId: string) {
+  const items = await db
+    .select()
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.order_id, orderId))
+    .orderBy(asc(schema.orderItems.name));
+
+  const itemIds = items.map((i) => i.id);
+  const mods =
+    itemIds.length > 0
+      ? await db
+          .select()
+          .from(schema.orderItemModifiers)
+          .where(inArray(schema.orderItemModifiers.order_item_id, itemIds))
+      : [];
+
+  const modsByItem = new Map<string, typeof mods>();
+  for (const mod of mods) {
+    const list = modsByItem.get(mod.order_item_id) ?? [];
+    list.push(mod);
+    modsByItem.set(mod.order_item_id, list);
+  }
+
+  return items.map((item) => ({
+    name: item.name,
+    quantity: item.quantity,
+    notes: item.notes,
+    modifiers: (modsByItem.get(item.id) || []).map((m) => ({ name: m.name })),
+  }));
+}
+
+export type ManualNotifyTarget = "kitchen" | "customer";
+
+/**
+ * Manual notify from Comandas / Kitchen:
+ * - kitchen: full ticket text to WhatsApp group
+ * - customer: status template to delivery_phone (preparing / ready by order status)
+ */
+export async function sendManualOrderNotify(
+  branch: BranchLike,
+  order: OrderLike,
+  target: ManualNotifyTarget,
+  options?: { etaMinutes?: number },
+): Promise<{ target: ManualNotifyTarget; messagePreview: string }> {
+  const instanceName = await assertWhatsAppReady(branch);
+  const countryCode = getWhatsAppPhoneCountryCode(branch.settings);
+
+  if (target === "kitchen") {
+    const groupJid = getWhatsAppKitchenGroupJid(branch.settings);
+    if (!groupJid) {
+      throw new WhatsAppError(
+        "Grupo da cozinha não configurado. Defina o JID em Configurações → WhatsApp.",
+        400,
+      );
+    }
+
+    const items = await loadOrderItemsForTicket(order.id);
+    const message = formatOrderTicketText({
+      orderNumber: order.order_number,
+      createdAt: order.created_at,
+      customerName: order.customer_name,
+      deliveryPhone: order.delivery_phone,
+      deliveryAddress: order.delivery_address,
+      deliveryReference: order.delivery_reference,
+      paymentMethod: order.payment_method,
+      type: order.type,
+      tableName: order.table_name,
+      notes: order.notes,
+      total: order.total,
+      currency: branch.currency || "BRL",
+      headerLabel: getKitchenLabel(branch.settings),
+      items,
+    });
+
+    await sendWhatsAppText(instanceName, groupJid, message, { countryCode });
+    return { target, messagePreview: message };
+  }
+
+  // customer
+  const phone = order.delivery_phone?.trim();
+  if (!phone) {
+    throw new WhatsAppError("Pedido sem telefone WhatsApp do cliente", 400);
+  }
+
+  const status = order.status;
+  let templateKey: WhatsAppMessageKey | null = getStatusMessageKey(status);
+  if (status === "pending" || status === "confirmed") {
+    templateKey = "status_confirmed";
+  }
+  if (!templateKey || (templateKey !== "status_preparing" && templateKey !== "status_ready" && templateKey !== "status_confirmed")) {
+    throw new WhatsAppError(
+      "Notificar cliente disponível nos status: criado/confirmado, em preparo ou pronto.",
+      400,
+    );
+  }
+
+  const eta =
+    options?.etaMinutes ??
+    (templateKey === "status_preparing"
+      ? getWhatsAppDefaultEtaMinutes(branch.settings)
+      : null);
+  const { estimativa, estimativa_bloco } = estimativaVars(
+    templateKey === "status_preparing" ? eta : null,
+  );
+
+  const templates = getWhatsAppMessageTemplates(branch.settings);
+  const customer = order.customer_name?.trim() || "Cliente";
+  const link = await trackingUrl(branch, order.id);
+  const message = renderWhatsAppTemplate(templates[templateKey], {
+    cliente: customer,
+    pedido: order.order_number,
+    total: formatMoney(order.total, branch.currency || "BRL"),
+    endereco_bloco: order.delivery_address
+      ? `Endereço: ${order.delivery_address}`
+      : "",
+    estimativa,
+    estimativa_bloco,
+    link,
+  });
+
+  await sendWhatsAppText(instanceName, phone, message, { countryCode });
+  return { target, messagePreview: message };
 }
 
 export async function notifyOrderEdited(
@@ -402,18 +584,29 @@ export async function notifyDeliveryOrderStatusUpdated(
   order: OrderLike,
   newStatus: string,
 ): Promise<void> {
+  if (!isWhatsAppAutoStatusNotifyEnabled(branch.settings)) {
+    return;
+  }
+
   const templateKey = getStatusMessageKey(newStatus);
   if (!templateKey) return;
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
   const link = await trackingUrl(branch, order.id);
+  const eta =
+    templateKey === "status_preparing"
+      ? getWhatsAppDefaultEtaMinutes(branch.settings)
+      : null;
+  const { estimativa, estimativa_bloco } = estimativaVars(eta);
 
   const message = renderWhatsAppTemplate(templates[templateKey], {
     cliente: customer,
     pedido: order.order_number,
     total: formatMoney(order.total, branch.currency || "BRL"),
     endereco_bloco: order.delivery_address ? `Endereço: ${order.delivery_address}` : "",
+    estimativa,
+    estimativa_bloco,
     link,
   });
 

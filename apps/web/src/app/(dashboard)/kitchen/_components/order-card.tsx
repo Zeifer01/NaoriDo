@@ -21,6 +21,7 @@ import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { deliveryPaymentLabel } from "@restai/config";
 import { getTimeDiff, getTimeUrgency } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
+import { OrderNotifyActions } from "./order-notify-actions";
 
 const VISIBLE_ITEMS_LIMIT = 4;
 
@@ -332,6 +333,11 @@ export function KitchenOrderCard({
           <Copy className="h-3.5 w-3.5 mr-1.5" />
           Copiar comanda
         </Button>
+        <OrderNotifyActions
+          orderId={order.id}
+          columnStatus={columnStatus}
+          hasPhone={Boolean(order.delivery_phone || order.deliveryPhone)}
+        />
       </div>
     </div>
   );
