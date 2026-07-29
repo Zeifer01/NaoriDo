@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Input } from "@restai/ui/components/input";
+import { Textarea } from "@restai/ui/components/textarea";
 import { Label } from "@restai/ui/components/label";
 import { DatePicker } from "@restai/ui/components/date-picker";
 import { Button } from "@restai/ui/components/button";
@@ -23,7 +24,14 @@ export function CreateCustomerDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const createCustomer = useCreateCustomer();
-  const [form, setForm] = useState({ name: "", phone: "", email: "", birthDate: "" });
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    birthDate: "",
+    address: "",
+    notes: "",
+  });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,10 +41,19 @@ export function CreateCustomerDialog({
         phone: form.phone || undefined,
         email: form.email || undefined,
         birthDate: form.birthDate || undefined,
+        address: form.address || undefined,
+        notes: form.notes || undefined,
       },
       {
         onSuccess: () => {
-          setForm({ name: "", phone: "", email: "", birthDate: "" });
+          setForm({
+            name: "",
+            phone: "",
+            email: "",
+            birthDate: "",
+            address: "",
+            notes: "",
+          });
           onOpenChange(false);
           toast.success("Cliente cadastrado com sucesso");
         },
@@ -54,22 +71,62 @@ export function CreateCustomerDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="cust-name">Nome *</Label>
-            <Input id="cust-name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
+            <Input
+              id="cust-name"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              required
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="cust-phone">Telefone</Label>
-            <Input id="cust-phone" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
+            <Input
+              id="cust-phone"
+              value={form.phone}
+              onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="cust-email">Email</Label>
-            <Input id="cust-email" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
+            <Input
+              id="cust-email"
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cust-address">Endereço</Label>
+            <Textarea
+              id="cust-address"
+              value={form.address}
+              onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+              className="min-h-[64px] resize-none"
+              placeholder="Rua, número, complemento…"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cust-notes">Observação</Label>
+            <Textarea
+              id="cust-notes"
+              value={form.notes}
+              onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+              className="min-h-[64px] resize-none"
+              placeholder="Preferências, portão, etc."
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="cust-birth">Data de nascimento</Label>
-            <DatePicker id="cust-birth" value={form.birthDate} onChange={(d) => setForm((p) => ({ ...p, birthDate: d ?? "" }))} />
+            <DatePicker
+              id="cust-birth"
+              value={form.birthDate}
+              onChange={(d) => setForm((p) => ({ ...p, birthDate: d ?? "" }))}
+            />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
             <Button type="submit" disabled={createCustomer.isPending || !form.name}>
               {createCustomer.isPending ? "Salvando..." : "Salvar"}
             </Button>

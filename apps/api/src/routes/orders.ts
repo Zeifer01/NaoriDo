@@ -31,6 +31,7 @@ import {
   updateOrderItem,
   removeOrderItem,
 } from "../services/order.service.js";
+import { upsertCustomerFromPos } from "../services/customer.service.js";
 import { notifyDeliveryOrderStatusUpdated, notifyOrderEdited } from "../services/whatsapp.service.js";
 import { restoreForOrder } from "../services/inventory.service.js";
 import { logger } from "../lib/logger.js";
@@ -195,14 +196,34 @@ orders.post(
 
     let result;
     try {
+      const customerName = body.customerName?.trim() || "Cliente PDV";
+      let customerId = body.customerId ?? null;
+
+      // Link / upsert CRM customer from POS fields (safe anti-homonym rules)
+      if (customerName && customerName !== "Cliente PDV") {
+        const upserted = await upsertCustomerFromPos({
+          organizationId: tenant.organizationId,
+          name: customerName,
+          customerId,
+          phone: body.deliveryPhone,
+          address: body.deliveryAddress,
+          notes: body.customerNotes,
+        });
+        customerId = upserted.customer.id;
+      }
+
       result = await createOrder({
         organizationId: tenant.organizationId,
         branchId: tenant.branchId,
         items: body.items,
         type: body.type,
-        customerName: body.customerName,
+        customerName,
+        customerId,
         notes: body.notes,
         tableSessionId,
+        deliveryPhone: body.deliveryPhone,
+        deliveryAddress: body.deliveryAddress,
+        deliveryReference: body.deliveryReference,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

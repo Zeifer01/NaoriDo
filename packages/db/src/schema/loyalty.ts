@@ -26,11 +26,13 @@ export const customers = pgTable("customers", {
   email: varchar("email", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   birth_date: date("birth_date"),
+  address: text("address"),
   city: varchar("city", { length: 120 }),
   neighborhood: varchar("neighborhood", { length: 120 }),
   zip_code: varchar("zip_code", { length: 20 }),
   state: varchar("state", { length: 80 }),
   country: varchar("country", { length: 80 }),
+  notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

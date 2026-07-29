@@ -109,6 +109,13 @@ loyalty.get("/customers", requirePermission("customers:read"), zValidator("query
         email: schema.customers.email,
         phone: schema.customers.phone,
         birth_date: schema.customers.birth_date,
+        address: schema.customers.address,
+        city: schema.customers.city,
+        neighborhood: schema.customers.neighborhood,
+        zip_code: schema.customers.zip_code,
+        state: schema.customers.state,
+        country: schema.customers.country,
+        notes: schema.customers.notes,
         created_at: schema.customers.created_at,
         points_balance: schema.customerLoyalty.points_balance,
         total_points_earned: schema.customerLoyalty.total_points_earned,
@@ -160,6 +167,13 @@ loyalty.post(
         name: body.name,
         email: body.email,
         birthDate: body.birthDate,
+        address: body.address,
+        city: body.city,
+        neighborhood: body.neighborhood,
+        zipCode: body.zipCode,
+        state: body.state,
+        country: body.country,
+        notes: body.notes,
       });
 
       if (!result.isNew) {
@@ -176,11 +190,13 @@ loyalty.post(
       name: body.name,
       email: body.email,
       birthDate: body.birthDate,
+      address: body.address,
       city: body.city,
       neighborhood: body.neighborhood,
       zipCode: body.zipCode,
       state: body.state,
       country: body.country,
+      notes: body.notes,
     });
 
     return c.json({ success: true, data: { ...customer, loyalty } }, 201);

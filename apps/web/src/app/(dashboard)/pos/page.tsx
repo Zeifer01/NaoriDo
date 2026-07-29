@@ -5,15 +5,15 @@ import { useCategories, useMenuItems } from "@/hooks/use-menu";
 import { useCreateOrder } from "@/hooks/use-orders";
 import { toast } from "sonner";
 import { ProductGrid } from "./_components/product-grid";
-import { CartSidebar } from "./_components/cart-sidebar";
+import {
+  CartSidebar,
+  type PosCustomerSuggestion,
+  type PosOrderType,
+} from "./_components/cart-sidebar";
 import { ModifierDialog, type CartModifier } from "./_components/modifier-dialog";
 import { SuccessDialog } from "./_components/success-dialog";
 import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useFeatures } from "@/hooks/use-features";
-
-// ---------------------------------------------------------------------------
-// Types (exported for child components)
-// ---------------------------------------------------------------------------
 
 export interface PosCartItem {
   lineId: string;
@@ -31,22 +31,26 @@ function nextLineId() {
   return `line-${++lineCounter}-${Date.now()}`;
 }
 
-// ---------------------------------------------------------------------------
-// POS Page
-// ---------------------------------------------------------------------------
+function formatCustomerAddress(c: PosCustomerSuggestion): string {
+  const parts = [c.address, c.neighborhood, c.city].filter(Boolean);
+  return parts.join(", ");
+}
 
 export default function PosPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<PosCartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [customerNotes, setCustomerNotes] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
-  const [orderType, setOrderType] = useState<"dine_in" | "takeout">("dine_in");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [orderType, setOrderType] = useState<PosOrderType>("delivery");
   const [successDialog, setSuccessDialog] = useState(false);
   const [lastOrderNumber, setLastOrderNumber] = useState("");
   const [lastTicket, setLastTicket] = useState<OrderTicketInput | null>(null);
 
-  // Modifier dialog state
   const [modDialogItem, setModDialogItem] = useState<any>(null);
   const [modDialogOpen, setModDialogOpen] = useState(false);
 
@@ -56,6 +60,23 @@ export default function PosPage() {
   const { kitchenLabel } = useFeatures();
 
   const allItems: any[] = menuItems ?? [];
+
+  const resetCustomerFields = () => {
+    setCustomerName("");
+    setCustomerPhone("");
+    setDeliveryAddress("");
+    setCustomerNotes("");
+    setSelectedCustomerId(null);
+    setOrderNotes("");
+  };
+
+  const handleSelectCustomer = (c: PosCustomerSuggestion) => {
+    setSelectedCustomerId(c.id);
+    setCustomerName(c.name || "");
+    setCustomerPhone(c.phone || "");
+    setDeliveryAddress(formatCustomerAddress(c));
+    setCustomerNotes(c.notes || "");
+  };
 
   const handleItemClick = useCallback((item: any) => {
     setModDialogItem(item);
@@ -109,11 +130,23 @@ export default function PosPage() {
 
   const handleCreateOrder = async () => {
     if (cart.length === 0) return;
+    const name = customerName.trim();
+    if (!name) {
+      toast.error("Informe o nome do cliente");
+      return;
+    }
+    if (orderType === "delivery" && deliveryAddress.trim().length < 5) {
+      toast.error("Informe o endereço de entrega");
+      return;
+    }
+
     try {
       const ticketPreview: OrderTicketInput = {
         orderNumber: "…",
-        customerName: customerName || "Cliente PDV",
+        customerName: name,
         type: orderType,
+        deliveryPhone: customerPhone || undefined,
+        deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : undefined,
         notes: orderNotes || undefined,
         headerLabel: kitchenLabel,
         createdAt: new Date().toISOString(),
@@ -127,7 +160,12 @@ export default function PosPage() {
 
       const result = await createOrder.mutateAsync({
         type: orderType,
-        customerName: customerName || "Cliente PDV",
+        customerName: name,
+        customerId: selectedCustomerId || undefined,
+        deliveryPhone: customerPhone.trim() || undefined,
+        deliveryAddress:
+          orderType === "delivery" ? deliveryAddress.trim() : undefined,
+        customerNotes: customerNotes.trim() || undefined,
         items: cart.map((item) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
@@ -137,12 +175,12 @@ export default function PosPage() {
         notes: orderNotes || undefined,
       });
 
-      const orderNumber = result.order_number || result.orderNumber || result.order?.order_number || "";
+      const orderNumber =
+        result.order_number || result.orderNumber || result.order?.order_number || "";
       setLastOrderNumber(orderNumber);
       setLastTicket({ ...ticketPreview, orderNumber });
       setCart([]);
-      setCustomerName("");
-      setOrderNotes("");
+      resetCustomerFields();
       setSuccessDialog(true);
       toast.success("Pedido criado com sucesso");
     } catch (err: any) {
@@ -168,11 +206,20 @@ export default function PosPage() {
         cart={cart}
         orderType={orderType}
         customerName={customerName}
+        customerPhone={customerPhone}
+        deliveryAddress={deliveryAddress}
+        customerNotes={customerNotes}
         orderNotes={orderNotes}
+        selectedCustomerId={selectedCustomerId}
         isPending={createOrder.isPending}
         onOrderTypeChange={setOrderType}
         onCustomerNameChange={setCustomerName}
+        onCustomerPhoneChange={setCustomerPhone}
+        onDeliveryAddressChange={setDeliveryAddress}
+        onCustomerNotesChange={setCustomerNotes}
         onOrderNotesChange={setOrderNotes}
+        onSelectCustomer={handleSelectCustomer}
+        onClearSelectedCustomer={() => setSelectedCustomerId(null)}
         onUpdateQty={updateCartQty}
         onRemove={removeFromCart}
         onClearCart={() => setCart([])}

@@ -9,14 +9,16 @@ export function useLoyaltyStats() {
   });
 }
 
-export function useLoyaltyCustomers(search?: string, page = 1) {
+export function useLoyaltyCustomers(search?: string, page = 1, enabled = true) {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   params.set("page", String(page));
+  params.set("limit", "20");
   const qs = params.toString();
   return useQuery({
     queryKey: ["loyalty", "customers", search, page],
     queryFn: () => apiFetch(`/api/loyalty/customers?${qs}`),
+    enabled,
   });
 }
 

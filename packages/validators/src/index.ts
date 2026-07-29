@@ -147,10 +147,25 @@ export const createOrderItemSchema = z.object({
 export const createOrderSchema = z.object({
   type: z.enum(["dine_in", "takeout", "delivery"]).default("dine_in"),
   customerName: z.string().max(255).optional(),
+  customerId: z.string().uuid().optional(),
   notes: z.string().max(500).optional(),
+  customerNotes: z.string().max(1000).optional(),
+  deliveryPhone: z.string().max(20).optional(),
+  deliveryAddress: z.string().max(500).optional(),
+  deliveryReference: z.string().max(255).optional(),
   items: z.array(createOrderItemSchema).min(1, "O pedido deve ter pelo menos um item"),
   couponCode: z.string().max(50).optional(),
   redemptionId: z.string().uuid().optional(),
+}).superRefine((data, ctx) => {
+  if (data.type === "delivery") {
+    if (!data.deliveryAddress || data.deliveryAddress.trim().length < 5) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deliveryAddress"],
+        message: "Informe o endereço de entrega",
+      });
+    }
+  }
 });
 
 export const createDeliveryOrderSchema = createOrderSchema
@@ -264,11 +279,13 @@ export const createCustomerSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().max(20).optional(),
   birthDate: z.string().optional(),
+  address: z.string().max(500).optional(),
   city: z.string().max(120).optional(),
   neighborhood: z.string().max(120).optional(),
   zipCode: z.string().max(20).optional(),
   state: z.string().max(80).optional(),
   country: z.string().max(80).optional(),
+  notes: z.string().max(1000).optional(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();

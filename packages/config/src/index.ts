@@ -55,6 +55,7 @@ export const PERMISSIONS = {
     "tables:read", "tables:update",
     "orders:create", "orders:read", "orders:update",
     "menu:read",
+    "customers:read",
   ],
   kitchen: [
     "orders:read",
