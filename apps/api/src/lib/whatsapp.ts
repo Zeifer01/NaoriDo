@@ -45,6 +45,9 @@ export function getBranchInstanceName(branch: {
 /**
  * Normalize a phone for Evolution API.
  * `defaultCountryCode` comes from branch settings (e.g. "55" BR, "1" US).
+ *
+ * Brazilian mobiles are 11 digits with a leading 9 after the DDD (e.g. 11941696922).
+ * Those must NOT be treated as US (+1) just because they start with "1" (São Paulo DDD).
  */
 export function formatPhoneForWhatsApp(
   phone: string,
@@ -58,6 +61,12 @@ export function formatPhoneForWhatsApp(
   // Already looks international (E.164 without +)
   if (digits.length >= 12) return digits;
 
+  // BR mobile without country code: DDD (11–99) + 9 + 8 digits
+  const looksLikeBrMobile = /^[1-9][1-9]9\d{8}$/.test(digits);
+  if (looksLikeBrMobile) {
+    return `55${digits}`;
+  }
+
   if (cc === "1") {
     if (digits.length === 10) return `1${digits}`;
     if (digits.length === 11 && digits.startsWith("1")) return digits;
@@ -67,6 +76,29 @@ export function formatPhoneForWhatsApp(
     return `${cc}${digits}`;
   }
   return digits;
+}
+
+/** Turn Evolution / unknown payloads into a readable string (never "[object Object]"). */
+export function stringifyWhatsAppApiMessage(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value.map(stringifyWhatsAppApiMessage).filter(Boolean).join("; ");
+  }
+  if (typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if (typeof o.message === "string") return o.message;
+    if (typeof o.text === "string") return o.text;
+    if (typeof o.error === "string") return o.error;
+    if (o.message != null) return stringifyWhatsAppApiMessage(o.message);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "Erro na Evolution API";
+    }
+  }
+  return String(value);
 }
 
 /** Phone or WhatsApp group JID (`…@g.us`). */
@@ -110,12 +142,20 @@ async function evolutionFetch<T = Record<string, unknown>>(
   }
 
   if (!res.ok) {
+    const raw =
+      json?.response?.message ??
+      json?.message ??
+      json?.error ??
+      json?.response ??
+      null;
     const message =
-      json?.response?.message?.[0] ||
-      json?.message ||
-      json?.error ||
+      stringifyWhatsAppApiMessage(raw) ||
       `Erro na Evolution API (${res.status})`;
-    throw new WhatsAppError(String(message), res.status);
+    logger.warn(
+      { path, status: res.status, evolutionBody: json },
+      "Evolution API request failed",
+    );
+    throw new WhatsAppError(message, res.status >= 400 && res.status < 600 ? res.status : 502);
   }
 
   return json as T;

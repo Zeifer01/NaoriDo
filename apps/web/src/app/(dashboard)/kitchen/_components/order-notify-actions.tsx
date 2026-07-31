@@ -75,8 +75,14 @@ export function OrderNotifyActions({
           ? "Cozinha notificada no WhatsApp"
           : "Cliente notificado no WhatsApp",
       );
-    } catch (err: any) {
-      toast.error(err?.message || "Falha ao notificar");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Falha ao notificar";
+      toast.error(message || "Falha ao notificar");
     }
   };
 

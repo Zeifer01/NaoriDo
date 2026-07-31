@@ -85,9 +85,20 @@ export async function apiFetch<T = any>(path: string, options?: ApiFetchOptions)
   }
 
   if (!json.success) {
-    const err = json.error as { message?: string; issues?: Array<{ message?: string }> } | undefined;
+    const err = json.error as {
+      message?: unknown;
+      details?: unknown;
+      issues?: Array<{ message?: string }>;
+    } | undefined;
     const zodMsg = err?.issues?.[0]?.message;
-    throw new Error(err?.message || zodMsg || "Erro desconhecido");
+    const rawMessage = err?.message;
+    const message =
+      typeof rawMessage === "string"
+        ? rawMessage
+        : rawMessage != null
+          ? JSON.stringify(rawMessage)
+          : zodMsg || "Erro desconhecido";
+    throw new Error(message);
   }
   return json.data as T;
 }
