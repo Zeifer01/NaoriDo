@@ -40,7 +40,7 @@ function ItemRow({
   const modifiers: Array<{ name: string }> = item.modifiers || [];
   const modCounts = new Map<string, number>();
   for (const m of modifiers) {
-    modCounts.set(m.name, (modCounts.get(m.name) || 0) + 1);
+    modCounts.set(m.name, (modCounts.get(m.name) || 0) + Math.max(1, item.quantity || 1));
   }
 
   return (

@@ -55,14 +55,18 @@ const COLUMN_DROP_IDS: Record<KitchenColumnStatus, string> = {
   ready: "column-ready",
 };
 
-function formatModifierLines(mods: Array<{ name: string }> | undefined): string[] {
+function formatModifierLines(
+  mods: Array<{ name: string }> | undefined,
+  itemQuantity = 1,
+): string[] {
   if (!mods?.length) return [];
+  const qty = Math.max(1, itemQuantity || 1);
   const counts = new Map<string, number>();
   for (const m of mods) {
-    counts.set(m.name, (counts.get(m.name) || 0) + 1);
+    counts.set(m.name, (counts.get(m.name) || 0) + qty);
   }
-  return [...counts.entries()].map(([name, qty]) =>
-    qty > 1 ? `· ${name} ×${qty}` : `· ${name}`,
+  return [...counts.entries()].map(([name, n]) =>
+    n > 1 ? `· ${name} ×${n}` : `· ${name}`,
   );
 }
 
@@ -217,7 +221,7 @@ function CompactCard({
         )}
 
         {items.slice(0, 6).map((item: any) => {
-          const modLines = formatModifierLines(item.modifiers);
+          const modLines = formatModifierLines(item.modifiers, item.quantity);
           return (
             <div key={item.id} className="space-y-0.5">
               <div className="flex items-start justify-between gap-2 text-sm leading-tight">

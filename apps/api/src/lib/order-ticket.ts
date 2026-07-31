@@ -1,6 +1,6 @@
 /**
  * Plain-text order ticket for WhatsApp kitchen group notifications.
- * Mirrors apps/web/src/lib/order-ticket.ts (keep in sync).
+ * Keep in sync with apps/web/src/lib/order-ticket.ts
  */
 
 export type TicketItem = {
@@ -24,13 +24,10 @@ export type OrderTicketInput = {
   total?: number | null;
   currency?: string;
   items: TicketItem[];
+  /** @deprecated lean kitchen ticket no longer prints a header label */
   headerLabel?: string;
-};
-
-const TYPE_LABEL: Record<string, string> = {
-  dine_in: "Mesa",
-  takeout: "Retirada",
-  delivery: "Delivery",
+  /** Explicit cash-change line; if omitted, parsed from notes (`Troco: …`). */
+  cashChangeLabel?: string | null;
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -42,20 +39,9 @@ const PAYMENT_LABEL: Record<string, string> = {
   cashapp: "Cash App",
 };
 
-function formatTime(value?: string | Date | null): string {
-  if (!value) return "";
-  const d = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
+export const CASH_CHANGE_NOTE_PREFIX = "Troco:";
 
-function formatMoney(cents: number | null | undefined, currency = "USD"): string {
+export function formatMoney(cents: number | null | undefined, currency = "USD"): string {
   if (cents == null) return "";
   try {
     return new Intl.NumberFormat(currency === "USD" ? "en-US" : "pt-BR", {
@@ -67,30 +53,72 @@ function formatMoney(cents: number | null | undefined, currency = "USD"): string
   }
 }
 
-function formatModifiers(mods: Array<{ name: string }> | undefined): string[] {
+/** Build the `Troco: …` note line stored on the order when payment is cash. */
+export function buildCashChangeNote(
+  needsChange: boolean,
+  changeForCents?: number | null,
+  currency = "USD",
+): string | null {
+  if (!needsChange) return null;
+  if (changeForCents != null && changeForCents > 0) {
+    return `${CASH_CHANGE_NOTE_PREFIX} para ${formatMoney(changeForCents, currency)}`;
+  }
+  return `${CASH_CHANGE_NOTE_PREFIX} precisa de troco`;
+}
+
+/** Split stored notes into cash-change label + remaining observation. */
+export function splitOrderNotes(notes?: string | null): {
+  cashChangeLabel: string | null;
+  notes: string | null;
+} {
+  if (!notes?.trim()) return { cashChangeLabel: null, notes: null };
+  const lines = notes.replace(/\r\n/g, "\n").split("\n");
+  const trocoLines: string[] = [];
+  const other: string[] = [];
+  for (const line of lines) {
+    if (line.trim().toLowerCase().startsWith("troco:")) {
+      trocoLines.push(line.trim());
+    } else {
+      other.push(line);
+    }
+  }
+  return {
+    cashChangeLabel: trocoLines.length ? trocoLines.join("\n") : null,
+    notes: other.join("\n").trim() || null,
+  };
+}
+
+/**
+ * Collapse modifiers and scale by item quantity so "3x Copo" with 1 Nutella
+ * row becomes "Nutella ×3" for the kitchen.
+ */
+function formatModifiers(
+  mods: Array<{ name: string }> | undefined,
+  itemQuantity: number,
+): string[] {
   if (!mods?.length) return [];
+  const qty = Math.max(1, itemQuantity || 1);
   const counts = new Map<string, number>();
   for (const m of mods) {
-    counts.set(m.name, (counts.get(m.name) || 0) + 1);
+    counts.set(m.name, (counts.get(m.name) || 0) + qty);
   }
-  return [...counts.entries()].map(([name, qty]) =>
-    qty > 1 ? `  · ${name} ×${qty}` : `  · ${name}`,
+  return [...counts.entries()].map(([name, n]) =>
+    n > 1 ? `  · ${name} ×${n}` : `  · ${name}`,
   );
 }
 
+/**
+ * Lean kitchen ticket: number, customer, phone, address, payment, troco,
+ * items+complements, total, notes. No "COZINHA" header / no date line.
+ */
 export function formatOrderTicketText(data: OrderTicketInput): string {
   const lines: string[] = [];
-  const header = (data.headerLabel || "COMANDAS").toUpperCase();
-  lines.push(`*${header}*`);
-  lines.push(`#${data.orderNumber}`);
+  const { cashChangeLabel: fromNotes, notes: restNotes } = splitOrderNotes(data.notes);
+  const cashChange = data.cashChangeLabel ?? fromNotes;
 
-  const meta: string[] = [];
-  if (data.type) meta.push(TYPE_LABEL[data.type] || data.type);
-  if (data.tableName) meta.push(data.tableName);
-  const when = formatTime(data.createdAt);
-  if (when) meta.push(when);
-  if (meta.length) lines.push(meta.join(" · "));
+  lines.push(`*#${data.orderNumber}*`);
 
+  if (data.tableName) lines.push(data.tableName);
   if (data.customerName) lines.push(`Cliente: ${data.customerName}`);
   if (data.deliveryPhone) lines.push(`Tel: ${data.deliveryPhone}`);
   if (data.deliveryAddress) {
@@ -105,17 +133,13 @@ export function formatOrderTicketText(data: OrderTicketInput): string {
       `Pagamento: ${PAYMENT_LABEL[data.paymentMethod] || data.paymentMethod}`,
     );
   }
+  if (cashChange) lines.push(cashChange);
 
   lines.push("");
   for (const item of data.items) {
     lines.push(`${item.quantity}x ${item.name}`);
-    lines.push(...formatModifiers(item.modifiers));
+    lines.push(...formatModifiers(item.modifiers, item.quantity));
     if (item.notes) lines.push(`  Obs item: ${item.notes}`);
-  }
-
-  if (data.notes) {
-    lines.push("");
-    lines.push(`Obs: ${data.notes}`);
   }
 
   if (data.total != null) {
@@ -123,5 +147,10 @@ export function formatOrderTicketText(data: OrderTicketInput): string {
     lines.push(`Total: ${formatMoney(data.total, data.currency)}`);
   }
 
-  return lines.join("\n");
+  if (restNotes) {
+    lines.push("");
+    lines.push(`Obs: ${restNotes}`);
+  }
+
+  return lines.join("\n").trim();
 }

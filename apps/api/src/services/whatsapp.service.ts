@@ -1,4 +1,4 @@
-import { CURRENCIES, getKitchenLabel } from "@restai/config";
+import { CURRENCIES } from "@restai/config";
 import {
   getStatusMessageKey,
   getWhatsAppDefaultEtaMinutes,
@@ -294,18 +294,15 @@ export async function sendManualOrderNotify(
     const items = await loadOrderItemsForTicket(order.id);
     const message = formatOrderTicketText({
       orderNumber: order.order_number,
-      createdAt: order.created_at,
       customerName: order.customer_name,
       deliveryPhone: order.delivery_phone,
       deliveryAddress: order.delivery_address,
       deliveryReference: order.delivery_reference,
       paymentMethod: order.payment_method,
-      type: order.type,
       tableName: order.table_name,
       notes: order.notes,
       total: order.total,
       currency: branch.currency || "BRL",
-      headerLabel: getKitchenLabel(branch.settings),
       items,
     });
 

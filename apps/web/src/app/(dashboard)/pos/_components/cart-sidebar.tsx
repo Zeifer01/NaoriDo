@@ -64,6 +64,8 @@ export function CartSidebar({
   customerNotes,
   orderNotes,
   paymentMethod,
+  needsCashChange,
+  cashChangeFor,
   selectedCustomerId,
   isPending,
   onOrderTypeChange,
@@ -73,6 +75,8 @@ export function CartSidebar({
   onCustomerNotesChange,
   onOrderNotesChange,
   onPaymentMethodChange,
+  onNeedsCashChangeChange,
+  onCashChangeForChange,
   onSelectCustomer,
   onClearSelectedCustomer,
   onUpdateQty,
@@ -88,6 +92,9 @@ export function CartSidebar({
   customerNotes: string;
   orderNotes: string;
   paymentMethod: string;
+  needsCashChange: boolean;
+  /** Dollars/reais as typed by attendant (not cents). */
+  cashChangeFor: string;
   selectedCustomerId: string | null;
   isPending: boolean;
   onOrderTypeChange: (type: PosOrderType) => void;
@@ -97,6 +104,8 @@ export function CartSidebar({
   onCustomerNotesChange: (notes: string) => void;
   onOrderNotesChange: (notes: string) => void;
   onPaymentMethodChange: (method: string) => void;
+  onNeedsCashChangeChange: (value: boolean) => void;
+  onCashChangeForChange: (value: string) => void;
   onSelectCustomer: (customer: PosCustomerSuggestion) => void;
   onClearSelectedCustomer: () => void;
   onUpdateQty: (lineId: string, qty: number) => void;
@@ -306,6 +315,30 @@ export function CartSidebar({
               </Button>
             ))}
           </div>
+          {paymentMethod === "cash" && (
+            <div className="rounded-md border bg-muted/30 p-2 space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded border-input"
+                  checked={needsCashChange}
+                  onChange={(e) => onNeedsCashChangeChange(e.target.checked)}
+                />
+                Precisa de troco
+              </label>
+              {needsCashChange && (
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder={preferEnglish ? "Change for (e.g. 20)" : "Troco para (ex.: 50)"}
+                  value={cashChangeFor}
+                  onChange={(e) => onCashChangeForChange(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -353,12 +386,24 @@ export function CartSidebar({
 
                 {item.modifiers.length > 0 && (
                   <div className="pl-11 flex flex-wrap gap-1">
-                    {item.modifiers.map((mod, idx) => (
+                    {Object.entries(
+                      item.modifiers.reduce<Record<string, { name: string; price: number; count: number }>>(
+                        (acc, mod) => {
+                          const key = `${mod.modifierId}:${mod.name}`;
+                          if (!acc[key]) {
+                            acc[key] = { name: mod.name, price: mod.price, count: 0 };
+                          }
+                          acc[key].count += item.quantity;
+                          return acc;
+                        },
+                        {},
+                      ),
+                    ).map(([key, mod]) => (
                       <span
-                        key={`${mod.modifierId}-${idx}`}
+                        key={key}
                         className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
                       >
-                        {mod.name}
+                        {mod.count > 1 ? `${mod.name} ×${mod.count}` : mod.name}
                         {mod.price > 0 && ` +${formatCurrency(mod.price)}`}
                       </span>
                     ))}

@@ -12,8 +12,9 @@ import {
 } from "./_components/cart-sidebar";
 import { ModifierDialog, type CartModifier } from "./_components/modifier-dialog";
 import { SuccessDialog } from "./_components/success-dialog";
+import { buildCashChangeNote } from "@/lib/order-ticket";
 import type { OrderTicketInput } from "@/lib/order-ticket";
-import { useFeatures } from "@/hooks/use-features";
+import { useCurrencyStore } from "@/stores/currency-store";
 
 export interface PosCartItem {
   lineId: string;
@@ -46,6 +47,8 @@ export default function PosPage() {
   const [customerNotes, setCustomerNotes] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [needsCashChange, setNeedsCashChange] = useState(false);
+  const [cashChangeFor, setCashChangeFor] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<PosOrderType>("delivery");
   const [successDialog, setSuccessDialog] = useState(false);
@@ -58,7 +61,7 @@ export default function PosPage() {
   const { data: categories } = useCategories();
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
   const createOrder = useCreateOrder();
-  const { kitchenLabel } = useFeatures();
+  const currency = useCurrencyStore((s) => s.currency);
 
   const allItems: any[] = menuItems ?? [];
 
@@ -70,6 +73,8 @@ export default function PosPage() {
     setSelectedCustomerId(null);
     setOrderNotes("");
     setPaymentMethod("");
+    setNeedsCashChange(false);
+    setCashChangeFor("");
   };
 
   const handleSelectCustomer = (c: PosCustomerSuggestion) => {
@@ -147,6 +152,16 @@ export default function PosPage() {
     }
 
     try {
+      const changeForCents =
+        needsCashChange && cashChangeFor.trim()
+          ? Math.round(Number(cashChangeFor.replace(",", ".")) * 100)
+          : null;
+      const trocoNote =
+        paymentMethod === "cash"
+          ? buildCashChangeNote(needsCashChange, changeForCents, currency)
+          : null;
+      const combinedNotes = [trocoNote, orderNotes.trim()].filter(Boolean).join("\n") || undefined;
+
       const ticketPreview: OrderTicketInput = {
         orderNumber: "…",
         customerName: name,
@@ -154,9 +169,9 @@ export default function PosPage() {
         deliveryPhone: customerPhone || undefined,
         deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : undefined,
         paymentMethod,
-        notes: orderNotes || undefined,
-        headerLabel: kitchenLabel,
+        notes: combinedNotes,
         createdAt: new Date().toISOString(),
+        currency,
         items: cart.map((item) => ({
           name: item.name,
           quantity: item.quantity,
@@ -180,7 +195,7 @@ export default function PosPage() {
           notes: item.notes || undefined,
           modifiers: item.modifiers.map((m) => ({ modifierId: m.modifierId })),
         })),
-        notes: orderNotes || undefined,
+        notes: combinedNotes,
       });
 
       const orderNumber =
@@ -219,6 +234,8 @@ export default function PosPage() {
         customerNotes={customerNotes}
         orderNotes={orderNotes}
         paymentMethod={paymentMethod}
+        needsCashChange={needsCashChange}
+        cashChangeFor={cashChangeFor}
         selectedCustomerId={selectedCustomerId}
         isPending={createOrder.isPending}
         onOrderTypeChange={setOrderType}
@@ -227,7 +244,15 @@ export default function PosPage() {
         onDeliveryAddressChange={setDeliveryAddress}
         onCustomerNotesChange={setCustomerNotes}
         onOrderNotesChange={setOrderNotes}
-        onPaymentMethodChange={setPaymentMethod}
+        onPaymentMethodChange={(method) => {
+          setPaymentMethod(method);
+          if (method !== "cash") {
+            setNeedsCashChange(false);
+            setCashChangeFor("");
+          }
+        }}
+        onNeedsCashChangeChange={setNeedsCashChange}
+        onCashChangeForChange={setCashChangeFor}
         onSelectCustomer={handleSelectCustomer}
         onClearSelectedCustomer={() => setSelectedCustomerId(null)}
         onUpdateQty={updateCartQty}
