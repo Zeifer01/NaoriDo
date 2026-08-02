@@ -61,16 +61,38 @@ export function resolveHostRole(
   return hostRoles[h] ?? inferHostRole(h);
 }
 
+function subdomainLabel(hostname: string): string | null {
+  const labels = normalizeHostname(hostname).split(".");
+  return labels.length >= 3 ? labels[0] : null;
+}
+
+/** Prefer dedicated surface hosts over legacy platform subdomain when several match. */
+function rolePreferenceScore(hostname: string, role: HostRole): number {
+  const sub = subdomainLabel(hostname);
+  if (role === "storefront" && sub === "pedidos") return 100;
+  if (role === "staff" && (sub === "app" || sub === "painel")) return 100;
+  if (role === "landing" && (sub === "www" || !sub)) return 100;
+  // Platform org subdomain is a weak staff fallback
+  if (role === "staff" && extractOrgSlugFromHost(hostname)) return 10;
+  return 50;
+}
+
 export function findHostnameForRole(
   hostnames: string[],
   hostRoles: Record<string, HostRole>,
   role: HostRole,
 ): string | null {
-  const mapped = hostnames.find((h) => (hostRoles[normalizeHostname(h)] ?? null) === role);
-  if (mapped) return normalizeHostname(mapped);
+  const candidates = hostnames
+    .map(normalizeHostname)
+    .filter(Boolean)
+    .filter((h) => (hostRoles[h] ?? inferHostRole(h)) === role);
 
-  const inferred = hostnames.find((h) => inferHostRole(h) === role);
-  return inferred ? normalizeHostname(inferred) : null;
+  if (candidates.length === 0) return null;
+
+  candidates.sort(
+    (a, b) => rolePreferenceScore(b, role) - rolePreferenceScore(a, role),
+  );
+  return candidates[0] ?? null;
 }
 
 export function buildRoleOrigins(
@@ -93,10 +115,7 @@ export function buildRoleOrigins(
     findHostnameForRole(hostnames, hostRoles, "landing") ??
     fallback;
   const staffHostname =
-    findHostnameForRole(hostnames, hostRoles, "staff") ??
-    // Prefer platform subdomain if present among hostnames
-    hostnames.map(normalizeHostname).find((h) => Boolean(extractOrgSlugFromHost(h))) ??
-    fallback;
+    findHostnameForRole(hostnames, hostRoles, "staff") ?? fallback;
 
   return {
     landingHostname,
