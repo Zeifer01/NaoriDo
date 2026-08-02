@@ -24,7 +24,7 @@ import { redis } from "../lib/redis.js";
 import { db, schema } from "@restai/db";
 import { eq, and, isNotNull, inArray, asc } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
-import { getOrganizationPrimaryOrigin } from "../lib/tenant-host.js";
+import { getOrganizationStorefrontOrigin } from "../lib/tenant-host.js";
 
 export { getWhatsAppMessageTemplates, type WhatsAppMessageTemplates };
 
@@ -74,7 +74,7 @@ function branchNotificationsEnabled(branch: BranchLike): boolean {
 
 async function resolveTenantOrigin(organizationId?: string | null): Promise<string> {
   if (organizationId) {
-    const origin = await getOrganizationPrimaryOrigin(organizationId);
+    const origin = await getOrganizationStorefrontOrigin(organizationId);
     if (origin) return origin.replace(/\/$/, "");
   }
   return FALLBACK_APP_URL.replace(/\/$/, "");

@@ -49,6 +49,8 @@ export function BranchTab() {
     landingDescription: string;
     landingButtonText: string;
     landingButtonUrl: string;
+    socialInstagram: string;
+    socialWhatsapp: string;
     menuDisplayName: string;
     menuSubtitle: string;
     menuDeliveryText: string;
@@ -77,6 +79,8 @@ export function BranchTab() {
     landingDescription: "",
     landingButtonText: "",
     landingButtonUrl: "",
+    socialInstagram: "",
+    socialWhatsapp: "",
     menuDisplayName: "",
     menuSubtitle: "",
     menuDeliveryText: "",
@@ -111,6 +115,8 @@ export function BranchTab() {
         landingDescription: (branchData.settings?.landing_description as string) || "",
         landingButtonText: (branchData.settings?.landing_button_text as string) || "",
         landingButtonUrl: (branchData.settings?.landing_button_url as string) || "",
+        socialInstagram: (branchData.settings?.social_instagram as string) || "",
+        socialWhatsapp: (branchData.settings?.social_whatsapp as string) || "",
         menuDisplayName: (branchData.settings?.menu_display_name as string) || "",
         menuSubtitle: (branchData.settings?.menu_subtitle as string) || "",
         menuDeliveryText: (branchData.settings?.menu_delivery_text as string) || "",
@@ -150,6 +156,8 @@ export function BranchTab() {
         landingDescription: branchForm.landingDescription,
         landingButtonText: branchForm.landingButtonText,
         landingButtonUrl: branchForm.landingButtonUrl,
+        socialInstagram: branchForm.socialInstagram,
+        socialWhatsapp: branchForm.socialWhatsapp,
         menuDisplayName: branchForm.menuDisplayName,
         menuSubtitle: branchForm.menuSubtitle,
         menuDeliveryText: branchForm.menuDeliveryText,
@@ -531,7 +539,7 @@ export function BranchTab() {
                     <div>
                       <p className="text-sm font-medium">Página de boas-vindas</p>
                       <p className="text-xs text-muted-foreground">
-                        Exibe uma página inicial com a história da marca antes do cardápio
+                        Título e texto do site de marca (domínio principal) e da página antes do cardápio
                       </p>
                     </div>
                     <button
@@ -555,61 +563,90 @@ export function BranchTab() {
                     </button>
                   </div>
 
+                  <div className="space-y-4 pt-2 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="landingTitle">Título da página de marca</Label>
+                      <Input
+                        id="landingTitle"
+                        placeholder="Ex: Açaí fresco, feito na hora"
+                        value={branchForm.landingTitle}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, landingTitle: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="landingDescription">Texto de apresentação</Label>
+                      <textarea
+                        id="landingDescription"
+                        rows={4}
+                        placeholder="Conte um pouco sobre a história da sua marca..."
+                        value={branchForm.landingDescription}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, landingDescription: e.target.value })
+                        }
+                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="landingButtonText">Texto do botão Pedir</Label>
+                      <Input
+                        id="landingButtonText"
+                        placeholder="Ex: Pedir online"
+                        value={branchForm.landingButtonText}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, landingButtonText: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
                   {branchForm.landingEnabled && (
                     <div className="space-y-4 pt-2 border-t">
+                      <p className="text-xs text-muted-foreground">
+                        Página intermediária no caminho antigo do cardápio (opcional)
+                      </p>
                       <div className="space-y-2">
-                        <Label htmlFor="landingTitle">Título da página</Label>
+                        <Label htmlFor="landingButtonUrl">Link do botão (opcional)</Label>
                         <Input
-                          id="landingTitle"
-                          placeholder="Ex: Venha fazer parte de nossa história"
-                          value={branchForm.landingTitle}
+                          id="landingButtonUrl"
+                          placeholder="Deixe em branco para ir ao cardápio"
+                          value={branchForm.landingButtonUrl}
                           onChange={(e) =>
-                            setBranchForm({ ...branchForm, landingTitle: e.target.value })
+                            setBranchForm({ ...branchForm, landingButtonUrl: e.target.value })
                           }
                         />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="landingDescription">Texto de apresentação</Label>
-                        <textarea
-                          id="landingDescription"
-                          rows={4}
-                          placeholder="Conte um pouco sobre a história da sua marca, clube ou estabelecimento..."
-                          value={branchForm.landingDescription}
-                          onChange={(e) =>
-                            setBranchForm({ ...branchForm, landingDescription: e.target.value })
-                          }
-                          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                        />
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="landingButtonText">Texto do botão</Label>
-                          <Input
-                            id="landingButtonText"
-                            placeholder="Ex: Ver Cardápio"
-                            value={branchForm.landingButtonText}
-                            onChange={(e) =>
-                              setBranchForm({ ...branchForm, landingButtonText: e.target.value })
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="landingButtonUrl">Link do botão (opcional)</Label>
-                          <Input
-                            id="landingButtonUrl"
-                            placeholder="Deixe em branco para ir ao cardápio"
-                            value={branchForm.landingButtonUrl}
-                            onChange={(e) =>
-                              setBranchForm({ ...branchForm, landingButtonUrl: e.target.value })
-                            }
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Se vazio, leva direto ao cardápio
-                          </p>
-                        </div>
                       </div>
                     </div>
                   )}
+
+                  <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="socialInstagram">Instagram</Label>
+                      <Input
+                        id="socialInstagram"
+                        placeholder="@worcesteracai ou URL"
+                        value={branchForm.socialInstagram}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, socialInstagram: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="socialWhatsapp">WhatsApp (site / pedidos)</Label>
+                      <Input
+                        id="socialWhatsapp"
+                        placeholder="Ex: 15085551234 ou wa.me/..."
+                        value={branchForm.socialWhatsapp}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, socialWhatsapp: e.target.value })
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Usado na página de marca. Se vazio, usa o telefone da filial
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-lg border p-4 bg-muted/30">

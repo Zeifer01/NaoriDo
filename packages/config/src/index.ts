@@ -10,6 +10,9 @@ export * from "./modifier-pricing";
 // Platform domain identity (Automatizappy)
 export * from "./platform";
 
+// Tenant host surface roles (landing / storefront / staff)
+export * from "./host-roles";
+
 // Delivery checkout payment methods
 export * from "./delivery-payments";
 

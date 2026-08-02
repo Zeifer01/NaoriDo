@@ -1,13 +1,17 @@
 import { and, eq, asc } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
+  buildRoleOrigins,
   buildTenantOrigin,
   defaultPlatformHostname,
   extractOrgSlugFromHost,
   getPlatformRootDomain,
   isLocalHostname,
   normalizeHostname,
+  parseHostRolesMap,
   parseHostname,
+  resolveHostRole,
+  type HostRole,
 } from "@restai/config";
 
 export interface ResolvedBranch {
@@ -22,12 +26,17 @@ export interface ResolvedHost {
   orgSlug: string;
   orgName: string;
   orgLogoUrl: string | null;
-  /** Hostname that should be used in public links (primary). */
+  /** Hostname that should be used in public brand links (primary). */
   primaryHostname: string;
   /** Origin https://primaryHostname (or http for local). */
   primaryOrigin: string;
   /** Hostname that matched this request (may be alias/www). */
   matchedHostname: string;
+  /** Surface role for the matched hostname. */
+  hostRole: HostRole;
+  landingOrigin: string;
+  storefrontOrigin: string;
+  staffOrigin: string;
   branches: ResolvedBranch[];
   /** Default branch for /menu when org has branches. */
   defaultBranchSlug: string | null;
@@ -95,6 +104,13 @@ async function resolveFromOrganization(
   const primaryHostname = pickPrimaryHostname(domainRows, org.slug);
   const branches = await loadBranches(org.id);
   const settings = (org.settings || {}) as Record<string, unknown>;
+  const hostRoles = parseHostRolesMap(settings);
+  const hostnames = domainRows.map((r) => r.hostname);
+  // Ensure matched + primary are considered even if not yet in map
+  const allHosts = Array.from(
+    new Set([...hostnames, matchedHostname, primaryHostname].map(normalizeHostname).filter(Boolean)),
+  );
+  const roles = buildRoleOrigins(allHosts, hostRoles, primaryHostname);
   const preferredSlug =
     typeof settings.default_public_branch_slug === "string"
       ? settings.default_public_branch_slug
@@ -114,6 +130,10 @@ async function resolveFromOrganization(
     primaryHostname,
     primaryOrigin: buildTenantOrigin(primaryHostname),
     matchedHostname,
+    hostRole: resolveHostRole(matchedHostname, hostRoles),
+    landingOrigin: roles.landingOrigin,
+    storefrontOrigin: roles.storefrontOrigin,
+    staffOrigin: roles.staffOrigin,
     branches,
     defaultBranchSlug,
     multiBranch: branches.length > 1,
@@ -174,12 +194,18 @@ export async function resolveHost(
   return null;
 }
 
-/** Primary public origin for an organization (WhatsApp, QR, etc.). */
-export async function getOrganizationPrimaryOrigin(
-  organizationId: string,
-): Promise<string | null> {
+async function loadOrgDomainContext(organizationId: string): Promise<{
+  slug: string;
+  primaryHostname: string;
+  hostnames: string[];
+  hostRoles: ReturnType<typeof parseHostRolesMap>;
+} | null> {
   const [org] = await db
-    .select({ slug: schema.organizations.slug, is_active: schema.organizations.is_active })
+    .select({
+      slug: schema.organizations.slug,
+      is_active: schema.organizations.is_active,
+      settings: schema.organizations.settings,
+    })
     .from(schema.organizations)
     .where(eq(schema.organizations.id, organizationId))
     .limit(1);
@@ -193,8 +219,37 @@ export async function getOrganizationPrimaryOrigin(
     .from(schema.organizationDomains)
     .where(eq(schema.organizationDomains.organization_id, organizationId));
 
-  const primary = pickPrimaryHostname(domains, org.slug);
-  return buildTenantOrigin(primary);
+  const primaryHostname = pickPrimaryHostname(domains, org.slug);
+  const settings = (org.settings || {}) as Record<string, unknown>;
+  return {
+    slug: org.slug,
+    primaryHostname,
+    hostnames: domains.map((d) => d.hostname),
+    hostRoles: parseHostRolesMap(settings),
+  };
+}
+
+/** Primary public origin for an organization (brand / marketing). */
+export async function getOrganizationPrimaryOrigin(
+  organizationId: string,
+): Promise<string | null> {
+  const ctx = await loadOrgDomainContext(organizationId);
+  if (!ctx) return null;
+  return buildTenantOrigin(ctx.primaryHostname);
+}
+
+/** Storefront origin for cardápio / pedido links (prefers host_role=storefront). */
+export async function getOrganizationStorefrontOrigin(
+  organizationId: string,
+): Promise<string | null> {
+  const ctx = await loadOrgDomainContext(organizationId);
+  if (!ctx) return null;
+  const roles = buildRoleOrigins(
+    [...ctx.hostnames, ctx.primaryHostname],
+    ctx.hostRoles,
+    ctx.primaryHostname,
+  );
+  return roles.storefrontOrigin;
 }
 
 /** True if Origin is allowed for CORS (static list + platform + verified domains). */
@@ -286,7 +341,7 @@ export async function resolvePrimaryOriginByBranchSlug(
 
   if (!branch || !branch.is_active) return null;
 
-  const origin = await getOrganizationPrimaryOrigin(branch.organization_id);
+  const origin = await getOrganizationStorefrontOrigin(branch.organization_id);
   if (!origin) return null;
 
   const branches = await loadBranches(branch.organization_id);

@@ -25,7 +25,7 @@ import {
   removeOrganizationDomain,
   setPrimaryDomain,
 } from "../services/organization-domains.service.js";
-import { buildTenantOrigin } from "@restai/config";
+import { buildRoleOrigins, buildTenantOrigin, parseHostRolesMap } from "@restai/config";
 
 const settings = new Hono<AppEnv>();
 settings.use("*", authMiddleware, tenantMiddleware);
@@ -108,6 +108,8 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.landingDescription !== undefined ||
     body.landingButtonText !== undefined ||
     body.landingButtonUrl !== undefined ||
+    body.socialInstagram !== undefined ||
+    body.socialWhatsapp !== undefined ||
     body.menuDisplayName !== undefined ||
     body.menuSubtitle !== undefined ||
     body.menuDeliveryText !== undefined ||
@@ -140,6 +142,8 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.landingDescription !== undefined) merged.landing_description = body.landingDescription;
     if (body.landingButtonText !== undefined) merged.landing_button_text = body.landingButtonText;
     if (body.landingButtonUrl !== undefined) merged.landing_button_url = body.landingButtonUrl;
+    if (body.socialInstagram !== undefined) merged.social_instagram = body.socialInstagram;
+    if (body.socialWhatsapp !== undefined) merged.social_whatsapp = body.socialWhatsapp;
     if (body.menuDisplayName !== undefined) merged.menu_display_name = body.menuDisplayName;
     if (body.menuSubtitle !== undefined) merged.menu_subtitle = body.menuSubtitle;
     if (body.menuDeliveryText !== undefined) merged.menu_delivery_text = body.menuDeliveryText;
@@ -240,7 +244,11 @@ settings.delete(
 settings.get("/domains", requirePermission("settings:read"), async (c) => {
   const tenant = c.get("tenant") as any;
   const [org] = await db
-    .select({ id: schema.organizations.id, slug: schema.organizations.slug })
+    .select({
+      id: schema.organizations.id,
+      slug: schema.organizations.slug,
+      settings: schema.organizations.settings,
+    })
     .from(schema.organizations)
     .where(eq(schema.organizations.id, tenant.organizationId))
     .limit(1);
@@ -254,12 +262,22 @@ settings.get("/domains", requirePermission("settings:read"), async (c) => {
   await ensurePlatformDomain(org.id, org.slug);
   const domains = await listOrganizationDomains(org.id);
   const primaryHostname = await getPrimaryHostname(org.id, org.slug);
+  const hostRoles = parseHostRolesMap((org.settings || {}) as Record<string, unknown>);
+  const hostnames = domains.map((d) => d.hostname);
+  const roleOrigins = buildRoleOrigins(
+    [...hostnames, primaryHostname],
+    hostRoles,
+    primaryHostname,
+  );
 
   return c.json({
     success: true,
     data: {
       primaryHostname,
       primaryOrigin: buildTenantOrigin(primaryHostname),
+      storefrontOrigin: roleOrigins.storefrontOrigin,
+      staffOrigin: roleOrigins.staffOrigin,
+      landingOrigin: roleOrigins.landingOrigin,
       domains: domains.map(domainPublicView),
     },
   });

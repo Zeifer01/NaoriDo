@@ -8,20 +8,20 @@ import { toast } from "sonner";
 import { useBranches, useOrgDomains } from "@/hooks/use-settings";
 
 function buildMenuUrl(
-  primaryOrigin: string,
+  storefrontOrigin: string,
   branchSlug: string,
   multiBranch: boolean,
 ): string {
-  const origin = primaryOrigin.replace(/\/$/, "");
+  const origin = storefrontOrigin.replace(/\/$/, "");
   if (multiBranch) return `${origin}/${branchSlug}/pedir`;
   return `${origin}/pedir`;
 }
 
-export function getDeliveryMenuUrl(branchSlug: string, primaryOrigin?: string | null): string {
+export function getDeliveryMenuUrl(branchSlug: string, storefrontOrigin?: string | null): string {
   const fallback =
     process.env.NEXT_PUBLIC_APP_URL ||
     (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const origin = (primaryOrigin || fallback).replace(/\/$/, "");
+  const origin = (storefrontOrigin || fallback).replace(/\/$/, "");
   return `${origin}/pedir`;
 }
 
@@ -37,9 +37,10 @@ export function DeliveryMenuLink({
   if (!branchSlug) return null;
 
   const multiBranch = (branches?.length ?? 0) > 1;
-  const url = domains?.primaryOrigin
-    ? buildMenuUrl(domains.primaryOrigin, branchSlug, multiBranch)
-    : getDeliveryMenuUrl(branchSlug, domains?.primaryOrigin);
+  const menuOrigin = domains?.storefrontOrigin || domains?.primaryOrigin;
+  const url = menuOrigin
+    ? buildMenuUrl(menuOrigin, branchSlug, multiBranch)
+    : getDeliveryMenuUrl(branchSlug, menuOrigin);
 
   const copyLink = async () => {
     try {

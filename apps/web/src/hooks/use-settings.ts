@@ -95,6 +95,9 @@ export type OrgDomain = {
 export type OrgDomainsPayload = {
   primaryHostname: string;
   primaryOrigin: string;
+  storefrontOrigin?: string;
+  staffOrigin?: string;
+  landingOrigin?: string;
   domains: OrgDomain[];
 };
 

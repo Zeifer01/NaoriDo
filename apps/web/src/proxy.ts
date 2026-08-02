@@ -5,6 +5,7 @@ import {
   isPlatformControlHost,
   normalizeHostname,
   PLATFORM_RESERVED_SUBDOMAINS,
+  type HostRole,
 } from "@restai/config";
 
 const API_URL =
@@ -19,6 +20,10 @@ type ResolveHostData = {
   orgLogoUrl: string | null;
   primaryHostname: string;
   primaryOrigin: string;
+  hostRole: HostRole;
+  landingOrigin: string;
+  storefrontOrigin: string;
+  staffOrigin: string;
   defaultBranchSlug: string | null;
   multiBranch: boolean;
   branches: Array<{ id: string; slug: string; name: string }>;
@@ -86,6 +91,7 @@ function isPlatformInfrastructureHost(hostname: string): boolean {
 function isStaffAppPath(pathname: string): boolean {
   const staffPrefixes = [
     "/login",
+    "/register",
     "/super-admin",
     "/pos",
     "/kitchen",
@@ -103,10 +109,21 @@ function isStaffAppPath(pathname: string): boolean {
     "/coupons",
     "/analytics",
     "/dashboard",
+    "/connections",
     // Dashboard menu editor — must NOT collide with public storefront
     "/menu",
   ];
   return staffPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+function isPublicStorefrontPath(pathname: string): boolean {
+  return (
+    pathname === "/pedir" ||
+    pathname.startsWith("/pedir/") ||
+    pathname === "/cart" ||
+    pathname.startsWith("/cart/") ||
+    pathname.startsWith("/pedido/")
+  );
 }
 
 function withOrgHeaders(request: NextRequest, org: ResolveHostData) {
@@ -116,6 +133,10 @@ function withOrgHeaders(request: NextRequest, org: ResolveHostData) {
   if (org.orgName) requestHeaders.set("x-org-name", org.orgName);
   if (org.orgLogoUrl) requestHeaders.set("x-org-logo-url", org.orgLogoUrl);
   requestHeaders.set("x-primary-hostname", org.primaryHostname);
+  requestHeaders.set("x-host-role", org.hostRole);
+  requestHeaders.set("x-landing-origin", org.landingOrigin);
+  requestHeaders.set("x-storefront-origin", org.storefrontOrigin);
+  requestHeaders.set("x-staff-origin", org.staffOrigin);
   if (org.defaultBranchSlug) {
     requestHeaders.set("x-default-branch-slug", org.defaultBranchSlug);
   }
@@ -148,7 +169,21 @@ function rewriteToDelivery(
   });
 }
 
-/** Map legacy /delivery/{slug}/rest → public path on primary origin. */
+function rewriteToSite(request: NextRequest, org: ResolveHostData) {
+  const url = request.nextUrl.clone();
+  url.pathname = "/site";
+  return NextResponse.rewrite(url, {
+    request: { headers: withOrgHeaders(request, org) },
+  });
+}
+
+function redirectToOrigin(origin: string, pathname: string, search: string) {
+  const base = origin.replace(/\/$/, "");
+  const path = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return NextResponse.redirect(`${base}${path}${search}`, 302);
+}
+
+/** Map legacy /delivery/{slug}/rest → public path on storefront origin. */
 function legacyPublicPath(branchSlug: string, rest: string, multiBranch: boolean): string {
   let path = rest || "/menu";
   // Prefer public alias /pedir for storefront menu
@@ -159,6 +194,26 @@ function legacyPublicPath(branchSlug: string, rest: string, multiBranch: boolean
     return `/${branchSlug}${path.startsWith("/") ? path : `/${path}`}`;
   }
   return path.startsWith("/") ? path : `/${path}`;
+}
+
+function tryBranchScopedStorefront(
+  request: NextRequest,
+  org: ResolveHostData,
+  pathname: string,
+) {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length >= 2) {
+    const maybeSlug = parts[0];
+    const segment = parts[1];
+    if (
+      org.branches.some((b) => b.slug === maybeSlug) &&
+      (segment === "pedir" || segment === "cart" || segment === "pedido")
+    ) {
+      const rest = `/${parts.slice(1).join("/")}`;
+      return rewriteToDelivery(request, org, maybeSlug, rest);
+    }
+  }
+  return null;
 }
 
 export async function proxy(request: NextRequest) {
@@ -173,7 +228,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Legacy /delivery/{slug}/... → 301 to primary host public URL (skip on local)
+  // Legacy /delivery/{slug}/... → 301 to storefront public URL (skip on local)
   const legacyMatch = pathname.match(/^\/delivery\/([^/]+)(\/.*)?$/);
   if (legacyMatch && !isLocalHost(hostname)) {
     const branchSlug = legacyMatch[1];
@@ -232,49 +287,96 @@ export async function proxy(request: NextRequest) {
     return new NextResponse("Not Found", { status: 404 });
   }
 
-  // Tenant hosts serve the full platform for that org (staff + public).
-  // Staff /menu = editor; public cardápio = /pedir (avoids collision).
-  if (isStaffAppPath(pathname) || pathname === "/" || pathname === "") {
-    return NextResponse.next({
-      request: { headers: withOrgHeaders(request, org) },
-    });
-  }
-
+  const headers = withOrgHeaders(request, org);
   const defaultBranch = org.defaultBranchSlug;
-  if (!defaultBranch) {
-    return NextResponse.next({
-      request: { headers: withOrgHeaders(request, org) },
-    });
-  }
+  const role = org.hostRole || "staff";
 
-  // Public shortcuts on tenant host
-  if (
-    pathname === "/pedir" ||
-    pathname.startsWith("/pedir/") ||
-    pathname === "/cart" ||
-    pathname.startsWith("/cart/") ||
-    pathname.startsWith("/pedido/")
-  ) {
-    return rewriteToDelivery(request, org, defaultBranch, pathname);
-  }
-
-  // /{branchSlug}/pedir|cart|pedido/...
-  const parts = pathname.split("/").filter(Boolean);
-  if (parts.length >= 2) {
-    const maybeSlug = parts[0];
-    const segment = parts[1];
+  // ── Landing host (brand site) ───────────────────────────────────────────
+  if (role === "landing") {
+    if (isStaffAppPath(pathname)) {
+      return redirectToOrigin(org.staffOrigin, pathname, search);
+    }
+    if (isPublicStorefrontPath(pathname)) {
+      return redirectToOrigin(org.storefrontOrigin, pathname, search);
+    }
+    const branchScoped = pathname.split("/").filter(Boolean);
     if (
-      org.branches.some((b) => b.slug === maybeSlug) &&
-      (segment === "pedir" || segment === "cart" || segment === "pedido")
+      branchScoped.length >= 2 &&
+      org.branches.some((b) => b.slug === branchScoped[0]) &&
+      (branchScoped[1] === "pedir" ||
+        branchScoped[1] === "cart" ||
+        branchScoped[1] === "pedido")
     ) {
-      const rest = `/${parts.slice(1).join("/")}`;
-      return rewriteToDelivery(request, org, maybeSlug, rest);
+      return redirectToOrigin(org.storefrontOrigin, pathname, search);
+    }
+    if (pathname === "/" || pathname === "" || pathname === "/site") {
+      return rewriteToSite(request, org);
+    }
+    return NextResponse.next({ request: { headers } });
+  }
+
+  // ── Storefront host (cardápio only) ─────────────────────────────────────
+  if (role === "storefront") {
+    if (isStaffAppPath(pathname)) {
+      return redirectToOrigin(org.staffOrigin, pathname, search);
+    }
+    if (pathname === "/site") {
+      return redirectToOrigin(org.landingOrigin, "/", search);
+    }
+    if (pathname === "/" || pathname === "") {
+      if (!defaultBranch) {
+        return NextResponse.next({ request: { headers } });
+      }
+      return rewriteToDelivery(request, org, defaultBranch, "/pedir");
+    }
+    if (isPublicStorefrontPath(pathname)) {
+      if (!defaultBranch) {
+        return NextResponse.next({ request: { headers } });
+      }
+      return rewriteToDelivery(request, org, defaultBranch, pathname);
+    }
+    const scoped = tryBranchScopedStorefront(request, org, pathname);
+    if (scoped) return scoped;
+    // Unknown paths on storefront → menu
+    if (defaultBranch) {
+      return rewriteToDelivery(request, org, defaultBranch, "/pedir");
+    }
+    return NextResponse.next({ request: { headers } });
+  }
+
+  // ── Staff host (painel) — default / legacy single-host tenants ──────────
+  if (pathname === "/site") {
+    const landingHost = org.landingOrigin.replace(/^https?:\/\//, "");
+    if (landingHost && landingHost !== hostname) {
+      return redirectToOrigin(org.landingOrigin, "/", search);
     }
   }
 
-  return NextResponse.next({
-    request: { headers: withOrgHeaders(request, org) },
-  });
+  if (isPublicStorefrontPath(pathname)) {
+    // Prefer pedidos host when distinct from current
+    const storefrontHost = org.storefrontOrigin.replace(/^https?:\/\//, "");
+    if (storefrontHost && storefrontHost !== hostname) {
+      return redirectToOrigin(org.storefrontOrigin, pathname, search);
+    }
+    if (defaultBranch) {
+      return rewriteToDelivery(request, org, defaultBranch, pathname);
+    }
+  }
+
+  const scopedStaff = tryBranchScopedStorefront(request, org, pathname);
+  if (scopedStaff) {
+    const storefrontHost = org.storefrontOrigin.replace(/^https?:\/\//, "");
+    if (storefrontHost && storefrontHost !== hostname) {
+      return redirectToOrigin(org.storefrontOrigin, pathname, search);
+    }
+    return scopedStaff;
+  }
+
+  if (isStaffAppPath(pathname) || pathname === "/" || pathname === "") {
+    return NextResponse.next({ request: { headers } });
+  }
+
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = {
