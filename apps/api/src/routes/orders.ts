@@ -9,6 +9,7 @@ import {
   updateOrderItemStatusSchema,
   addOrderItemSchema,
   updateOrderItemSchema,
+  updateOrderDeliverySchema,
   idParamSchema,
   orderQuerySchema,
 } from "@restai/validators";
@@ -30,9 +31,13 @@ import {
   addItemToOrder,
   updateOrderItem,
   removeOrderItem,
+  updateOrderDelivery,
 } from "../services/order.service.js";
 import { upsertCustomerFromPos } from "../services/customer.service.js";
-import { notifyDeliveryOrderStatusUpdated, notifyOrderEdited } from "../services/whatsapp.service.js";
+import {
+  notifyDeliveryOrderStatusUpdated,
+  notifyOrderEdited,
+} from "../services/whatsapp.service.js";
 import { restoreForOrder } from "../services/inventory.service.js";
 import { logger } from "../lib/logger.js";
 
@@ -42,6 +47,19 @@ orders.use("*", authMiddleware);
 orders.use("*", tenantMiddleware);
 orders.use("*", requireBranch);
 orders.use("*", requireActivePlan);
+
+function orderStatusFilterCondition(status: string | undefined) {
+  if (!status || status === "all") return null;
+  const parts = status
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean) as Array<
+    "pending" | "confirmed" | "preparing" | "ready" | "served" | "completed" | "cancelled"
+  >;
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return eq(schema.orders.status, parts[0]!);
+  return inArray(schema.orders.status, parts);
+}
 
 // GET / - List orders
 orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuerySchema), async (c) => {
@@ -54,9 +72,8 @@ orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuery
     eq(schema.orders.organization_id, tenant.organizationId),
   ];
 
-  if (status) {
-    conditions.push(eq(schema.orders.status, status as any));
-  }
+  const statusCond = orderStatusFilterCondition(status);
+  if (statusCond) conditions.push(statusCond);
 
   if (startDate) {
     conditions.push(gte(schema.orders.created_at, new Date(`${startDate}T00:00:00`)));
@@ -122,7 +139,8 @@ orders.get("/export", requirePermission("orders:read"), async (c) => {
   ];
 
   if (status && status !== "all") {
-    conditions.push(eq(schema.orders.status, status as any));
+    const statusCond = orderStatusFilterCondition(status);
+    if (statusCond) conditions.push(statusCond);
   }
   if (startDate) {
     conditions.push(gte(schema.orders.created_at, new Date(`${startDate}T00:00:00`)));
@@ -344,6 +362,52 @@ orders.get(
     }));
 
     return c.json({ success: true, data: { ...order, items: itemsWithMods } });
+  },
+);
+
+// PATCH /:id/delivery — address / fee (staff)
+orders.patch(
+  "/:id/delivery",
+  requirePermission("orders:update"),
+  zValidator("param", idParamSchema),
+  zValidator("json", updateOrderDeliverySchema),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    try {
+      const result = await updateOrderDelivery({
+        orderId: id,
+        branchId: tenant.branchId,
+        deliveryAddress: body.deliveryAddress,
+        deliveryReference: body.deliveryReference,
+        deliveryCity: body.deliveryCity,
+        deliveryFeeCents: body.deliveryFeeCents,
+        confirmFee: body.confirmFee,
+      });
+
+      await wsManager.publish(`branch:${tenant.branchId}`, {
+        type: "order:updated",
+        payload: { orderId: id },
+      });
+
+      return c.json({ success: true, data: result });
+    } catch (err) {
+      if (err instanceof OrderNotFoundError) {
+        return c.json(
+          { success: false, error: { code: "NOT_FOUND", message: err.message } },
+          404,
+        );
+      }
+      if (err instanceof OrderValidationError) {
+        return c.json(
+          { success: false, error: { code: "BAD_REQUEST", message: err.message } },
+          400,
+        );
+      }
+      throw err;
+    }
   },
 );
 

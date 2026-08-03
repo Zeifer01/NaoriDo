@@ -10,6 +10,7 @@ import { CURRENCIES, BRAZIL, getDeliveryFeeCents } from "@restai/config";
 import { cn } from "@/lib/utils";
 import { DeliveryMenuLink } from "@/components/delivery-menu-link";
 import { DeliveryZonesPanel } from "./delivery-zones-panel";
+import { DeliveryRadiusPanel } from "./delivery-radius-panel";
 import { useBranchSettings, useUpdateBranch } from "@/hooks/use-settings";
 import { toast } from "sonner";
 
@@ -50,6 +51,7 @@ export function BranchTab() {
     landingButtonText: string;
     landingButtonUrl: string;
     socialInstagram: string;
+    socialTiktok: string;
     socialWhatsapp: string;
     menuDisplayName: string;
     menuSubtitle: string;
@@ -80,6 +82,7 @@ export function BranchTab() {
     landingButtonText: "",
     landingButtonUrl: "",
     socialInstagram: "",
+    socialTiktok: "",
     socialWhatsapp: "",
     menuDisplayName: "",
     menuSubtitle: "",
@@ -116,6 +119,7 @@ export function BranchTab() {
         landingButtonText: (branchData.settings?.landing_button_text as string) || "",
         landingButtonUrl: (branchData.settings?.landing_button_url as string) || "",
         socialInstagram: (branchData.settings?.social_instagram as string) || "",
+        socialTiktok: (branchData.settings?.social_tiktok as string) || "",
         socialWhatsapp: (branchData.settings?.social_whatsapp as string) || "",
         menuDisplayName: (branchData.settings?.menu_display_name as string) || "",
         menuSubtitle: (branchData.settings?.menu_subtitle as string) || "",
@@ -157,6 +161,7 @@ export function BranchTab() {
         landingButtonText: branchForm.landingButtonText,
         landingButtonUrl: branchForm.landingButtonUrl,
         socialInstagram: branchForm.socialInstagram,
+        socialTiktok: branchForm.socialTiktok,
         socialWhatsapp: branchForm.socialWhatsapp,
         menuDisplayName: branchForm.menuDisplayName,
         menuSubtitle: branchForm.menuSubtitle,
@@ -531,6 +536,8 @@ export function BranchTab() {
                   </p>
                 </div>
 
+                <DeliveryRadiusPanel currency={branchForm.currency} />
+
                 <DeliveryZonesPanel currency={branchForm.currency} />
 
                 {/* Landing page section */}
@@ -633,6 +640,17 @@ export function BranchTab() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label htmlFor="socialTiktok">TikTok</Label>
+                      <Input
+                        id="socialTiktok"
+                        placeholder="@worcesteracai ou URL"
+                        value={branchForm.socialTiktok}
+                        onChange={(e) =>
+                          setBranchForm({ ...branchForm, socialTiktok: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
                       <Label htmlFor="socialWhatsapp">WhatsApp (site / pedidos)</Label>
                       <Input
                         id="socialWhatsapp"

@@ -45,6 +45,7 @@ const COLUMN_DROP_IDS: Record<TabKey, string> = {
 function resolveDropColumn(
   overId: string | number,
   ordersById: Map<string, any>,
+  simplified: boolean,
 ): TabKey | null {
   const id = String(overId);
   if (id === COLUMN_DROP_IDS.pending) return "pending";
@@ -52,7 +53,7 @@ function resolveDropColumn(
   if (id === COLUMN_DROP_IDS.ready) return "ready";
   const order = ordersById.get(id);
   if (!order) return null;
-  return getKitchenColumn(order.status);
+  return getKitchenColumn(order.status, simplified);
 }
 
 function DraggableOrderCard({
@@ -169,7 +170,8 @@ function KanbanColumn({ status }: { status: TabKey }) {
 }
 
 export function KanbanBoard() {
-  const { orders, moveOrderToColumn } = useKitchenContext();
+  const { orders, moveOrderToColumn, visibleColumns, simplifiedOrderStatus } =
+    useKitchenContext();
   const [activeOrder, setActiveOrder] = useState<any | null>(null);
 
   const sensors = useSensors(
@@ -191,8 +193,12 @@ export function KanbanBoard() {
     setActiveOrder(null);
     const { active, over } = event;
     if (!over) return;
-    const target = resolveDropColumn(over.id, ordersById);
+    const target = resolveDropColumn(over.id, ordersById, simplifiedOrderStatus);
     if (!target) return;
+    if (simplifiedOrderStatus && target === "pending") {
+      moveOrderToColumn(String(active.id), "preparing");
+      return;
+    }
     moveOrderToColumn(String(active.id), target);
   };
 
@@ -204,17 +210,22 @@ export function KanbanBoard() {
       onDragEnd={handleDragEnd}
       onDragCancel={() => setActiveOrder(null)}
     >
-      <div className="hidden md:grid md:grid-cols-3 gap-3 flex-1 min-h-0">
-        <KanbanColumn status="pending" />
-        <KanbanColumn status="preparing" />
-        <KanbanColumn status="ready" />
+      <div
+        className={cn(
+          "hidden md:grid gap-3 flex-1 min-h-0",
+          "md:grid-cols-3",
+        )}
+      >
+        {visibleColumns.map((status) => (
+          <KanbanColumn key={status} status={status} />
+        ))}
       </div>
       <DragOverlay dropAnimation={null}>
         {activeOrder ? (
           <div className="w-[min(100vw-2rem,360px)]">
             <DraggableOrderCard
               order={activeOrder}
-              status={getKitchenColumn(activeOrder.status)}
+              status={getKitchenColumn(activeOrder.status, simplifiedOrderStatus)}
               isNew={false}
               isDragOverlay
             />

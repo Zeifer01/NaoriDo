@@ -16,6 +16,9 @@ export * from "./host-roles";
 // Delivery checkout payment methods
 export * from "./delivery-payments";
 
+// Delivery fee pricing (zones vs radius)
+export * from "./delivery-pricing";
+
 // Roles hierarchy and permissions
 export const ROLES = {
   super_admin: { level: 0, label: "Super Admin" },
@@ -73,7 +76,7 @@ export const ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
   pending: ["confirmed", "preparing", "ready", "cancelled"],
   confirmed: ["preparing", "ready", "pending", "cancelled"],
   preparing: ["ready", "pending", "confirmed", "cancelled"],
-  ready: ["served", "preparing"],
+  ready: ["served", "preparing", "completed", "cancelled"],
   served: ["completed"],
   completed: [],
   cancelled: [],

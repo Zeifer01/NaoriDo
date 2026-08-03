@@ -43,6 +43,9 @@ kitchen.get("/orders", requirePermission("orders:read"), zValidator("query", kit
       delivery_phone: schema.orders.delivery_phone,
       delivery_address: schema.orders.delivery_address,
       delivery_reference: schema.orders.delivery_reference,
+      delivery_fee: schema.orders.delivery_fee,
+      delivery_fee_status: schema.orders.delivery_fee_status,
+      delivery_city: schema.orders.delivery_city,
       payment_method: schema.orders.payment_method,
       total: schema.orders.total,
       notes: schema.orders.notes,
@@ -216,11 +219,20 @@ kitchen.post(
     z.object({
       target: z.enum(["kitchen", "customer"]),
       etaMinutes: z.number().int().min(1).max(180).optional(),
+      templateKey: z
+        .enum([
+          "status_confirmed",
+          "status_preparing",
+          "status_ready",
+          "delivery_fee_updated",
+          "order_edited",
+        ])
+        .optional(),
     }),
   ),
   async (c) => {
     const { id } = c.req.valid("param");
-    const { target, etaMinutes } = c.req.valid("json");
+    const { target, etaMinutes, templateKey } = c.req.valid("json");
     const tenant = c.get("tenant") as any;
 
     const [order] = await db
@@ -230,6 +242,8 @@ kitchen.post(
         status: schema.orders.status,
         type: schema.orders.type,
         total: schema.orders.total,
+        delivery_fee: schema.orders.delivery_fee,
+        delivery_fee_status: schema.orders.delivery_fee_status,
         delivery_phone: schema.orders.delivery_phone,
         delivery_address: schema.orders.delivery_address,
         delivery_reference: schema.orders.delivery_reference,
@@ -272,6 +286,8 @@ kitchen.post(
           status: order.status,
           type: order.type,
           total: order.total,
+          delivery_fee: order.delivery_fee,
+          delivery_fee_status: order.delivery_fee_status,
           delivery_phone: order.delivery_phone,
           delivery_address: order.delivery_address,
           delivery_reference: order.delivery_reference,
@@ -281,7 +297,7 @@ kitchen.post(
           created_at: order.created_at,
         },
         target,
-        { etaMinutes },
+        { etaMinutes, templateKey },
       );
       return c.json({ success: true, data: result });
     } catch (err) {

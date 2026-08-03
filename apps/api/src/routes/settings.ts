@@ -8,6 +8,9 @@ import {
   updateBranchSettingsSchema,
   createDeliveryZoneSchema,
   updateDeliveryZoneSchema,
+  updateDeliveryPricingSchema,
+  geocodeAddressSchema,
+  previewDeliveryFeeSchema,
   createOrganizationDomainSchema,
 } from "@restai/validators";
 import { idParamSchema } from "@restai/validators";
@@ -25,7 +28,9 @@ import {
   removeOrganizationDomain,
   setPrimaryDomain,
 } from "../services/organization-domains.service.js";
-import { buildRoleOrigins, buildTenantOrigin, parseHostRolesMap } from "@restai/config";
+import { buildRoleOrigins, buildTenantOrigin, parseDeliveryPricing, parseHostRolesMap } from "@restai/config";
+import { geocodeAddress } from "../lib/geocode.js";
+import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
 
 const settings = new Hono<AppEnv>();
 settings.use("*", authMiddleware, tenantMiddleware);
@@ -109,6 +114,7 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.landingButtonText !== undefined ||
     body.landingButtonUrl !== undefined ||
     body.socialInstagram !== undefined ||
+    body.socialTiktok !== undefined ||
     body.socialWhatsapp !== undefined ||
     body.menuDisplayName !== undefined ||
     body.menuSubtitle !== undefined ||
@@ -143,6 +149,7 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.landingButtonText !== undefined) merged.landing_button_text = body.landingButtonText;
     if (body.landingButtonUrl !== undefined) merged.landing_button_url = body.landingButtonUrl;
     if (body.socialInstagram !== undefined) merged.social_instagram = body.socialInstagram;
+    if (body.socialTiktok !== undefined) merged.social_tiktok = body.socialTiktok;
     if (body.socialWhatsapp !== undefined) merged.social_whatsapp = body.socialWhatsapp;
     if (body.menuDisplayName !== undefined) merged.menu_display_name = body.menuDisplayName;
     if (body.menuSubtitle !== undefined) merged.menu_subtitle = body.menuSubtitle;
@@ -236,6 +243,232 @@ settings.delete(
       .delete(schema.deliveryZones)
       .where(and(eq(schema.deliveryZones.id, id), eq(schema.deliveryZones.branch_id, tenant.branchId)));
     return c.json({ success: true });
+  },
+);
+
+// --- Delivery pricing (zones vs radius) ---
+
+settings.get("/delivery-pricing", requirePermission("settings:*"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const [branch] = await db
+    .select({ settings: schema.branches.settings, address: schema.branches.address })
+    .from(schema.branches)
+    .where(eq(schema.branches.id, tenant.branchId))
+    .limit(1);
+  if (!branch) {
+    return c.json({ success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } }, 404);
+  }
+  const pricing = parseDeliveryPricing(branch.settings);
+  return c.json({
+    success: true,
+    data: {
+      mode: pricing.mode,
+      store: pricing.store,
+      tiers: pricing.tiers.map((t) => ({
+        maxMiles: t.max_miles,
+        feeCents: t.fee_cents,
+      })),
+      cities: pricing.cities.map((c) => ({
+        name: c.name,
+        feeCents: c.fee_cents,
+      })),
+      branchAddress: branch.address,
+    },
+  });
+});
+
+settings.patch(
+  "/delivery-pricing",
+  requirePermission("settings:*"),
+  zValidator("json", updateDeliveryPricingSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const body = c.req.valid("json");
+    const [existing] = await db
+      .select({ settings: schema.branches.settings })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, tenant.branchId))
+      .limit(1);
+    if (!existing) {
+      return c.json({ success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } }, 404);
+    }
+
+    const current = (existing.settings as Record<string, unknown>) || {};
+    const currentPricing = parseDeliveryPricing(current);
+
+    const nextPricing = {
+      mode: body.mode,
+      store:
+        body.store === undefined
+          ? currentPricing.store
+          : body.store === null
+            ? null
+            : {
+                lat: body.store.lat,
+                lng: body.store.lng,
+                formatted_address: body.store.formattedAddress,
+              },
+      tiers:
+        body.tiers === undefined
+          ? currentPricing.tiers
+          : body.tiers
+              .map((t) => ({ max_miles: t.maxMiles, fee_cents: t.feeCents }))
+              .sort((a, b) => a.max_miles - b.max_miles),
+      cities:
+        body.cities === undefined
+          ? currentPricing.cities
+          : body.cities.map((c) => ({ name: c.name.trim(), fee_cents: c.feeCents })),
+    };
+
+    if (nextPricing.mode === "radius") {
+      if (!nextPricing.store) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: "BAD_REQUEST",
+              message: "Defina a localização da loja antes de ativar frete por raio",
+            },
+          },
+          400,
+        );
+      }
+      if (!nextPricing.tiers.length) {
+        return c.json(
+          {
+            success: false,
+            error: {
+              code: "BAD_REQUEST",
+              message: "Cadastre ao menos uma faixa de raio",
+            },
+          },
+          400,
+        );
+      }
+    }
+
+    if (nextPricing.mode === "cities" && !nextPricing.cities.length) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "BAD_REQUEST",
+            message: "Cadastre ao menos uma cidade com frete",
+          },
+        },
+        400,
+      );
+    }
+
+    const [updated] = await db
+      .update(schema.branches)
+      .set({
+        settings: { ...current, delivery_pricing: nextPricing },
+        updated_at: new Date(),
+      })
+      .where(eq(schema.branches.id, tenant.branchId))
+      .returning({ settings: schema.branches.settings });
+
+    const pricing = parseDeliveryPricing(updated?.settings);
+    return c.json({
+      success: true,
+      data: {
+        mode: pricing.mode,
+        store: pricing.store,
+        tiers: pricing.tiers.map((t) => ({
+          maxMiles: t.max_miles,
+          feeCents: t.fee_cents,
+        })),
+        cities: pricing.cities.map((c) => ({
+          name: c.name,
+          feeCents: c.fee_cents,
+        })),
+      },
+    });
+  },
+);
+
+settings.post(
+  "/delivery-pricing/geocode",
+  requirePermission("settings:*"),
+  zValidator("json", geocodeAddressSchema),
+  async (c) => {
+    try {
+      const body = c.req.valid("json");
+      const result = await geocodeAddress(body.address);
+      if (!result) {
+        return c.json(
+          {
+            success: false,
+            error: { code: "NOT_FOUND", message: "Endereço não encontrado" },
+          },
+          404,
+        );
+      }
+      return c.json({
+        success: true,
+        data: {
+          lat: result.lat,
+          lng: result.lng,
+          formattedAddress: result.formatted_address,
+        },
+      });
+    } catch {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "SERVICE_UNAVAILABLE",
+            message: "Geocoding indisponível. Verifique GEOAPIFY_API_KEY.",
+          },
+        },
+        503,
+      );
+    }
+  },
+);
+
+settings.post(
+  "/delivery-pricing/preview",
+  requirePermission("settings:*"),
+  zValidator("json", previewDeliveryFeeSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const body = c.req.valid("json");
+    const [branch] = await db
+      .select({ settings: schema.branches.settings })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, tenant.branchId))
+      .limit(1);
+    if (!branch) {
+      return c.json({ success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } }, 404);
+    }
+
+    const quote = await quoteDeliveryFeeForAddress(branch.settings, body.address);
+    if (!quote.ok) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: quote.code.toUpperCase(),
+            message: quote.message,
+            distance_miles: quote.distance_miles,
+          },
+        },
+        422,
+      );
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        fee_cents: quote.fee_cents,
+        distance_miles: quote.distance_miles,
+        tier_label: quote.tier_label,
+        city: quote.city,
+        formatted_address: quote.formatted_address,
+      },
+    });
   },
 );
 

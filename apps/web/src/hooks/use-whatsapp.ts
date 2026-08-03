@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/fetcher";
 export type WhatsAppMessageKey =
   | "order_created"
   | "order_edited"
+  | "delivery_fee_updated"
   | "status_confirmed"
   | "status_preparing"
   | "status_ready"

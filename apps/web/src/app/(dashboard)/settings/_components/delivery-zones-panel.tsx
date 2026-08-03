@@ -230,7 +230,8 @@ export function DeliveryZonesPanel({ currency }: { currency: string }) {
         <div>
           <p className="text-sm font-medium">Zonas de entrega</p>
           <p className="text-xs text-muted-foreground">
-            Taxa de entrega por bairro/região. Quando cadastradas, o cliente escolhe sua zona no checkout.
+            Taxa de entrega por bairro/região. Quando cadastradas (e frete por raio estiver desligado),
+            o cliente escolhe sua zona no checkout.
           </p>
         </div>
         {!adding && (

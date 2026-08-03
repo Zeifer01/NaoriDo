@@ -60,6 +60,10 @@ export type KitchenColumnStatus = "pending" | "preparing" | "ready";
 interface KitchenContextValue {
   orders: any[];
   columns: { pending: any[]; preparing: any[]; ready: any[] };
+  /** When true, UI shows 2 columns (Em preparo + Saiu/Pronto). */
+  simplifiedOrderStatus: boolean;
+  /** Visible column keys for the current UX mode. */
+  visibleColumns: KitchenColumnStatus[];
   advanceOrder: (orderId: string, currentStatus: string) => void;
   /** Move an order to a kitchen column (drag-and-drop). */
   moveOrderToColumn: (orderId: string, column: KitchenColumnStatus) => void;
@@ -73,7 +77,10 @@ interface KitchenContextValue {
   isUpdatingItem: boolean;
 }
 
-export function getKitchenColumn(status: string): KitchenColumnStatus {
+export function getKitchenColumn(
+  status: string,
+  _simplified = false,
+): KitchenColumnStatus {
   if (status === "preparing") return "preparing";
   if (status === "ready") return "ready";
   return "pending";
@@ -95,7 +102,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
   const updateItemStatus = useUpdateKitchenItemStatus();
   const updateOrderStatus = useUpdateOrderStatus();
   const printKitchenTicket = usePrintKitchenTicket();
-  const { kitchenLabel } = useFeatures();
+  const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
 
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
@@ -176,15 +183,29 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
     ready: orders.filter((o: any) => o.status === "ready"),
   };
 
+  const visibleColumns: KitchenColumnStatus[] = ["pending", "preparing", "ready"];
+
   const advanceOrder = (orderId: string, currentStatus: string) => {
-    const newStatus =
-      currentStatus === "pending" || currentStatus === "confirmed"
-        ? "preparing"
-        : currentStatus === "preparing"
-          ? "ready"
-          : currentStatus === "ready"
-            ? "served"
-            : currentStatus;
+    let newStatus: string;
+    if (simplifiedOrderStatus) {
+      newStatus =
+        currentStatus === "pending" || currentStatus === "confirmed"
+          ? "preparing"
+          : currentStatus === "preparing"
+            ? "ready"
+            : currentStatus === "ready"
+              ? "completed"
+              : currentStatus;
+    } else {
+      newStatus =
+        currentStatus === "pending" || currentStatus === "confirmed"
+          ? "preparing"
+          : currentStatus === "preparing"
+            ? "ready"
+            : currentStatus === "ready"
+              ? "served"
+              : currentStatus;
+    }
     updateOrderStatus.mutate({ id: orderId, status: newStatus });
   };
 
@@ -192,7 +213,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
     (orderId: string, column: KitchenColumnStatus) => {
       const order = (data as any[] | undefined)?.find((o) => o.id === orderId);
       if (!order) return;
-      const from = getKitchenColumn(order.status);
+      const from = getKitchenColumn(order.status, simplifiedOrderStatus);
       if (from === column) return;
       const targetStatus =
         column === "pending"
@@ -209,7 +230,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
         },
       );
     },
-    [data, updateOrderStatus],
+    [data, updateOrderStatus, simplifiedOrderStatus],
   );
 
   const handleItemReady = (itemId: string) => {
@@ -221,6 +242,8 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
       value={{
         orders,
         columns,
+        simplifiedOrderStatus,
+        visibleColumns,
         advanceOrder,
         moveOrderToColumn,
         handleItemReady,

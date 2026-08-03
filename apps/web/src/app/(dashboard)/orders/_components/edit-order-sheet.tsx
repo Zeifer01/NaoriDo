@@ -16,6 +16,7 @@ import {
   CreditCard,
   Loader2,
   MapPin,
+  MessageCircle,
   Minus,
   Phone,
   Plus,
@@ -30,8 +31,12 @@ import {
   useAddOrderItem,
   useUpdateOrderItemDetails,
   useRemoveOrderItem,
+  useUpdateOrderDelivery,
 } from "@/hooks/use-orders";
 import { useCategories, useMenuItems } from "@/hooks/use-menu";
+import { useFeatures } from "@/hooks/use-features";
+import { apiFetch } from "@/lib/fetcher";
+import { useMutation } from "@tanstack/react-query";
 
 const NON_EDITABLE_STATUSES = new Set(["completed", "cancelled"]);
 const POST_KITCHEN_STATUSES = new Set(["preparing", "ready", "served"]);
@@ -141,8 +146,19 @@ function EditOrderContent({ order }: { order: any }) {
                 {order.delivery_reference && (
                   <p className="text-xs text-muted-foreground">{order.delivery_reference}</p>
                 )}
+                {order.delivery_city && (
+                  <p className="text-xs text-muted-foreground">{order.delivery_city}</p>
+                )}
               </div>
             </div>
+          )}
+          {order.type === "delivery" && order.delivery_fee_status === "pending" && (
+            <Badge
+              variant="outline"
+              className="border-amber-500/50 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              Frete a confirmar
+            </Badge>
           )}
           {order.payment_method && (
             <div className="flex items-center gap-2">
@@ -223,6 +239,13 @@ function EditOrderContent({ order }: { order: any }) {
         <AddItemPicker orderId={order.id} branchId={order.branch_id} />
       )}
 
+      {!nonEditable && order.type === "delivery" && (
+        <DeliveryFeeEditor
+          key={`${order.id}-${order.updated_at}-${order.delivery_fee}-${order.delivery_fee_status}`}
+          order={order}
+        />
+      )}
+
       <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
         <div className="flex justify-between text-muted-foreground">
           <span>Subtotal</span>
@@ -240,9 +263,19 @@ function EditOrderContent({ order }: { order: any }) {
             <span>−{formatCurrency(order.discount ?? 0)}</span>
           </div>
         )}
-        {order.delivery_fee > 0 && (
+        {(order.delivery_fee > 0 || order.type === "delivery") && (
           <div className="flex justify-between text-muted-foreground">
-            <span>Entrega</span>
+            <span className="flex items-center gap-2">
+              Entrega
+              {order.delivery_fee_status === "pending" && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-500/50 text-amber-700"
+                >
+                  a confirmar
+                </Badge>
+              )}
+            </span>
             <span>{formatCurrency(order.delivery_fee ?? 0)}</span>
           </div>
         )}
@@ -265,6 +298,127 @@ function EditOrderContent({ order }: { order: any }) {
               {formatCurrency((order.total ?? 0) - (order.total_paid ?? 0))}
             </Badge>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DeliveryFeeEditor({ order }: { order: any }) {
+  const updateDelivery = useUpdateOrderDelivery();
+  const { has } = useFeatures();
+  const [address, setAddress] = useState(order.delivery_address || "");
+  const [reference, setReference] = useState(order.delivery_reference || "");
+  const [city, setCity] = useState(order.delivery_city || "");
+  const [feeDollars, setFeeDollars] = useState(
+    ((order.delivery_fee ?? 0) / 100).toFixed(2),
+  );
+
+  const notifyFee = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/kitchen/orders/${order.id}/notify`, {
+        method: "POST",
+        body: JSON.stringify({
+          target: "customer",
+          templateKey: "delivery_fee_updated",
+        }),
+      }),
+  });
+
+  const save = async () => {
+    const feeCents = Math.round(Number(feeDollars.replace(",", ".")) * 100);
+    if (!Number.isFinite(feeCents) || feeCents < 0) {
+      toast.error("Frete inválido");
+      return;
+    }
+    if (!address.trim() || address.trim().length < 5) {
+      toast.error("Informe o endereço de entrega");
+      return;
+    }
+    try {
+      await updateDelivery.mutateAsync({
+        orderId: order.id,
+        deliveryAddress: address.trim(),
+        deliveryReference: reference.trim() || null,
+        deliveryCity: city.trim() || null,
+        deliveryFeeCents: feeCents,
+        confirmFee: true,
+      });
+      toast.success("Endereço / frete atualizados");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Falha ao salvar");
+    }
+  };
+
+  const sendNotify = async () => {
+    try {
+      await notifyFee.mutateAsync();
+      toast.success("Cliente notificado sobre o frete");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Falha ao notificar");
+    }
+  };
+
+  return (
+    <div className="rounded-lg border p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Endereço e frete</p>
+        {order.delivery_fee_status === "pending" && (
+          <Badge
+            variant="outline"
+            className="border-amber-500/50 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+          >
+            Frete a confirmar
+          </Badge>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">Endereço</label>
+        <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">Complemento</label>
+          <Input value={reference} onChange={(e) => setReference(e.target.value)} />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">Cidade</label>
+          <Input value={city} onChange={(e) => setCity(e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <label className="text-xs text-muted-foreground">Frete (valor)</label>
+        <Input
+          inputMode="decimal"
+          value={feeDollars}
+          onChange={(e) => setFeeDollars(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          type="button"
+          size="sm"
+          className="flex-1"
+          disabled={updateDelivery.isPending}
+          onClick={() => void save()}
+        >
+          {updateDelivery.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+          ) : null}
+          Salvar e confirmar frete
+        </Button>
+        {has("whatsapp") && order.delivery_phone && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            disabled={notifyFee.isPending}
+            onClick={() => void sendNotify()}
+          >
+            <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+            Notificar frete
+          </Button>
         )}
       </div>
     </div>

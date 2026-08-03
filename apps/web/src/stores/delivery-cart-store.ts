@@ -7,6 +7,9 @@ export interface DeliveryCartModifier {
   price: number;
   groupId?: string;
   freeQuantity?: number;
+  allowOutsideCup?: boolean;
+  outsideCupFeeCents?: number;
+  outsideCup?: boolean;
 }
 
 export interface DeliveryCartItem {
@@ -34,7 +37,12 @@ function lineModifiersCents(mods: DeliveryCartModifier[]): number {
     ...new Map(
       mods.map((m) => [
         m.groupId!,
-        { id: m.groupId!, freeQuantity: m.freeQuantity ?? 0 },
+        {
+          id: m.groupId!,
+          freeQuantity: m.freeQuantity ?? 0,
+          allowOutsideCup: m.allowOutsideCup ?? false,
+          outsideCupFeeCents: m.outsideCupFeeCents ?? 0,
+        },
       ]),
     ).values(),
   ];
@@ -43,6 +51,7 @@ function lineModifiersCents(mods: DeliveryCartModifier[]): number {
       id: m.modifierId,
       groupId: m.groupId!,
       price: m.price,
+      outsideCup: m.outsideCup,
     })),
     groups,
   );
@@ -51,7 +60,11 @@ function lineModifiersCents(mods: DeliveryCartModifier[]): number {
 interface DeliveryCartState {
   items: DeliveryCartItem[];
   addItem: (item: Omit<DeliveryCartItem, "lineId">) => void;
+  /** Add N separate qty=1 lines (multi-cup). */
+  addItems: (items: Array<Omit<DeliveryCartItem, "lineId">>) => void;
   updateQuantity: (lineId: string, quantity: number) => void;
+  /** Duplicate a customized line as another qty=1 line (same mods). */
+  duplicateLine: (lineId: string) => void;
   removeItem: (lineId: string) => void;
   clearCart: () => void;
   getSubtotal: () => number;
@@ -67,15 +80,41 @@ export const useDeliveryCartStore = create<DeliveryCartState>((set, get) => ({
       items: [...get().items, { ...item, lineId: nextLineId() }],
     });
   },
+  addItems: (newItems) => {
+    set({
+      items: [
+        ...get().items,
+        ...newItems.map((item) => ({ ...item, lineId: nextLineId() })),
+      ],
+    });
+  },
   updateQuantity: (lineId, quantity) => {
     if (quantity <= 0) {
       get().removeItem(lineId);
+      return;
+    }
+    const current = get().items.find((i) => i.lineId === lineId);
+    // Customized lines stay qty 1 — increasing duplicates instead
+    if (current && current.modifiers.length > 0 && quantity > current.quantity) {
+      get().duplicateLine(lineId);
       return;
     }
     set({
       items: get().items.map((i) =>
         i.lineId === lineId ? { ...i, quantity } : i,
       ),
+    });
+  },
+  duplicateLine: (lineId) => {
+    const current = get().items.find((i) => i.lineId === lineId);
+    if (!current) return;
+    get().addItem({
+      menuItemId: current.menuItemId,
+      name: current.name,
+      unitPrice: current.unitPrice,
+      quantity: 1,
+      notes: current.notes,
+      modifiers: current.modifiers.map((m) => ({ ...m })),
     });
   },
   removeItem: (lineId) => {

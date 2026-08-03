@@ -4,7 +4,27 @@ import { Button } from "@restai/ui/components/button";
 import { DatePicker } from "@restai/ui/components/date-picker";
 import { SearchInput } from "@/components/search-input";
 
-const statusConfig: Record<string, { label: string }> = {
+const STATUS_FILTERS_V1 = [
+  "all",
+  "pending",
+  "confirmed",
+  "preparing",
+  "ready",
+  "served",
+  "completed",
+] as const;
+
+/** Filter values passed to the API (comma lists expand on the backend). */
+const STATUS_FILTERS_SIMPLIFIED = [
+  { value: "all", label: "Todos" },
+  { value: "pending,confirmed", label: "Comanda criada" },
+  { value: "preparing", label: "Em preparo" },
+  { value: "ready", label: "Saiu / Pronto" },
+  { value: "served,completed", label: "Concluído" },
+  { value: "cancelled", label: "Cancelado" },
+] as const;
+
+const statusConfigV1: Record<string, { label: string }> = {
   pending: { label: "Pendente" },
   confirmed: { label: "Confirmado" },
   preparing: { label: "Preparando" },
@@ -23,6 +43,7 @@ interface OrderFiltersProps {
   endDate: string;
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
+  simplifiedOrderStatus?: boolean;
 }
 
 export function OrderFilters({
@@ -34,6 +55,7 @@ export function OrderFilters({
   endDate,
   onStartDateChange,
   onEndDateChange,
+  simplifiedOrderStatus = false,
 }: OrderFiltersProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -71,20 +93,27 @@ export function OrderFilters({
         </div>
       </div>
       <div className="flex gap-2 flex-wrap">
-        {["all", "pending", "confirmed", "preparing", "ready", "served", "completed"].map(
-          (status) => (
-            <Button
-              key={status}
-              variant={statusFilter === status ? "default" : "outline"}
-              size="sm"
-              onClick={() => onStatusFilterChange(status)}
-            >
-              {status === "all"
-                ? "Todos"
-                : statusConfig[status]?.label || status}
-            </Button>
-          )
-        )}
+        {simplifiedOrderStatus
+          ? STATUS_FILTERS_SIMPLIFIED.map((item) => (
+              <Button
+                key={item.value}
+                variant={statusFilter === item.value ? "default" : "outline"}
+                size="sm"
+                onClick={() => onStatusFilterChange(item.value)}
+              >
+                {item.label}
+              </Button>
+            ))
+          : STATUS_FILTERS_V1.map((status) => (
+              <Button
+                key={status}
+                variant={statusFilter === status ? "default" : "outline"}
+                size="sm"
+                onClick={() => onStatusFilterChange(status)}
+              >
+                {status === "all" ? "Todos" : statusConfigV1[status]?.label || status}
+              </Button>
+            ))}
       </div>
     </div>
   );

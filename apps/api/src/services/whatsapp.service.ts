@@ -1,6 +1,7 @@
 import { CURRENCIES } from "@restai/config";
 import {
   getStatusMessageKey,
+  getStatusReadyTexto,
   getWhatsAppDefaultEtaMinutes,
   getWhatsAppKitchenGroupJid,
   getWhatsAppMessageTemplates,
@@ -25,6 +26,7 @@ import { db, schema } from "@restai/db";
 import { eq, and, isNotNull, inArray, asc } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 import { getOrganizationStorefrontOrigin } from "../lib/tenant-host.js";
+import { hasSimplifiedOrderStatus } from "@restai/config";
 
 export { getWhatsAppMessageTemplates, type WhatsAppMessageTemplates };
 
@@ -262,7 +264,10 @@ async function loadOrderItemsForTicket(orderId: string) {
     name: item.name,
     quantity: item.quantity,
     notes: item.notes,
-    modifiers: (modsByItem.get(item.id) || []).map((m) => ({ name: m.name })),
+    modifiers: (modsByItem.get(item.id) || []).map((m) => ({
+      name: m.name,
+      is_outside_cup: m.is_outside_cup,
+    })),
   }));
 }
 
@@ -271,13 +276,16 @@ export type ManualNotifyTarget = "kitchen" | "customer";
 /**
  * Manual notify from Comandas / Kitchen:
  * - kitchen: full ticket text to WhatsApp group
- * - customer: status template to delivery_phone (preparing / ready by order status)
+ * - customer: status template (or delivery_fee_updated) to delivery_phone
  */
 export async function sendManualOrderNotify(
   branch: BranchLike,
-  order: OrderLike,
+  order: OrderLike & {
+    delivery_fee?: number | null;
+    delivery_fee_status?: string | null;
+  },
   target: ManualNotifyTarget,
-  options?: { etaMinutes?: number },
+  options?: { etaMinutes?: number; templateKey?: WhatsAppMessageKey },
 ): Promise<{ target: ManualNotifyTarget; messagePreview: string }> {
   const instanceName = await assertWhatsAppReady(branch);
   const countryCode = getWhatsAppPhoneCountryCode(branch.settings);
@@ -317,13 +325,22 @@ export async function sendManualOrderNotify(
   }
 
   const status = order.status;
-  let templateKey: WhatsAppMessageKey | null = getStatusMessageKey(status);
-  if (status === "pending" || status === "confirmed") {
+  let templateKey: WhatsAppMessageKey | null =
+    options?.templateKey ?? getStatusMessageKey(status);
+  if (!options?.templateKey && (status === "pending" || status === "confirmed")) {
     templateKey = "status_confirmed";
   }
-  if (!templateKey || (templateKey !== "status_preparing" && templateKey !== "status_ready" && templateKey !== "status_confirmed")) {
+
+  const allowedCustomerTemplates: WhatsAppMessageKey[] = [
+    "status_preparing",
+    "status_ready",
+    "status_confirmed",
+    "delivery_fee_updated",
+    "order_edited",
+  ];
+  if (!templateKey || !allowedCustomerTemplates.includes(templateKey)) {
     throw new WhatsAppError(
-      "Notificar cliente disponível nos status: criado/confirmado, em preparo ou pronto.",
+      "Notificar cliente disponível nos status: criado/confirmado, em preparo, pronto — ou frete corrigido.",
       400,
     );
   }
@@ -340,15 +357,19 @@ export async function sendManualOrderNotify(
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
   const link = await trackingUrl(branch, order.id);
+  const currency = branch.currency || "BRL";
   const message = renderWhatsAppTemplate(templates[templateKey], {
     cliente: customer,
     pedido: order.order_number,
-    total: formatMoney(order.total, branch.currency || "BRL"),
+    total: formatMoney(order.total, currency),
+    frete: formatMoney(order.delivery_fee ?? 0, currency),
+    frete_bloco: "",
     endereco_bloco: order.delivery_address
       ? `Endereço: ${order.delivery_address}`
       : "",
     estimativa,
     estimativa_bloco,
+    status_ready_texto: getStatusReadyTexto(order.type),
     link,
   });
 
@@ -386,20 +407,29 @@ export async function notifyOrderEdited(
 
 export async function notifyDeliveryOrderCreated(
   branch: BranchLike,
-  order: OrderLike,
+  order: OrderLike & { delivery_fee_status?: string | null; delivery_fee?: number | null },
 ): Promise<void> {
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
-  const total = formatMoney(order.total, branch.currency || "BRL");
+  const currency = branch.currency || "BRL";
+  const total = formatMoney(order.total, currency);
   const link = await trackingUrl(branch, order.id);
   const endereco_bloco = order.delivery_address
     ? `Endereço: ${order.delivery_address}`
     : "";
+  const pending = order.delivery_fee_status === "pending";
+  const frete_bloco = pending
+    ? "Frete a confirmar — validamos o endereço e confirmamos o valor no WhatsApp."
+    : order.delivery_fee != null
+      ? `Frete: ${formatMoney(order.delivery_fee, currency)}`
+      : "";
 
   const message = renderWhatsAppTemplate(templates.order_created, {
     cliente: customer,
     pedido: order.order_number,
     total,
+    frete: formatMoney(order.delivery_fee ?? 0, currency),
+    frete_bloco,
     endereco_bloco,
     link,
   });
@@ -585,7 +615,17 @@ export async function notifyDeliveryOrderStatusUpdated(
     return;
   }
 
-  const templateKey = getStatusMessageKey(newStatus);
+  let skipConfirmed = false;
+  if (branch.organization_id) {
+    const [org] = await db
+      .select({ settings: schema.organizations.settings })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, branch.organization_id))
+      .limit(1);
+    skipConfirmed = hasSimplifiedOrderStatus(org?.settings);
+  }
+
+  const templateKey = getStatusMessageKey(newStatus, { skipConfirmed });
   if (!templateKey) return;
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
@@ -604,6 +644,7 @@ export async function notifyDeliveryOrderStatusUpdated(
     endereco_bloco: order.delivery_address ? `Endereço: ${order.delivery_address}` : "",
     estimativa,
     estimativa_bloco,
+    status_ready_texto: getStatusReadyTexto(order.type),
     link,
   });
 

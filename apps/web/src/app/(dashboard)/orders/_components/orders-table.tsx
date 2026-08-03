@@ -5,7 +5,10 @@ import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
 import { ChevronLeft, ChevronRight, Copy, DollarSign, Eye, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { deliveryPaymentLabel } from "@restai/config";
+import {
+  deliveryPaymentLabel,
+  getSimplifiedOrderStatusLabel,
+} from "@restai/config";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pendente", variant: "outline" },
@@ -36,7 +39,17 @@ function InlineActionLoading({ label }: { label: string }) {
   );
 }
 
-function getNextStatus(status: string): string | null {
+function getNextStatus(status: string, simplified: boolean): string | null {
+  if (simplified) {
+    const flow: Record<string, string> = {
+      pending: "preparing",
+      confirmed: "preparing",
+      preparing: "ready",
+      ready: "completed",
+      served: "completed",
+    };
+    return flow[status] || null;
+  }
   const flow: Record<string, string> = {
     pending: "confirmed",
     confirmed: "preparing",
@@ -45,6 +58,24 @@ function getNextStatus(status: string): string | null {
     served: "completed",
   };
   return flow[status] || null;
+}
+
+function statusBadgeLabel(
+  status: string,
+  orderType: string | undefined,
+  simplified: boolean,
+): string {
+  if (simplified) return getSimplifiedOrderStatusLabel(status, orderType);
+  return statusConfig[status]?.label || status;
+}
+
+function nextActionLabel(
+  nextStatus: string,
+  orderType: string | undefined,
+  simplified: boolean,
+): string {
+  if (simplified) return getSimplifiedOrderStatusLabel(nextStatus, orderType);
+  return statusConfig[nextStatus]?.label || nextStatus;
 }
 
 interface OrdersTableProps {
@@ -66,6 +97,7 @@ interface OrdersTableProps {
   onDelete?: (order: any) => void;
   deletePending?: boolean;
   deletingOrderId?: string | null;
+  simplifiedOrderStatus?: boolean;
 }
 
 const NON_EDITABLE = new Set(["completed", "cancelled"]);
@@ -89,6 +121,7 @@ export function OrdersTable({
   onDelete,
   deletePending,
   deletingOrderId,
+  simplifiedOrderStatus = false,
 }: OrdersTableProps) {
   const filteredOrders = orders.filter((order: any) => {
     const orderNum = order.order_number || "";
@@ -165,7 +198,7 @@ export function OrdersTable({
                       label: order.status,
                       variant: "outline" as const,
                     };
-                    const nextStatus = getNextStatus(order.status);
+                    const nextStatus = getNextStatus(order.status, simplifiedOrderStatus);
                     const orderNum = order.order_number || order.id;
                     const table = order.table_number != null ? `Mesa ${order.table_number}` : null;
                     const customer = order.customer_name || "";
@@ -181,6 +214,11 @@ export function OrdersTable({
                     const isOpeningCharge = activeChargeOrderId === order.id;
 
                     const isDeletingThisOrder = deletePending && deletingOrderId === order.id;
+                    const statusLabel = statusBadgeLabel(
+                      order.status,
+                      order.type,
+                      simplifiedOrderStatus,
+                    );
 
                     return (
                       <tr
@@ -200,7 +238,18 @@ export function OrdersTable({
                         </td>
                         <td className="p-3 text-sm hidden sm:table-cell">{customer}</td>
                         <td className="p-3">
-                          <Badge variant={config.variant}>{config.label}</Badge>
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge variant={config.variant}>{statusLabel}</Badge>
+                            {order.type === "delivery" &&
+                              order.delivery_fee_status === "pending" && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-500/50 bg-amber-50 text-[10px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                                >
+                                  Frete a confirmar
+                                </Badge>
+                              )}
+                          </div>
                         </td>
                         <td className="p-3 hidden sm:table-cell">
                           <div className="flex flex-col gap-1">
@@ -242,7 +291,11 @@ export function OrdersTable({
                                 {isUpdatingCurrentStep ? (
                                   <InlineActionLoading label="Atualizando..." />
                                 ) : (
-                                  statusConfig[nextStatus]?.label || nextStatus
+                                  nextActionLabel(
+                                    nextStatus,
+                                    order.type,
+                                    simplifiedOrderStatus,
+                                  )
                                 )}
                               </Button>
                             )}

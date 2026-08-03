@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices } from "@restai/config";
+import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -25,7 +25,7 @@ interface OrderItemInput {
   menuItemId: string;
   quantity: number;
   notes?: string;
-  modifiers?: Array<{ modifierId: string }>;
+  modifiers?: Array<{ modifierId: string; outsideCup?: boolean }>;
 }
 
 interface CreateOrderParams {
@@ -44,6 +44,8 @@ interface CreateOrderParams {
   deliveryReference?: string | null;
   paymentMethod?: string | null;
   deliveryFeeOverrideCents?: number | null;
+  deliveryFeeStatus?: "confirmed" | "pending" | null;
+  deliveryCity?: string | null;
 }
 
 interface CreateOrderResult {
@@ -72,6 +74,8 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     deliveryReference,
     paymentMethod,
     deliveryFeeOverrideCents,
+    deliveryFeeStatus,
+    deliveryCity,
   } = params;
 
   // Get menu items for price calculation
@@ -90,7 +94,15 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
 
   let modifierMap = new Map<
     string,
-    { id: string; name: string; price: number; groupId: string; freeQuantity: number }
+    {
+      id: string;
+      name: string;
+      price: number;
+      groupId: string;
+      freeQuantity: number;
+      allowOutsideCup: boolean;
+      outsideCupFeeCents: number;
+    }
   >();
   if (allModifierIds.length > 0) {
     const modifierRecords = await db
@@ -100,6 +112,8 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
         price: schema.modifiers.price,
         groupId: schema.modifiers.group_id,
         freeQuantity: schema.modifierGroups.free_quantity,
+        allowOutsideCup: schema.modifierGroups.allow_outside_cup,
+        outsideCupFeeCents: schema.modifierGroups.outside_cup_fee_cents,
       })
       .from(schema.modifiers)
       .innerJoin(
@@ -116,6 +130,8 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
           price: m.price,
           groupId: m.groupId,
           freeQuantity: m.freeQuantity,
+          allowOutsideCup: m.allowOutsideCup,
+          outsideCupFeeCents: m.outsideCupFeeCents,
         },
       ]),
     );
@@ -130,7 +146,12 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     quantity: number;
     total: number;
     notes?: string;
-    modifiers: Array<{ modifierId: string; name: string; price: number }>;
+    modifiers: Array<{
+      modifierId: string;
+      name: string;
+      price: number;
+      outsideCup: boolean;
+    }>;
   }> = [];
 
   for (const item of items) {
@@ -143,18 +164,33 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     }
 
     const selectedMods = (item.modifiers ?? [])
-      .map((mod) => modifierMap.get(mod.modifierId))
+      .map((mod) => {
+        const base = modifierMap.get(mod.modifierId);
+        if (!base) return null;
+        return { ...base, outsideCup: mod.outsideCup === true };
+      })
       .filter(Boolean) as Array<{
       id: string;
       name: string;
       price: number;
       groupId: string;
       freeQuantity: number;
+      allowOutsideCup: boolean;
+      outsideCupFeeCents: number;
+      outsideCup: boolean;
     }>;
 
     const groupConfigs = [
       ...new Map(
-        selectedMods.map((m) => [m.groupId, { id: m.groupId, freeQuantity: m.freeQuantity }]),
+        selectedMods.map((m) => [
+          m.groupId,
+          {
+            id: m.groupId,
+            freeQuantity: m.freeQuantity,
+            allowOutsideCup: m.allowOutsideCup,
+            outsideCupFeeCents: m.outsideCupFeeCents,
+          },
+        ]),
       ).values(),
     ];
 
@@ -162,6 +198,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       id: m.id,
       groupId: m.groupId,
       price: m.price,
+      outsideCup: m.outsideCup,
     }));
     const modifierPricePerUnit = calcModifiersChargeCents(priced, groupConfigs);
     const snapshots = calcModifierSnapshotPrices(priced, groupConfigs);
@@ -186,6 +223,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
           modifierId: m.id,
           name: m.name,
           price: snap?.effectivePrice ?? m.price,
+          outsideCup: snap?.outsideCup ?? m.outsideCup,
         };
       }),
     });
@@ -207,6 +245,15 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     type === "delivery"
       ? (deliveryFeeOverrideCents ?? getDeliveryFeeCents(branchSettings))
       : 0;
+
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, organizationId))
+    .limit(1);
+  const initialStatus = hasSimplifiedOrderStatus(org?.settings)
+    ? getSimplifiedInitialOrderStatus()
+    : "pending";
 
   // Create order + items + coupon redemption in a transaction
   // Coupon validation is INSIDE the transaction to prevent race conditions on current_uses
@@ -252,12 +299,15 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
         customer_id: customerId || null,
         order_number: orderNumber,
         type: type as any,
-        status: "pending",
+        status: initialStatus,
         customer_name: customerName || null,
         delivery_phone: deliveryPhone || null,
         delivery_address: deliveryAddress || null,
         delivery_reference: deliveryReference || null,
         delivery_fee: deliveryFee,
+        delivery_fee_status:
+          type === "delivery" ? (deliveryFeeStatus || "confirmed") : "confirmed",
+        delivery_city: type === "delivery" ? deliveryCity || null : null,
         subtotal,
         tax,
         discount,
@@ -287,6 +337,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
             modifier_id: mod.modifierId,
             name: mod.name,
             price: mod.price,
+            is_outside_cup: mod.outsideCup,
           })),
         );
       }
@@ -937,7 +988,7 @@ interface AddItemParams {
   menuItemId: string;
   quantity: number;
   notes?: string | null;
-  modifiers?: Array<{ modifierId: string }>;
+  modifiers?: Array<{ modifierId: string; outsideCup?: boolean }>;
 }
 
 /**
@@ -972,7 +1023,15 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
 
   let modifierMap = new Map<
     string,
-    { id: string; name: string; price: number; groupId: string; freeQuantity: number }
+    {
+      id: string;
+      name: string;
+      price: number;
+      groupId: string;
+      freeQuantity: number;
+      allowOutsideCup: boolean;
+      outsideCupFeeCents: number;
+    }
   >();
   if (modifiers?.length) {
     const ids = modifiers.map((m) => m.modifierId);
@@ -983,6 +1042,8 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
         price: schema.modifiers.price,
         groupId: schema.modifiers.group_id,
         freeQuantity: schema.modifierGroups.free_quantity,
+        allowOutsideCup: schema.modifierGroups.allow_outside_cup,
+        outsideCupFeeCents: schema.modifierGroups.outside_cup_fee_cents,
       })
       .from(schema.modifiers)
       .innerJoin(
@@ -999,29 +1060,47 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
           price: r.price,
           groupId: r.groupId,
           freeQuantity: r.freeQuantity,
+          allowOutsideCup: r.allowOutsideCup,
+          outsideCupFeeCents: r.outsideCupFeeCents,
         },
       ]),
     );
   }
 
   const selectedMods = (modifiers || [])
-    .map((m) => modifierMap.get(m.modifierId))
+    .map((m) => {
+      const base = modifierMap.get(m.modifierId);
+      if (!base) return null;
+      return { ...base, outsideCup: m.outsideCup === true };
+    })
     .filter(Boolean) as Array<{
     id: string;
     name: string;
     price: number;
     groupId: string;
     freeQuantity: number;
+    allowOutsideCup: boolean;
+    outsideCupFeeCents: number;
+    outsideCup: boolean;
   }>;
   const groupConfigs = [
     ...new Map(
-      selectedMods.map((m) => [m.groupId, { id: m.groupId, freeQuantity: m.freeQuantity }]),
+      selectedMods.map((m) => [
+        m.groupId,
+        {
+          id: m.groupId,
+          freeQuantity: m.freeQuantity,
+          allowOutsideCup: m.allowOutsideCup,
+          outsideCupFeeCents: m.outsideCupFeeCents,
+        },
+      ]),
     ).values(),
   ];
   const priced = selectedMods.map((m) => ({
     id: m.id,
     groupId: m.groupId,
     price: m.price,
+    outsideCup: m.outsideCup,
   }));
   const modifierPricePerUnit = calcModifiersChargeCents(priced, groupConfigs);
   const snapshots = calcModifierSnapshotPrices(priced, groupConfigs);
@@ -1053,6 +1132,7 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
             modifier_id: m.id,
             name: m.name,
             price: snap?.effectivePrice ?? m.price,
+            is_outside_cup: snap?.outsideCup ?? m.outsideCup,
           };
         }),
       );
@@ -1190,6 +1270,61 @@ export async function removeOrderItem(params: RemoveItemParams): Promise<OrderWi
     menuItemId: item.menu_item_id,
     itemSnapshotName: item.name,
     delta: -item.quantity,
+  });
+
+  return loadOrderWithMeta(orderId, branchId);
+}
+
+export async function updateOrderDelivery(params: {
+  orderId: string;
+  branchId: string;
+  deliveryAddress?: string;
+  deliveryReference?: string | null;
+  deliveryCity?: string | null;
+  deliveryFeeCents?: number;
+  confirmFee?: boolean;
+}): Promise<OrderWithMeta> {
+  const {
+    orderId,
+    branchId,
+    deliveryAddress,
+    deliveryReference,
+    deliveryCity,
+    deliveryFeeCents,
+    confirmFee,
+  } = params;
+
+  const [order] = await db
+    .select()
+    .from(schema.orders)
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.branch_id, branchId)))
+    .limit(1);
+
+  if (!order) throw new OrderNotFoundError("Pedido não encontrado");
+  assertEditable(order);
+
+  if (order.type !== "delivery") {
+    throw new OrderValidationError("Só pedidos de delivery têm frete/endereço editável");
+  }
+
+  await db.transaction(async (tx) => {
+    const patch: Record<string, unknown> = { updated_at: new Date() };
+    if (deliveryAddress !== undefined) patch.delivery_address = deliveryAddress.trim();
+    if (deliveryReference !== undefined) patch.delivery_reference = deliveryReference;
+    if (deliveryCity !== undefined) patch.delivery_city = deliveryCity;
+    if (deliveryFeeCents !== undefined) patch.delivery_fee = deliveryFeeCents;
+    if (confirmFee === true || deliveryFeeCents !== undefined) {
+      patch.delivery_fee_status = "confirmed";
+    }
+
+    await tx
+      .update(schema.orders)
+      .set(patch)
+      .where(eq(schema.orders.id, orderId));
+
+    if (deliveryFeeCents !== undefined) {
+      await recalculateOrderTotals(tx, orderId);
+    }
   });
 
   return loadOrderWithMeta(orderId, branchId);

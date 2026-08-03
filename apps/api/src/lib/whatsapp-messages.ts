@@ -1,6 +1,7 @@
 export const WHATSAPP_MESSAGE_KEYS = [
   "order_created",
   "order_edited",
+  "delivery_fee_updated",
   "status_confirmed",
   "status_preparing",
   "status_ready",
@@ -15,9 +16,10 @@ export type WhatsAppMessageTemplates = Record<WhatsAppMessageKey, string>;
 export const WHATSAPP_MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   order_created: "Pedido recebido",
   order_edited: "Pedido editado",
+  delivery_fee_updated: "Frete corrigido",
   status_confirmed: "Pedido confirmado",
   status_preparing: "Em preparo",
-  status_ready: "Pronto para entrega",
+  status_ready: "Saiu / Pronto para retirada",
   status_completed: "Pedido entregue",
   status_cancelled: "Pedido cancelado",
   auto_reply: "Resposta automática",
@@ -33,11 +35,22 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "Acompanhe o status aqui:",
     "{link}",
   ].join("\n"),
+  delivery_fee_updated: [
+    "Olá, {cliente}!",
+    "",
+    "A taxa de entrega do pedido *#{pedido}* foi corrigida pela nossa equipe.",
+    "Frete: *{frete}*",
+    "Novo total: *{total}*",
+    "",
+    "Acompanhe seu pedido atualizado:",
+    "{link}",
+  ].join("\n"),
   order_created: [
     "Olá, {cliente}! 👋",
     "",
     "Recebemos seu pedido de delivery *#{pedido}*.",
     "Total: {total}",
+    "{frete_bloco}",
     "{endereco_bloco}",
     "",
     "Acompanhe o status aqui:",
@@ -55,7 +68,7 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido foi *aceito* e está sendo preparado.",
+    "Seu pedido está *em preparo*.",
     "{estimativa_bloco}",
     "",
     "Acompanhe: {link}",
@@ -64,7 +77,7 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "O delivery saiu com o seu pedido! 🛵",
+    "{status_ready_texto}",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -72,7 +85,7 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido foi *entregue*. Obrigado pela preferência!",
+    "Seu pedido foi *concluído*. Obrigado pela preferência!",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -98,9 +111,12 @@ export const WHATSAPP_TEMPLATE_VARIABLES = [
   "{cliente}",
   "{pedido}",
   "{total}",
+  "{frete}",
+  "{frete_bloco}",
   "{endereco_bloco}",
   "{estimativa}",
   "{estimativa_bloco}",
+  "{status_ready_texto}",
   "{link}",
   "{estabelecimento}",
   "{link_cardapio}",
@@ -151,6 +167,22 @@ const STATUS_KEY_BY_ORDER_STATUS: Partial<Record<string, WhatsAppMessageKey>> = 
   completed: "status_completed",
   cancelled: "status_cancelled",
 };
+
+/** Sentence used in status_ready templates, by order type. */
+export function getStatusReadyTexto(orderType: string | null | undefined): string {
+  if (orderType === "delivery") {
+    return "Seu pedido *saiu para a entrega*! 🛵";
+  }
+  return "Seu pedido está *pronto para retirada*!";
+}
+
+export function getStatusMessageKey(
+  status: string,
+  options?: { skipConfirmed?: boolean },
+): WhatsAppMessageKey | null {
+  if (options?.skipConfirmed && status === "confirmed") return null;
+  return STATUS_KEY_BY_ORDER_STATUS[status] || null;
+}
 
 function readCustomTemplates(settings?: unknown): Partial<WhatsAppMessageTemplates> {
   const raw = (settings || {}) as Record<string, unknown>;
@@ -214,8 +246,4 @@ export function renderWhatsAppTemplate(
     })
     .join("\n")
     .trim();
-}
-
-export function getStatusMessageKey(status: string): WhatsAppMessageKey | null {
-  return STATUS_KEY_BY_ORDER_STATUS[status] || null;
 }

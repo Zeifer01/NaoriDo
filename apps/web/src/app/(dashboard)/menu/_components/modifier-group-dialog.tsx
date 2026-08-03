@@ -50,6 +50,14 @@ export function ModifierGroupDialog({
   const [freeQty, setFreeQty] = useState(
     initial?.free_quantity?.toString() ?? "0",
   );
+  const [allowOutsideCup, setAllowOutsideCup] = useState(
+    initial?.allow_outside_cup ?? false,
+  );
+  const [outsideCupFee, setOutsideCupFee] = useState(
+    initial?.outside_cup_fee_cents != null
+      ? (initial.outside_cup_fee_cents / 100).toFixed(2)
+      : "0",
+  );
 
   // For new groups: inline modifiers to create
   const [newModifiers, setNewModifiers] = useState<
@@ -105,6 +113,8 @@ export function ModifierGroupDialog({
           maxSelections: parseInt(maxSel, 10) || 1,
           isRequired,
           freeQuantity: parseInt(freeQty, 10) || 0,
+          allowOutsideCup,
+          outsideCupFeeCents: Math.round(parseFloat(outsideCupFee || "0") * 100) || 0,
         });
 
         // Add any new modifiers
@@ -132,6 +142,8 @@ export function ModifierGroupDialog({
           maxSelections: parseInt(maxSel, 10) || 1,
           isRequired,
           freeQuantity: parseInt(freeQty, 10) || 0,
+          allowOutsideCup,
+          outsideCupFeeCents: Math.round(parseFloat(outsideCupFee || "0") * 100) || 0,
         });
 
         for (const mod of validMods) {
@@ -220,6 +232,34 @@ export function ModifierGroupDialog({
             <p className="text-xs text-muted-foreground">
               Ex.: 3 = os 3 primeiros são grátis; a partir do 4º cada um cobra o próprio preço.
             </p>
+          </div>
+
+          <div className="rounded-md border p-3 space-y-3">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allowOutsideCup}
+                onChange={(e) => setAllowOutsideCup(e.target.checked)}
+                className="rounded border-input accent-primary"
+              />
+              Permite fora do copo
+            </label>
+            {allowOutsideCup && (
+              <div className="space-y-2">
+                <Label htmlFor="grp-outside-fee">Taxa fora do copo (só nos grátis)</Label>
+                <Input
+                  id="grp-outside-fee"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={outsideCupFee}
+                  onChange={(e) => setOutsideCupFee(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ex.: 1.00 = +$1 quando um complemento grátis vai fora do copo. Recheios/extras pagos: use 0.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Existing modifiers (edit mode) */}

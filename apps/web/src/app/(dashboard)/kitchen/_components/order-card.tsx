@@ -18,7 +18,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
-import { deliveryPaymentLabel } from "@restai/config";
+import { getActiveCurrency } from "@/stores/currency-store";
+import { deliveryPaymentLabel, getSimplifiedReadyLabel } from "@restai/config";
 import { getTimeDiff, getTimeUrgency } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
 import { OrderNotifyActions } from "./order-notify-actions";
@@ -37,10 +38,16 @@ function ItemRow({
   onItemReady: (itemId: string) => void;
 }) {
   const isItemReady = item.status === "ready";
-  const modifiers: Array<{ name: string }> = item.modifiers || [];
+  const modifiers: Array<{
+    name: string;
+    is_outside_cup?: boolean;
+    outsideCup?: boolean;
+  }> = item.modifiers || [];
   const modCounts = new Map<string, number>();
   for (const m of modifiers) {
-    modCounts.set(m.name, (modCounts.get(m.name) || 0) + Math.max(1, item.quantity || 1));
+    const outside = m.is_outside_cup === true || m.outsideCup === true;
+    const label = outside ? `${m.name} (fora do copo)` : m.name;
+    modCounts.set(label, (modCounts.get(label) || 0) + Math.max(1, item.quantity || 1));
   }
 
   return (
@@ -132,7 +139,8 @@ export function KitchenOrderCard({
   dragHandle?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { kitchenLabel } = useFeatures();
+  const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
+  const orderType = order.type || order.order_type;
   const orderNum = order.orderNumber || order.order_number || order.id;
   const tableName = order.tableName || order.table_name || "";
   const createdAt = order.createdAt || order.created_at || "";
@@ -271,6 +279,15 @@ export function KitchenOrderCard({
               {deliveryPaymentLabel(paymentMethod as any) || paymentMethod}
             </p>
           )}
+          {(order.delivery_fee_status === "pending" ||
+            order.deliveryFeeStatus === "pending") && (
+            <p className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              Frete a confirmar
+              {typeof (order.delivery_fee ?? order.deliveryFee) === "number"
+                ? ` · ${(Number(order.delivery_fee ?? order.deliveryFee) / 100).toFixed(2)}`
+                : ""}
+            </p>
+          )}
         </div>
       )}
 
@@ -289,7 +306,7 @@ export function KitchenOrderCard({
             disabled={isAdvancing}
             onClick={() => onAdvance(order.id, "pending")}
           >
-            Preparar
+            {simplifiedOrderStatus ? "Em preparo" : "Preparar"}
             <ArrowRight className="h-5 w-5 ml-2" />
           </Button>
         )}
@@ -297,10 +314,12 @@ export function KitchenOrderCard({
           <Button
             className="w-full bg-green-500 hover:bg-green-600 text-white font-bold h-12 text-base"
             disabled={isAdvancing}
-            onClick={() => onAdvance(order.id, "preparing")}
+            onClick={() => onAdvance(order.id, order.status || "preparing")}
           >
             <CheckCircle className="h-5 w-5 mr-2" />
-            Pronto
+            {simplifiedOrderStatus
+              ? getSimplifiedReadyLabel(orderType)
+              : "Pronto"}
           </Button>
         )}
         {columnStatus === "ready" && (
@@ -311,7 +330,7 @@ export function KitchenOrderCard({
             onClick={() => onAdvance(order.id, "ready")}
           >
             <UtensilsCrossed className="h-5 w-5 mr-2" />
-            Entregue
+            {simplifiedOrderStatus ? "Concluir" : "Entregue"}
           </Button>
         )}
         <Button
@@ -322,7 +341,10 @@ export function KitchenOrderCard({
           onClick={async () => {
             try {
               await copyOrderTicket(
-                orderToTicketInput(order, { headerLabel: kitchenLabel }),
+                orderToTicketInput(order, {
+                  headerLabel: kitchenLabel,
+                  currency: getActiveCurrency(),
+                }),
               );
               toast.success("Comanda copiada");
             } catch {
@@ -337,6 +359,10 @@ export function KitchenOrderCard({
           orderId={order.id}
           columnStatus={columnStatus}
           hasPhone={Boolean(order.delivery_phone || order.deliveryPhone)}
+          feePending={
+            order.delivery_fee_status === "pending" ||
+            order.deliveryFeeStatus === "pending"
+          }
         />
       </div>
     </div>

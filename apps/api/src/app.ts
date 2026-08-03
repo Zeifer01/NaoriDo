@@ -85,6 +85,7 @@ app.onError(errorHandler);
 app.use("*", rateLimiter(100, 60_000, "global"));
 app.use("/api/auth/*", rateLimiter(20, 60_000, "auth"));
 app.use("/api/customer/*", rateLimiter(30, 60_000, "customer"));
+app.use("/api/delivery/*/quote-fee", rateLimiter(20, 60_000, "quote-fee"));
 
 // Public routes
 app.route("/health", health);

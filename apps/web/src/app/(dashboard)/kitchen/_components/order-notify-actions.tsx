@@ -16,6 +16,7 @@ function useNotifyOrderWhatsApp() {
       orderId: string;
       target: NotifyTarget;
       etaMinutes?: number;
+      templateKey?: string;
     }) =>
       apiFetch<{ target: NotifyTarget; messagePreview: string }>(
         `/api/kitchen/orders/${payload.orderId}/notify`,
@@ -26,6 +27,7 @@ function useNotifyOrderWhatsApp() {
             ...(payload.etaMinutes != null
               ? { etaMinutes: payload.etaMinutes }
               : {}),
+            ...(payload.templateKey ? { templateKey: payload.templateKey } : {}),
           }),
         },
       ),
@@ -37,11 +39,13 @@ export function OrderNotifyActions({
   columnStatus,
   hasPhone,
   compact,
+  feePending,
 }: {
   orderId: string;
   columnStatus: "pending" | "preparing" | "ready";
   hasPhone?: boolean;
   compact?: boolean;
+  feePending?: boolean;
 }) {
   const { has } = useFeatures();
   const { data: wa } = useWhatsAppStatus();
@@ -51,10 +55,17 @@ export function OrderNotifyActions({
 
   const btnClass = compact ? "w-full h-7 text-[11px]" : "w-full h-9 text-xs";
 
-  const send = async (target: NotifyTarget) => {
+  const send = async (
+    target: NotifyTarget,
+    templateKey?: string,
+  ) => {
     try {
       let etaMinutes: number | undefined;
-      if (target === "customer" && columnStatus === "preparing") {
+      if (
+        target === "customer" &&
+        columnStatus === "preparing" &&
+        !templateKey
+      ) {
         const defaultEta = wa?.defaultEtaMinutes ?? 30;
         const raw = window.prompt(
           "Estimativa de entrega (minutos):",
@@ -69,11 +80,13 @@ export function OrderNotifyActions({
         etaMinutes = Math.round(n);
       }
 
-      await notify.mutateAsync({ orderId, target, etaMinutes });
+      await notify.mutateAsync({ orderId, target, etaMinutes, templateKey });
       toast.success(
-        target === "kitchen"
-          ? "Cozinha notificada no WhatsApp"
-          : "Cliente notificado no WhatsApp",
+        templateKey === "delivery_fee_updated"
+          ? "Cliente notificado sobre o frete"
+          : target === "kitchen"
+            ? "Cozinha notificada no WhatsApp"
+            : "Cliente notificado no WhatsApp",
       );
     } catch (err: unknown) {
       const message =
@@ -88,6 +101,19 @@ export function OrderNotifyActions({
 
   return (
     <div className="space-y-1">
+      {feePending && hasPhone !== false && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={`${btnClass} border-amber-500/40 text-amber-800`}
+          disabled={notify.isPending}
+          onClick={() => send("customer", "delivery_fee_updated")}
+        >
+          <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+          Notificar frete
+        </Button>
+      )}
       {columnStatus === "pending" && (
         <Button
           type="button"

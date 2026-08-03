@@ -184,6 +184,42 @@ export function useRemoveOrderItem() {
   });
 }
 
+export function useUpdateOrderDelivery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      deliveryAddress,
+      deliveryReference,
+      deliveryCity,
+      deliveryFeeCents,
+      confirmFee,
+    }: {
+      orderId: string;
+      deliveryAddress?: string;
+      deliveryReference?: string | null;
+      deliveryCity?: string | null;
+      deliveryFeeCents?: number;
+      confirmFee?: boolean;
+    }) =>
+      apiFetch(`/api/orders/${orderId}/delivery`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          deliveryAddress,
+          deliveryReference,
+          deliveryCity,
+          deliveryFeeCents,
+          confirmFee,
+        }),
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["orders", vars.orderId] });
+      qc.invalidateQueries({ queryKey: ["kitchen"] });
+    },
+  });
+}
+
 export function useDeleteOrder() {
   const qc = useQueryClient();
   return useMutation({

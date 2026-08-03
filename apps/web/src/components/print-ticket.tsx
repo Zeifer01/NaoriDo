@@ -10,7 +10,7 @@ interface OrderItem {
   unit_price: number;
   total: number;
   notes?: string;
-  modifiers?: Array<{ name: string }>;
+  modifiers?: Array<{ name: string; is_outside_cup?: boolean; outsideCup?: boolean }>;
 }
 
 interface KitchenTicketData {
@@ -73,11 +73,17 @@ const methodLabels: Record<string, string> = {
   other: "Outro",
 };
 
-function formatModifierHtml(mods: Array<{ name: string }> | undefined): string {
+function formatModifierHtml(
+  mods:
+    | Array<{ name: string; is_outside_cup?: boolean; outsideCup?: boolean }>
+    | undefined,
+): string {
   if (!mods?.length) return "";
   const counts = new Map<string, number>();
   for (const m of mods) {
-    counts.set(m.name, (counts.get(m.name) || 0) + 1);
+    const outside = m.is_outside_cup === true || m.outsideCup === true;
+    const label = outside ? `${m.name} (fora do copo)` : m.name;
+    counts.set(label, (counts.get(label) || 0) + 1);
   }
   return [...counts.entries()]
     .map(

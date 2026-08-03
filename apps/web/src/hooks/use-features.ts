@@ -6,9 +6,11 @@ import {
   getOrgUxFlags,
   getKitchenLabel,
   getKitchenColumnLabels,
+  hasSimplifiedOrderStatus,
   planHasFeature,
   type KitchenColumnLabels,
   type OrgUxFlags,
+  type OrderStatusUx,
   type PlanFeature,
   type PlanId,
   type UxVersion,
@@ -29,10 +31,13 @@ interface UseFeaturesResult {
   isSuperAdmin: boolean;
   /** Returns true when the active plan includes the given feature. */
   has: (feature: PlanFeature) => boolean;
-  /** Per-org UX flags (reports_ux / kitchen_ux). */
+  /** Per-org UX flags (reports_ux / kitchen_ux / order_status_ux). */
   ux: OrgUxFlags;
   reportsUx: UxVersion;
   kitchenUx: UxVersion;
+  orderStatusUx: OrderStatusUx;
+  /** True when Açai-style 3-step order status UX is enabled. */
+  simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
   kitchenLabel: string;
   /** Column titles on the kitchen / comandas board. */
@@ -85,6 +90,7 @@ export function useFeatures(): UseFeaturesResult {
     const planExpiresAt = parseExpiry(raw.plan_expires_at);
     const isActiveFlag = raw.is_active ?? true;
     const ux = getOrgUxFlags(raw.settings);
+    const simplifiedOrderStatus = hasSimplifiedOrderStatus(raw.settings);
 
     let status: OrgStatus = "active";
     if (!isActiveFlag) status = "suspended";
@@ -111,6 +117,8 @@ export function useFeatures(): UseFeaturesResult {
       ux,
       reportsUx: ux.reports_ux,
       kitchenUx: ux.kitchen_ux,
+      orderStatusUx: ux.order_status_ux,
+      simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),
       planExpiresAt,

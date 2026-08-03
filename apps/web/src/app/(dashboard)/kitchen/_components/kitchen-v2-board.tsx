@@ -29,7 +29,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
-import { deliveryPaymentLabel } from "@restai/config";
+import { getActiveCurrency } from "@/stores/currency-store";
+import { deliveryPaymentLabel, getSimplifiedReadyLabel } from "@restai/config";
 import {
   getKitchenColumn,
   getMinutesDiff,
@@ -56,14 +57,18 @@ const COLUMN_DROP_IDS: Record<KitchenColumnStatus, string> = {
 };
 
 function formatModifierLines(
-  mods: Array<{ name: string }> | undefined,
+  mods:
+    | Array<{ name: string; is_outside_cup?: boolean; outsideCup?: boolean }>
+    | undefined,
   itemQuantity = 1,
 ): string[] {
   if (!mods?.length) return [];
   const qty = Math.max(1, itemQuantity || 1);
   const counts = new Map<string, number>();
   for (const m of mods) {
-    counts.set(m.name, (counts.get(m.name) || 0) + qty);
+    const outside = m.is_outside_cup === true || m.outsideCup === true;
+    const label = outside ? `${m.name} (fora do copo)` : m.name;
+    counts.set(label, (counts.get(label) || 0) + qty);
   }
   return [...counts.entries()].map(([name, n]) =>
     n > 1 ? `· ${name} ×${n}` : `· ${name}`,
@@ -73,6 +78,7 @@ function formatModifierLines(
 function resolveDropColumn(
   overId: string | number,
   ordersById: Map<string, any>,
+  simplified: boolean,
 ): KitchenColumnStatus | null {
   const id = String(overId);
   if (id === COLUMN_DROP_IDS.pending) return "pending";
@@ -80,7 +86,7 @@ function resolveDropColumn(
   if (id === COLUMN_DROP_IDS.ready) return "ready";
   const order = ordersById.get(id);
   if (!order) return null;
-  return getKitchenColumn(order.status);
+  return getKitchenColumn(order.status, simplified);
 }
 
 function CompactCard({
@@ -100,6 +106,7 @@ function CompactCard({
     handlePrint,
     isAdvancing,
     isUpdatingItem,
+    simplifiedOrderStatus,
   } = useKitchenContext();
   const { kitchenLabel } = useFeatures();
 
@@ -219,6 +226,12 @@ function CompactCard({
             {deliveryPaymentLabel(paymentMethod as any) || paymentMethod}
           </p>
         )}
+        {(order.delivery_fee_status === "pending" ||
+          order.deliveryFeeStatus === "pending") && (
+          <p className="inline-flex rounded border border-amber-500/40 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+            Frete a confirmar
+          </p>
+        )}
 
         {items.slice(0, 6).map((item: any) => {
           const modLines = formatModifierLines(item.modifiers, item.quantity);
@@ -268,12 +281,18 @@ function CompactCard({
             className="w-full h-8 text-xs"
             disabled={isAdvancing}
             onClick={() =>
-              advanceOrder(order.id, order.status === "confirmed" ? "pending" : order.status)
+              advanceOrder(
+                order.id,
+                order.status === "confirmed" ? "pending" : order.status,
+              )
             }
           >
-            {columnStatus === "pending" && "Preparar"}
-            {columnStatus === "preparing" && "Pronto"}
-            {columnStatus === "ready" && "Entregue"}
+            {columnStatus === "pending" &&
+              (simplifiedOrderStatus ? "Em preparo" : "Preparar")}
+            {columnStatus === "preparing" &&
+              (simplifiedOrderStatus ? getSimplifiedReadyLabel(type) : "Pronto")}
+            {columnStatus === "ready" &&
+              (simplifiedOrderStatus ? "Concluir" : "Entregue")}
             <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </Button>
           <Button
@@ -284,7 +303,10 @@ function CompactCard({
             onClick={async () => {
               try {
                 await copyOrderTicket(
-                  orderToTicketInput(order, { headerLabel: kitchenLabel }),
+                  orderToTicketInput(order, {
+                    headerLabel: kitchenLabel,
+                    currency: getActiveCurrency(),
+                  }),
                 );
                 toast.success("Comanda copiada");
               } catch {
@@ -299,6 +321,10 @@ function CompactCard({
             orderId={order.id}
             columnStatus={columnStatus}
             hasPhone={Boolean(order.delivery_phone || order.deliveryPhone)}
+            feePending={
+              order.delivery_fee_status === "pending" ||
+              order.deliveryFeeStatus === "pending"
+            }
             compact
           />
           {minutes >= 15 && (
@@ -364,7 +390,14 @@ function DenseColumn({
 }
 
 export function KitchenV2Board() {
-  const { columns, newOrderIds, orders, moveOrderToColumn } = useKitchenContext();
+  const {
+    columns,
+    newOrderIds,
+    orders,
+    moveOrderToColumn,
+    visibleColumns,
+    simplifiedOrderStatus,
+  } = useKitchenContext();
   const { kitchenColumnLabels } = useFeatures();
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -403,6 +436,12 @@ export function KitchenV2Board() {
   const preparing = useMemo(() => filterFn(columns.preparing), [columns.preparing, query, typeFilter, onlyLate]);
   const ready = useMemo(() => filterFn(columns.ready), [columns.ready, query, typeFilter, onlyLate]);
 
+  const filteredByStatus: Record<KitchenColumnStatus, any[]> = {
+    pending,
+    preparing,
+    ready,
+  };
+
   const ordersById = useMemo(() => {
     const map = new Map<string, any>();
     for (const o of orders) map.set(o.id, o);
@@ -420,12 +459,22 @@ export function KitchenV2Board() {
     setActiveOrder(null);
     const { active, over } = event;
     if (!over) return;
-    const target = resolveDropColumn(over.id, ordersById);
+    const target = resolveDropColumn(over.id, ordersById, simplifiedOrderStatus);
     if (!target) return;
+    if (simplifiedOrderStatus && target === "pending") {
+      moveOrderToColumn(String(active.id), "preparing");
+      return;
+    }
     moveOrderToColumn(String(active.id), target);
   };
 
   const handleDragCancel = () => setActiveOrder(null);
+
+  const accentByStatus: Record<KitchenColumnStatus, string> = {
+    pending: "bg-amber-50 dark:bg-amber-950/30",
+    preparing: "bg-blue-50 dark:bg-blue-950/30",
+    ready: "bg-emerald-50 dark:bg-emerald-950/30",
+  };
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
@@ -472,28 +521,17 @@ export function KitchenV2Board() {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 flex-1 min-h-0">
-          <DenseColumn
-            title={kitchenColumnLabels.pending}
-            status="pending"
-            orders={pending}
-            newOrderIds={newOrderIds}
-            accent="bg-amber-50 dark:bg-amber-950/30"
-          />
-          <DenseColumn
-            title={kitchenColumnLabels.preparing}
-            status="preparing"
-            orders={preparing}
-            newOrderIds={newOrderIds}
-            accent="bg-blue-50 dark:bg-blue-950/30"
-          />
-          <DenseColumn
-            title={kitchenColumnLabels.ready}
-            status="ready"
-            orders={ready}
-            newOrderIds={newOrderIds}
-            accent="bg-emerald-50 dark:bg-emerald-950/30"
-          />
+        <div className="grid gap-2 flex-1 min-h-0 grid-cols-1 md:grid-cols-3">
+          {visibleColumns.map((status) => (
+            <DenseColumn
+              key={status}
+              title={kitchenColumnLabels[status]}
+              status={status}
+              orders={filteredByStatus[status]}
+              newOrderIds={newOrderIds}
+              accent={accentByStatus[status]}
+            />
+          ))}
         </div>
 
         <DragOverlay dropAnimation={null}>
@@ -501,7 +539,7 @@ export function KitchenV2Board() {
             <div className="w-[min(100vw-2rem,320px)]">
               <CompactCard
                 order={activeOrder}
-                columnStatus={getKitchenColumn(activeOrder.status)}
+                columnStatus={getKitchenColumn(activeOrder.status, simplifiedOrderStatus)}
                 isNew={false}
                 isDragOverlay
               />

@@ -42,6 +42,11 @@ export const orders = pgTable("orders", {
   delivery_address: text("delivery_address"),
   delivery_reference: text("delivery_reference"),
   delivery_fee: integer("delivery_fee").notNull().default(0),
+  /** confirmed = fee locked; pending = staff must verify/adjust fee */
+  delivery_fee_status: varchar("delivery_fee_status", { length: 20 })
+    .notNull()
+    .default("confirmed"),
+  delivery_city: varchar("delivery_city", { length: 120 }),
   subtotal: integer("subtotal").notNull().default(0),
   tax: integer("tax").notNull().default(0),
   discount: integer("discount").notNull().default(0),
@@ -86,4 +91,5 @@ export const orderItemModifiers = pgTable("order_item_modifiers", {
     .references(() => modifiers.id, { onDelete: "restrict" }),
   name: varchar("name", { length: 255 }).notNull(), // snapshot
   price: integer("price").notNull().default(0), // snapshot in cents
+  is_outside_cup: boolean("is_outside_cup").default(false).notNull(),
 });

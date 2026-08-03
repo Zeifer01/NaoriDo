@@ -1,11 +1,12 @@
 /**
- * Enable reports_ux / kitchen_ux flags (and optional kitchen_label) for an organization by slug.
+ * Enable reports_ux / kitchen_ux / order_status_ux flags (and optional kitchen_label) for an organization by slug.
  *
  * Usage:
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --reports=v2
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --reports=v2 --kitchen=v2
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --kitchen=v2 --label=Comandas
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --columns=Comanda criada,Em preparo,Aguardando retirada
+ *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --order-status=simplified
  */
 import { db, schema } from "./index.ts";
 import { eq } from "drizzle-orm";
@@ -19,6 +20,7 @@ function arg(name: string): string | undefined {
 const slug = arg("slug");
 const reports = arg("reports") as "v1" | "v2" | undefined;
 const kitchen = arg("kitchen") as "v1" | "v2" | undefined;
+const orderStatus = arg("order-status") as "v1" | "simplified" | undefined;
 const label = arg("label");
 const columns = arg("columns");
 
@@ -27,10 +29,15 @@ if (!slug) {
   process.exit(1);
 }
 
-if (!reports && !kitchen && !label && !columns) {
+if (!reports && !kitchen && !label && !columns && !orderStatus) {
   console.error(
-    "Informe ao menos --reports=v2, --kitchen=v2, --label=Comandas e/ou --columns=...",
+    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --label=Comandas e/ou --columns=...",
   );
+  process.exit(1);
+}
+
+if (orderStatus && orderStatus !== "v1" && orderStatus !== "simplified") {
+  console.error("--order-status deve ser v1 ou simplified");
   process.exit(1);
 }
 
@@ -64,8 +71,18 @@ const next = {
   ...current,
   ...(reports ? { reports_ux: reports } : {}),
   ...(kitchen ? { kitchen_ux: kitchen } : {}),
+  ...(orderStatus ? { order_status_ux: orderStatus } : {}),
   ...(label ? { kitchen_label: label } : {}),
   ...(kitchen_column_labels ? { kitchen_column_labels } : {}),
+  ...(orderStatus === "simplified" && !kitchen_column_labels
+    ? {
+        kitchen_column_labels: {
+          pending: "Comanda criada",
+          preparing: "Em preparo",
+          ready: "Saiu para a entrega",
+        },
+      }
+    : {}),
 };
 
 const [updated] = await db

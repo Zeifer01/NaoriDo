@@ -4,16 +4,23 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { eq, and, inArray, or, isNotNull, sql, ne } from "drizzle-orm";
 import { db, schema } from "@restai/db";
-import { getDeliveryFeeCents, parseDeliveryPaymentMethods } from "@restai/config";
+import {
+  getDeliveryFeeCents,
+  parseDeliveryPaymentMethods,
+  parseDeliveryPricing,
+} from "@restai/config";
 import {
   createDeliveryOrderSchema,
   deliveryOrderStatusQuerySchema,
+  quoteDeliveryFeeSchema,
 } from "@restai/validators";
 import { createOrder, OrderValidationError } from "../services/order.service.js";
 import { findOrCreateByPhone } from "../services/customer.service.js";
 import {
   notifyDeliveryOrderCreated,
 } from "../services/whatsapp.service.js";
+import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
+import { isLegacyOutsideCupGroupName } from "@restai/config";
 import { wsManager } from "../ws/manager.js";
 import { orgHasFeature } from "../lib/features.js";
 import { resolveHost } from "../lib/tenant-host.js";
@@ -112,9 +119,10 @@ delivery.get("/:branchSlug/zones", async (c) => {
 
   const settings = (branch.settings || {}) as Record<string, unknown>;
   const paymentMethods = parseDeliveryPaymentMethods(settings.payment_methods);
+  const pricing = parseDeliveryPricing(settings);
   return c.json({
     success: true,
-    data: zones,
+    data: pricing.mode === "zones" ? zones : [],
     meta: {
       pickup_enabled: settings.pickup_enabled !== false,
       pickup_address:
@@ -126,9 +134,83 @@ delivery.get("/:branchSlug/zones", async (c) => {
       pickup_label: (settings.pickup_label as string) || null,
       payment_methods: paymentMethods,
       currency: branch.currency,
+      delivery_pricing_mode: pricing.mode,
+      delivery_fee_from_cents:
+        pricing.mode === "radius" && pricing.tiers.length > 0
+          ? Math.min(...pricing.tiers.map((t) => t.fee_cents))
+          : pricing.mode === "cities" && pricing.cities.length > 0
+            ? Math.min(...pricing.cities.map((t) => t.fee_cents))
+            : null,
+      // Bias/filter autocomplete near the store (US branches → MA by currency for now)
+      autocomplete_country: branch.currency === "USD" ? "us" : null,
+      autocomplete_state_code: null,
+      store_lat: pricing.store?.lat ?? null,
+      store_lng: pricing.store?.lng ?? null,
+      delivery_cities:
+        pricing.mode === "cities"
+          ? pricing.cities.map((c) => ({ name: c.name, fee_cents: c.fee_cents }))
+          : [],
     },
   });
 });
+
+delivery.post(
+  "/:branchSlug/quote-fee",
+  zValidator("json", quoteDeliveryFeeSchema),
+  async (c) => {
+    const branchSlug = c.req.param("branchSlug");
+    const organizationId = await resolveOrganizationId(c);
+    const branch = await getActiveBranch(branchSlug, organizationId);
+    if (!branch) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } },
+        404,
+      );
+    }
+
+    const body = c.req.valid("json");
+    const quote = await quoteDeliveryFeeForAddress(
+      branch.settings,
+      body.address,
+      body.city,
+    );
+
+    if (!quote.ok) {
+      const status =
+        quote.code === "geocode_unavailable"
+          ? 503
+          : quote.code === "not_auto"
+            ? 400
+            : 422;
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: quote.code.toUpperCase(),
+            message: quote.message,
+            distance_miles: quote.distance_miles,
+            city: quote.city,
+          },
+        },
+        status,
+      );
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        fee_cents: quote.fee_cents,
+        fee_status: quote.fee_status,
+        distance_miles: quote.distance_miles,
+        tier_label: quote.tier_label,
+        max_miles: quote.max_miles,
+        city: quote.city,
+        formatted_address: quote.formatted_address,
+        message: quote.message ?? null,
+      },
+    });
+  },
+);
 
 delivery.get("/:branchSlug/menu", async (c) => {
   const branchSlug = c.req.param("branchSlug");
@@ -244,6 +326,7 @@ delivery.get("/:branchSlug/menu", async (c) => {
         button_text: (settings.landing_button_text as string) || null,
         button_url: (settings.landing_button_url as string) || null,
         social_instagram: (settings.social_instagram as string) || null,
+        social_tiktok: (settings.social_tiktok as string) || null,
         social_whatsapp: (settings.social_whatsapp as string) || null,
       },
       categories,
@@ -311,10 +394,12 @@ delivery.get("/:branchSlug/menu/items/:itemId/modifiers", async (c) => {
         : inArray(schema.modifiers.group_id, groupIds),
     );
 
-  const result = groups.map((g) => ({
-    ...g,
-    modifiers: allModifiers.filter((m) => m.group_id === g.id && m.is_available),
-  }));
+  const result = groups
+    .filter((g) => !isLegacyOutsideCupGroupName(g.name))
+    .map((g) => ({
+      ...g,
+      modifiers: allModifiers.filter((m) => m.group_id === g.id && m.is_available),
+    }));
 
   return c.json({ success: true, data: result });
 });
@@ -368,22 +453,98 @@ delivery.post(
     }
 
     const orderType = body.fulfillment === "pickup" ? "takeout" : "delivery";
+    const pricing = parseDeliveryPricing(branchSettings);
 
-    // Resolve zone-based delivery fee
+    // Resolve delivery fee (cities: soft; radius: hard; zones: named zone)
     let deliveryFeeOverrideCents: number | null = null;
-    if (orderType === "delivery" && body.deliveryZoneId) {
-      const [zone] = await db
-        .select({ fee_cents: schema.deliveryZones.fee_cents })
-        .from(schema.deliveryZones)
-        .where(
-          and(
-            eq(schema.deliveryZones.id, body.deliveryZoneId),
-            eq(schema.deliveryZones.branch_id, branch.id),
-            eq(schema.deliveryZones.is_active, true),
-          ),
-        )
-        .limit(1);
-      if (zone) deliveryFeeOverrideCents = zone.fee_cents;
+    let deliveryFeeStatus: "confirmed" | "pending" = "confirmed";
+    let deliveryCity: string | null = body.deliveryCity?.trim() || null;
+
+    if (orderType === "delivery") {
+      if (pricing.mode === "cities") {
+        if (!deliveryCity) {
+          return c.json(
+            {
+              success: false,
+              error: {
+                code: "BAD_REQUEST",
+                message: "Selecione sua cidade de entrega",
+              },
+            },
+            400,
+          );
+        }
+        const address = body.deliveryAddress?.trim();
+        if (!address) {
+          return c.json(
+            {
+              success: false,
+              error: { code: "BAD_REQUEST", message: "Endereço de entrega é obrigatório" },
+            },
+            400,
+          );
+        }
+        const quote = await quoteDeliveryFeeForAddress(
+          branchSettings,
+          address,
+          deliveryCity,
+        );
+        if (!quote.ok) {
+          return c.json(
+            {
+              success: false,
+              error: {
+                code: quote.code.toUpperCase(),
+                message: quote.message,
+              },
+            },
+            422,
+          );
+        }
+        deliveryFeeOverrideCents = quote.fee_cents;
+        deliveryFeeStatus = quote.fee_status;
+        deliveryCity = quote.city || deliveryCity;
+      } else if (pricing.mode === "radius") {
+        const address = body.deliveryAddress?.trim();
+        if (!address) {
+          return c.json(
+            {
+              success: false,
+              error: { code: "BAD_REQUEST", message: "Endereço de entrega é obrigatório" },
+            },
+            400,
+          );
+        }
+        const quote = await quoteDeliveryFeeForAddress(branchSettings, address);
+        if (!quote.ok) {
+          const status = quote.code === "geocode_unavailable" ? 503 : 422;
+          return c.json(
+            {
+              success: false,
+              error: {
+                code: quote.code.toUpperCase(),
+                message: quote.message,
+              },
+            },
+            status,
+          );
+        }
+        deliveryFeeOverrideCents = quote.fee_cents;
+        deliveryFeeStatus = "confirmed";
+      } else if (body.deliveryZoneId) {
+        const [zone] = await db
+          .select({ fee_cents: schema.deliveryZones.fee_cents })
+          .from(schema.deliveryZones)
+          .where(
+            and(
+              eq(schema.deliveryZones.id, body.deliveryZoneId),
+              eq(schema.deliveryZones.branch_id, branch.id),
+              eq(schema.deliveryZones.is_active, true),
+            ),
+          )
+          .limit(1);
+        if (zone) deliveryFeeOverrideCents = zone.fee_cents;
+      }
     }
 
     let customerId: string | null = null;
@@ -395,6 +556,7 @@ delivery.post(
           name: body.customerName?.trim() || "Cliente",
           address:
             orderType === "delivery" ? body.deliveryAddress?.trim() : undefined,
+          city: orderType === "delivery" ? deliveryCity || undefined : undefined,
           reference:
             orderType === "delivery"
               ? body.deliveryReference?.trim() || undefined
@@ -424,6 +586,8 @@ delivery.post(
         redemptionId: body.redemptionId || null,
         paymentMethod: body.paymentMethod || null,
         deliveryFeeOverrideCents,
+        deliveryFeeStatus: orderType === "delivery" ? deliveryFeeStatus : "confirmed",
+        deliveryCity: orderType === "delivery" ? deliveryCity : null,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

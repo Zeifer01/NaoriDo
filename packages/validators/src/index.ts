@@ -90,6 +90,8 @@ export const createModifierGroupSchema = z.object({
   maxSelections: z.number().int().min(1).default(1),
   isRequired: z.boolean().default(false),
   freeQuantity: z.number().int().min(0).default(0),
+  allowOutsideCup: z.boolean().default(false),
+  outsideCupFeeCents: z.number().int().min(0).default(0),
 });
 
 export const createModifierSchema = z.object({
@@ -139,9 +141,14 @@ export const createOrderItemSchema = z.object({
   menuItemId: z.string().uuid(),
   quantity: z.number().int().min(1).max(99),
   notes: z.string().max(500).optional(),
-  modifiers: z.array(z.object({
-    modifierId: z.string().uuid(),
-  })).default([]),
+  modifiers: z
+    .array(
+      z.object({
+        modifierId: z.string().uuid(),
+        outsideCup: z.boolean().optional(),
+      }),
+    )
+    .default([]),
 });
 
 export const createOrderBaseSchema = z.object({
@@ -182,6 +189,8 @@ export const createDeliveryOrderSchema = createOrderBaseSchema
     deliveryAddress: z.string().max(500).optional(),
     deliveryReference: z.string().max(255).optional(),
     deliveryZoneId: z.string().uuid().optional(),
+    /** Selected city from storefront dropdown (cities pricing mode). */
+    deliveryCity: z.string().min(1).max(120).optional(),
     paymentMethod: z
       .enum(["cash", "card", "pix", "zelle", "venmo", "cashapp", "transfer", "other"])
       .optional(),
@@ -198,6 +207,20 @@ export const createDeliveryOrderSchema = createOrderBaseSchema
     }
   });
 
+export const quoteDeliveryFeeSchema = z.object({
+  address: z.string().min(5).max(500),
+  city: z.string().min(1).max(120).optional(),
+});
+
+export const updateOrderDeliverySchema = z.object({
+  deliveryAddress: z.string().min(5).max(500).optional(),
+  deliveryReference: z.string().max(255).nullable().optional(),
+  deliveryCity: z.string().max(120).nullable().optional(),
+  deliveryFeeCents: z.number().int().min(0).optional(),
+  /** When true, marks fee as confirmed after staff adjustment. */
+  confirmFee: z.boolean().optional(),
+});
+
 // Delivery zone validators
 export const createDeliveryZoneSchema = z.object({
   name: z.string().min(1).max(255),
@@ -207,6 +230,38 @@ export const createDeliveryZoneSchema = z.object({
 });
 
 export const updateDeliveryZoneSchema = createDeliveryZoneSchema.partial();
+
+export const deliveryRadiusTierSchema = z.object({
+  maxMiles: z.number().positive().max(100),
+  feeCents: z.number().int().min(0),
+});
+
+export const deliveryCityFeeSchema = z.object({
+  name: z.string().min(1).max(120),
+  feeCents: z.number().int().min(0),
+});
+
+export const updateDeliveryPricingSchema = z.object({
+  mode: z.enum(["zones", "radius", "cities"]),
+  store: z
+    .object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      formattedAddress: z.string().max(500).optional(),
+    })
+    .nullable()
+    .optional(),
+  tiers: z.array(deliveryRadiusTierSchema).max(20).optional(),
+  cities: z.array(deliveryCityFeeSchema).max(100).optional(),
+});
+
+export const geocodeAddressSchema = z.object({
+  address: z.string().min(5).max(500),
+});
+
+export const previewDeliveryFeeSchema = z.object({
+  address: z.string().min(5).max(500),
+});
 
 export const deliveryOrderStatusQuerySchema = z.object({
   phone: z.string().min(8, "Informe o telefone usado no pedido"),
@@ -476,6 +531,7 @@ export const updateBranchSettingsSchema = z.object({
   landingButtonText: z.string().max(100).optional(),
   landingButtonUrl: z.string().max(500).optional(),
   socialInstagram: z.string().max(500).optional(),
+  socialTiktok: z.string().max(500).optional(),
   socialWhatsapp: z.string().max(500).optional(),
   menuDisplayName: z.string().max(255).optional(),
   menuSubtitle: z.string().max(255).optional(),
@@ -498,7 +554,23 @@ export const updateBranchSettingsSchema = z.object({
 
 // Query validators for GET endpoints
 export const orderQuerySchema = z.object({
-  status: z.enum(["pending", "confirmed", "preparing", "ready", "served", "completed", "cancelled"]).optional(),
+  /** Single status or comma-separated list (e.g. pending,confirmed,preparing). */
+  status: z
+    .string()
+    .optional()
+    .refine((v) => {
+      if (!v) return true;
+      const allowed = new Set([
+        "pending",
+        "confirmed",
+        "preparing",
+        "ready",
+        "served",
+        "completed",
+        "cancelled",
+      ]);
+      return v.split(",").every((p) => allowed.has(p.trim()));
+    }, "Invalid order status filter"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

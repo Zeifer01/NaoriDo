@@ -66,6 +66,13 @@ export const modifierGroups = pgTable("modifier_groups", {
   is_required: boolean("is_required").default(false).notNull(),
   /** First N selections in this group are free; from N+1 each charges its price. */
   free_quantity: integer("free_quantity").default(0).notNull(),
+  /** When true, each selected modifier can be marked inside/outside the cup. */
+  allow_outside_cup: boolean("allow_outside_cup").default(false).notNull(),
+  /**
+   * Extra fee (cents) when a free-slot selection is marked outside the cup.
+   * Paid extras and groups with fee 0 do not charge this.
+   */
+  outside_cup_fee_cents: integer("outside_cup_fee_cents").default(0).notNull(),
 });
 
 export const modifiers = pgTable("modifiers", {

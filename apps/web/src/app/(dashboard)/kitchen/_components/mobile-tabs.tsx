@@ -5,12 +5,10 @@ import { Clock, ChefHat, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ColumnHeader } from "./column-header";
 import { KitchenOrderCard } from "./order-card";
-import { useKitchenContext } from "./kitchen-context";
+import { useKitchenContext, type KitchenColumnStatus } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
 
-type TabKey = "pending" | "preparing" | "ready";
-
-const TAB_KEYS: TabKey[] = ["pending", "preparing", "ready"];
+type TabKey = KitchenColumnStatus;
 
 const TAB_ICONS: Record<TabKey, React.ComponentType<{ className?: string }>> = {
   pending: Clock,
@@ -78,14 +76,16 @@ function MobileColumn({ status }: { status: TabKey }) {
 }
 
 export function MobileTabs() {
-  const [activeTab, setActiveTab] = useState<TabKey>("pending");
-  const { columns } = useKitchenContext();
+  const { columns, visibleColumns } = useKitchenContext();
   const { kitchenColumnLabels } = useFeatures();
+  const [activeTab, setActiveTab] = useState<TabKey>("pending");
+
+  const tabs = visibleColumns;
 
   return (
     <>
       <div className="flex md:hidden gap-1 shrink-0">
-        {TAB_KEYS.map((key) => {
+        {tabs.map((key) => {
           const TabIcon = TAB_ICONS[key];
           const label = kitchenColumnLabels[key];
           return (

@@ -571,6 +571,8 @@ menu.post(
         max_selections: body.maxSelections,
         is_required: body.isRequired,
         free_quantity: body.freeQuantity ?? 0,
+        allow_outside_cup: body.allowOutsideCup ?? false,
+        outside_cup_fee_cents: body.outsideCupFeeCents ?? 0,
       })
       .returning();
 
@@ -726,6 +728,10 @@ menu.patch(
     if (body.maxSelections !== undefined) updateData.max_selections = body.maxSelections;
     if (body.isRequired !== undefined) updateData.is_required = body.isRequired;
     if (body.freeQuantity !== undefined) updateData.free_quantity = body.freeQuantity;
+    if (body.allowOutsideCup !== undefined) updateData.allow_outside_cup = body.allowOutsideCup;
+    if (body.outsideCupFeeCents !== undefined) {
+      updateData.outside_cup_fee_cents = body.outsideCupFeeCents;
+    }
 
     const [updated] = await db
       .update(schema.modifierGroups)

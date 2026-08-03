@@ -17,7 +17,7 @@ import { PaymentDialog } from "../payments/_components/payment-dialog";
 import { toast } from "sonner";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { useFeatures } from "@/hooks/use-features";
-import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel } from "@restai/config";
+import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel, getSimplifiedOrderStatusLabel } from "@restai/config";
 import { getActiveCurrency } from "@/stores/currency-store";
 
 const PAGE_SIZE = 20;
@@ -41,7 +41,7 @@ export default function OrdersPage() {
   const { data: orgSettings } = useOrgSettings();
   const { data: branchSettings } = useBranchSettings();
   const printReceipt = usePrintReceipt();
-  const { kitchenLabel } = useFeatures();
+  const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
   const updatingTargetStatus = updateStatus.isPending ? updateStatus.variables?.status ?? null : null;
 
@@ -189,10 +189,14 @@ export default function OrdersPage() {
           .map((i: any) => `${i.quantity}x ${i.name}${i.notes ? ` (${i.notes})` : ""}`)
           .join("\r\n");
 
+        const exportStatus = simplifiedOrderStatus
+          ? getSimplifiedOrderStatusLabel(o.status, o.type)
+          : (statusLabel[o.status] ?? o.status);
+
         return [
           typeof o.order_number === "number" ? o.order_number : Number(o.order_number) || o.id,
           o.created_at ? new Date(o.created_at) : null,
-          statusLabel[o.status] ?? o.status,
+          exportStatus,
           typeLabel[o.type] ?? o.type ?? null,
           o.table_number != null ? `Mesa ${o.table_number}` : null,
           o.customer_name ?? null,
@@ -267,6 +271,7 @@ export default function OrdersPage() {
         endDate={endDate}
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
+        simplifiedOrderStatus={simplifiedOrderStatus}
       />
 
       <OrdersTable
@@ -288,6 +293,7 @@ export default function OrdersPage() {
         onDelete={(order) => setDeleteOrderTarget(order)}
         deletePending={deleteOrder.isPending}
         deletingOrderId={deleteOrder.isPending ? deleteOrder.variables ?? null : null}
+        simplifiedOrderStatus={simplifiedOrderStatus}
       />
 
       <EditOrderSheet

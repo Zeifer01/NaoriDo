@@ -23,9 +23,10 @@ import {
 const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   order_created: "Pedido recebido",
   order_edited: "Pedido editado",
+  delivery_fee_updated: "Frete corrigido",
   status_confirmed: "Pedido confirmado",
   status_preparing: "Em preparo",
-  status_ready: "Pronto para entrega",
+  status_ready: "Saiu / Pronto para retirada",
   status_completed: "Pedido entregue",
   status_cancelled: "Pedido cancelado",
   auto_reply: "Resposta automática",
@@ -34,6 +35,7 @@ const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
 const MESSAGE_KEYS: WhatsAppMessageKey[] = [
   "order_created",
   "order_edited",
+  "delivery_fee_updated",
   "status_confirmed",
   "status_preparing",
   "status_ready",
@@ -65,7 +67,7 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido foi *aceito* e está sendo preparado.",
+    "Seu pedido está *em preparo*.",
     "{estimativa_bloco}",
     "",
     "Acompanhe: {link}",
@@ -74,7 +76,7 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "O delivery saiu com o seu pedido! 🛵",
+    "{status_ready_texto}",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -82,7 +84,7 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Olá, {cliente}!",
     "",
     "Pedido *#{pedido}*",
-    "Seu pedido foi *entregue*. Obrigado pela preferência!",
+    "Seu pedido foi *concluído*. Obrigado pela preferência!",
     "",
     "Acompanhe: {link}",
   ].join("\n"),
@@ -101,6 +103,16 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "Novo total: *{total}*",
     "",
     "Acompanhe o status aqui:",
+    "{link}",
+  ].join("\n"),
+  delivery_fee_updated: [
+    "Olá, {cliente}!",
+    "",
+    "A taxa de entrega do pedido *#{pedido}* foi corrigida pela nossa equipe.",
+    "Frete: *{frete}*",
+    "Novo total: *{total}*",
+    "",
+    "Acompanhe seu pedido atualizado:",
     "{link}",
   ].join("\n"),
   auto_reply: [
@@ -130,7 +142,7 @@ export function WhatsAppMessagesDialog({
 
   useEffect(() => {
     if (open) {
-      setDraft(templates);
+      setDraft({ ...DEFAULT_WHATSAPP_TEMPLATES, ...templates });
       setActiveKey("order_created");
     }
   }, [open, templates]);
@@ -230,6 +242,14 @@ export function WhatsAppMessagesDialog({
                   <code className="bg-muted px-1 rounded">{"{total}"}</code> novo valor total ·{" "}
                   <code className="bg-muted px-1 rounded">{"{link}"}</code> link de acompanhamento
                 </p>
+              ) : activeKey === "delivery_fee_updated" ? (
+                <p>
+                  <code className="bg-muted px-1 rounded">{"{cliente}"}</code> ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{pedido}"}</code> ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{frete}"}</code> taxa de entrega ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{total}"}</code> ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{link}"}</code>
+                </p>
               ) : (
                 <>
                   <p>
@@ -251,8 +271,8 @@ export function WhatsAppMessagesDialog({
                   )}
                   {activeKey === "status_ready" && (
                     <p>
-                      Use o botão <strong>Notificar cliente</strong> nas Comandas quando o status for
-                      &quot;pronto / aguardando retirada&quot; (ex.: delivery saiu).
+                      <code className="bg-muted px-1 rounded">{"{status_ready_texto}"}</code> frase
+                      automática: delivery = saiu para entrega / retirada = pronto para retirada.
                     </p>
                   )}
                 </>
