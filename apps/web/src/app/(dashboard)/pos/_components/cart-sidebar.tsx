@@ -25,11 +25,20 @@ import { useBranchSettings } from "@/hooks/use-settings";
 import {
   parseDeliveryPaymentMethods,
   deliveryPaymentLabel,
+  parseDeliveryPricing,
+  getDeliveryFeeCents,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
+import { apiFetch } from "@/lib/fetcher";
 import type { PosCartItem } from "../page";
 
 export type PosOrderType = "delivery" | "takeout";
+
+export type PosDeliveryFeeState = {
+  city: string | null;
+  feeCents: number | null;
+  feeStatus: "confirmed" | "pending" | null;
+};
 
 export type PosCustomerSuggestion = {
   id: string;
@@ -61,6 +70,9 @@ export function CartSidebar({
   customerName,
   customerPhone,
   deliveryAddress,
+  deliveryCity,
+  deliveryFeeCents,
+  deliveryFeeStatus,
   customerNotes,
   orderNotes,
   paymentMethod,
@@ -72,6 +84,7 @@ export function CartSidebar({
   onCustomerNameChange,
   onCustomerPhoneChange,
   onDeliveryAddressChange,
+  onDeliveryFeeChange,
   onCustomerNotesChange,
   onOrderNotesChange,
   onPaymentMethodChange,
@@ -89,6 +102,9 @@ export function CartSidebar({
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
+  deliveryCity: string | null;
+  deliveryFeeCents: number | null;
+  deliveryFeeStatus: "confirmed" | "pending" | null;
   customerNotes: string;
   orderNotes: string;
   paymentMethod: string;
@@ -101,6 +117,7 @@ export function CartSidebar({
   onCustomerNameChange: (name: string) => void;
   onCustomerPhoneChange: (phone: string) => void;
   onDeliveryAddressChange: (address: string) => void;
+  onDeliveryFeeChange: (fee: PosDeliveryFeeState) => void;
   onCustomerNotesChange: (notes: string) => void;
   onOrderNotesChange: (notes: string) => void;
   onPaymentMethodChange: (method: string) => void;
@@ -114,12 +131,23 @@ export function CartSidebar({
   onCreateOrder: () => void;
 }) {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [quoting, setQuoting] = useState(false);
+  const [feeError, setFeeError] = useState<string | null>(null);
+  const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const debouncedName = useDebouncedValue(customerName.trim(), 250);
+  const debouncedAddress = useDebouncedValue(deliveryAddress.trim(), 600);
   const searchEnabled = debouncedName.length >= 2 && !selectedCustomerId;
   const { data: branchSettings } = useBranchSettings();
   const currency = (branchSettings as any)?.currency || "BRL";
   const preferEnglish = currency === "USD";
+  const branchSettingsObj = ((branchSettings as any)?.settings ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const pricing = parseDeliveryPricing(branchSettingsObj);
+  const isAutoPricing = pricing.mode === "radius" || pricing.mode === "cities";
+  const flatFeeCents = getDeliveryFeeCents(branchSettingsObj);
   const paymentOptions = parseDeliveryPaymentMethods(
     (branchSettings as any)?.settings?.payment_methods,
     currency === "USD"
@@ -156,21 +184,110 @@ export function CartSidebar({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
+  const applyCityFee = (cityName: string) => {
+    const city = pricing.cities.find((c) => c.name === cityName);
+    if (!city) return;
+    setFeeError(null);
+    onDeliveryFeeChange({
+      city: city.name,
+      feeCents: city.fee_cents,
+      feeStatus: "pending",
+    });
+  };
+
+  const requestFeeQuote = (address: string, city?: string | null) => {
+    if (orderType !== "delivery" || !isAutoPricing) return;
+    if (address.trim().length < 5) return;
+    if (pricing.mode === "cities" && !city) return;
+
+    setQuoting(true);
+    setFeeError(null);
+    void apiFetch("/api/orders/quote-delivery-fee", {
+      method: "POST",
+      body: JSON.stringify({
+        address: address.trim(),
+        ...(city ? { city } : {}),
+      }),
+    })
+      .then((data: any) => {
+        onDeliveryFeeChange({
+          city: data.city ?? city ?? null,
+          feeCents: data.fee_cents,
+          feeStatus: data.fee_status === "pending" ? "pending" : "confirmed",
+        });
+      })
+      .catch((err: Error) => {
+        setFeeError(err.message || "Não foi possível cotar o frete");
+        if (pricing.mode === "radius") {
+          onDeliveryFeeChange({ city: null, feeCents: null, feeStatus: null });
+        }
+      })
+      .finally(() => setQuoting(false));
+  };
+
+  useEffect(() => {
+    if (orderType !== "delivery" || !isAutoPricing) return;
+    if (quoteTimer.current) clearTimeout(quoteTimer.current);
+
+    if (pricing.mode === "cities" && deliveryCity) {
+      // Soft pending from city list; refine with geocode when address is long enough
+      const cityRow = pricing.cities.find((c) => c.name === deliveryCity);
+      if (cityRow && deliveryFeeCents == null) {
+        onDeliveryFeeChange({
+          city: cityRow.name,
+          feeCents: cityRow.fee_cents,
+          feeStatus: "pending",
+        });
+      }
+      if (debouncedAddress.length >= 5) {
+        quoteTimer.current = setTimeout(() => {
+          requestFeeQuote(debouncedAddress, deliveryCity);
+        }, 50);
+      }
+      return;
+    }
+
+    if (pricing.mode === "radius" && debouncedAddress.length >= 5) {
+      quoteTimer.current = setTimeout(() => {
+        requestFeeQuote(debouncedAddress);
+      }, 50);
+    }
+
+    return () => {
+      if (quoteTimer.current) clearTimeout(quoteTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderType, isAutoPricing, pricing.mode, debouncedAddress, deliveryCity]);
+
   const subtotal = cart.reduce((sum, item) => {
     const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
     return sum + (item.unitPrice + modTotal) * item.quantity;
   }, 0);
-  const total = subtotal;
+  const deliveryFeeShown =
+    orderType === "delivery"
+      ? isAutoPricing
+        ? (deliveryFeeCents ?? 0)
+        : flatFeeCents
+      : 0;
+  const total = subtotal + (orderType === "delivery" ? deliveryFeeShown : 0);
   const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const deliveryNeedsAddress =
     orderType === "delivery" && deliveryAddress.trim().length < 5;
+  const deliveryNeedsCity =
+    orderType === "delivery" && pricing.mode === "cities" && !deliveryCity;
+  const deliveryNeedsFee =
+    orderType === "delivery" &&
+    isAutoPricing &&
+    (deliveryFeeCents === null || quoting || Boolean(feeError && pricing.mode === "radius"));
   const needsPayment = !paymentMethod;
   const canCreate =
     cart.length > 0 &&
     !isPending &&
     customerName.trim().length > 0 &&
     !deliveryNeedsAddress &&
+    !deliveryNeedsCity &&
+    !deliveryNeedsFee &&
     !needsPayment;
 
   return (
@@ -281,14 +398,82 @@ export function CartSidebar({
         </div>
 
         {orderType === "delivery" && (
-          <div className="relative">
-            <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Textarea
-              placeholder="Endereço de entrega *"
-              value={deliveryAddress}
-              onChange={(e) => onDeliveryAddressChange(e.target.value)}
-              className="pl-9 text-sm min-h-[64px] resize-none"
-            />
+          <div className="space-y-2">
+            <div className="relative">
+              <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Textarea
+                placeholder="Endereço de entrega *"
+                value={deliveryAddress}
+                onChange={(e) => {
+                  onDeliveryAddressChange(e.target.value);
+                  if (pricing.mode === "radius") {
+                    onDeliveryFeeChange({ city: null, feeCents: null, feeStatus: null });
+                    setFeeError(null);
+                  }
+                }}
+                className="pl-9 text-sm min-h-[64px] resize-none"
+              />
+            </div>
+
+            {pricing.mode === "cities" && pricing.cities.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">Cidade / frete *</p>
+                <div className="grid grid-cols-1 gap-1 max-h-36 overflow-y-auto">
+                  {pricing.cities.map((city) => (
+                    <button
+                      key={city.name}
+                      type="button"
+                      onClick={() => {
+                        applyCityFee(city.name);
+                        if (deliveryAddress.trim().length >= 5) {
+                          requestFeeQuote(deliveryAddress, city.name);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center justify-between rounded-md border px-3 py-2 text-xs transition",
+                        deliveryCity === city.name
+                          ? "border-primary bg-primary/5 font-medium"
+                          : "border-border hover:border-primary/40",
+                      )}
+                    >
+                      <span>{city.name}</span>
+                      <span className="tabular-nums text-muted-foreground">
+                        {formatCurrency(city.fee_cents, currency)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(isAutoPricing || orderType === "delivery") && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs space-y-0.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-muted-foreground">Frete</span>
+                  <span className="font-medium tabular-nums">
+                    {quoting
+                      ? "…"
+                      : orderType === "delivery"
+                        ? formatCurrency(
+                            isAutoPricing ? (deliveryFeeCents ?? 0) : flatFeeCents,
+                            currency,
+                          )
+                        : "—"}
+                  </span>
+                </div>
+                {deliveryFeeStatus === "pending" && (
+                  <p className="text-amber-700 dark:text-amber-400">
+                    Frete pendente de confirmação (igual ao cardápio online)
+                  </p>
+                )}
+                {feeError && <p className="text-destructive">{feeError}</p>}
+                {!isAutoPricing && (
+                  <p className="text-muted-foreground">
+                    Taxa padrão da loja (modo zonas / fixo)
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -457,6 +642,21 @@ export function CartSidebar({
 
       {cart.length > 0 && (
         <div className="border-t pt-3 space-y-1 mb-3 shrink-0">
+          <div className="flex justify-between text-sm text-muted-foreground">
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          {orderType === "delivery" && (
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>
+                Frete
+                {deliveryFeeStatus === "pending" ? " (pendente)" : ""}
+              </span>
+              <span>
+                {quoting ? "…" : formatCurrency(deliveryFeeShown)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
             <span className="text-primary">{formatCurrency(total)}</span>
@@ -464,6 +664,14 @@ export function CartSidebar({
           {deliveryNeedsAddress && (
             <p className="text-[11px] text-destructive">
               Informe o endereço para Delivery
+            </p>
+          )}
+          {deliveryNeedsCity && (
+            <p className="text-[11px] text-destructive">Selecione a cidade do frete</p>
+          )}
+          {deliveryNeedsFee && !deliveryNeedsCity && (
+            <p className="text-[11px] text-destructive">
+              Aguarde a cotação do frete ou ajuste o endereço
             </p>
           )}
           {!customerName.trim() && (

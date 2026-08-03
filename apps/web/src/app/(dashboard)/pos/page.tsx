@@ -51,6 +51,11 @@ export default function PosPage() {
   const [cashChangeFor, setCashChangeFor] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<PosOrderType>("delivery");
+  const [deliveryCity, setDeliveryCity] = useState<string | null>(null);
+  const [deliveryFeeCents, setDeliveryFeeCents] = useState<number | null>(null);
+  const [deliveryFeeStatus, setDeliveryFeeStatus] = useState<
+    "confirmed" | "pending" | null
+  >(null);
   const [successDialog, setSuccessDialog] = useState(false);
   const [lastOrderNumber, setLastOrderNumber] = useState("");
   const [lastTicket, setLastTicket] = useState<OrderTicketInput | null>(null);
@@ -75,6 +80,9 @@ export default function PosPage() {
     setPaymentMethod("");
     setNeedsCashChange(false);
     setCashChangeFor("");
+    setDeliveryCity(null);
+    setDeliveryFeeCents(null);
+    setDeliveryFeeStatus(null);
   };
 
   const handleSelectCustomer = (c: PosCustomerSuggestion) => {
@@ -92,18 +100,34 @@ export default function PosPage() {
 
   const handleAddFromDialog = useCallback(
     (item: any, qty: number, mods: CartModifier[], notes: string) => {
-      if (mods.length === 0) {
-        const existing = cart.find(
-          (c) => c.menuItemId === item.id && c.modifiers.length === 0
+      // Customized cups: one cart line per unit (same free-slot rules as storefront)
+      if (mods.length > 0) {
+        setCart((prev) => [
+          ...prev,
+          ...Array.from({ length: qty }, () => ({
+            lineId: nextLineId(),
+            menuItemId: item.id,
+            name: item.name,
+            imageUrl: item.image_url || null,
+            unitPrice: item.price,
+            quantity: 1,
+            notes: notes || undefined,
+            modifiers: mods.map((m) => ({ ...m })),
+          })),
+        ]);
+        return;
+      }
+
+      const existing = cart.find(
+        (c) => c.menuItemId === item.id && c.modifiers.length === 0,
+      );
+      if (existing) {
+        setCart((prev) =>
+          prev.map((c) =>
+            c.lineId === existing.lineId ? { ...c, quantity: c.quantity + qty } : c,
+          ),
         );
-        if (existing) {
-          setCart((prev) =>
-            prev.map((c) =>
-              c.lineId === existing.lineId ? { ...c, quantity: c.quantity + qty } : c
-            )
-          );
-          return;
-        }
+        return;
       }
 
       setCart((prev) => [
@@ -116,11 +140,11 @@ export default function PosPage() {
           unitPrice: item.price,
           quantity: qty,
           notes: notes || undefined,
-          modifiers: mods,
+          modifiers: [],
         },
       ]);
     },
-    [cart]
+    [cart],
   );
 
   const updateCartQty = (lineId: string, qty: number) => {
@@ -176,7 +200,10 @@ export default function PosPage() {
           name: item.name,
           quantity: item.quantity,
           notes: item.notes,
-          modifiers: item.modifiers.map((m) => ({ name: m.name })),
+          modifiers: item.modifiers.map((m) => ({
+            name: m.name,
+            outsideCup: m.outsideCup,
+          })),
         })),
       };
 
@@ -187,13 +214,26 @@ export default function PosPage() {
         deliveryPhone: customerPhone.trim() || undefined,
         deliveryAddress:
           orderType === "delivery" ? deliveryAddress.trim() : undefined,
+        deliveryCity:
+          orderType === "delivery" && deliveryCity ? deliveryCity : undefined,
+        deliveryFeeCents:
+          orderType === "delivery" && deliveryFeeCents !== null
+            ? deliveryFeeCents
+            : undefined,
+        deliveryFeeStatus:
+          orderType === "delivery" && deliveryFeeStatus
+            ? deliveryFeeStatus
+            : undefined,
         customerNotes: customerNotes.trim() || undefined,
         paymentMethod,
         items: cart.map((item) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
           notes: item.notes || undefined,
-          modifiers: item.modifiers.map((m) => ({ modifierId: m.modifierId })),
+          modifiers: item.modifiers.map((m) => ({
+            modifierId: m.modifierId,
+            outsideCup: m.outsideCup === true,
+          })),
         })),
         notes: combinedNotes,
       });
@@ -231,6 +271,9 @@ export default function PosPage() {
         customerName={customerName}
         customerPhone={customerPhone}
         deliveryAddress={deliveryAddress}
+        deliveryCity={deliveryCity}
+        deliveryFeeCents={deliveryFeeCents}
+        deliveryFeeStatus={deliveryFeeStatus}
         customerNotes={customerNotes}
         orderNotes={orderNotes}
         paymentMethod={paymentMethod}
@@ -238,10 +281,24 @@ export default function PosPage() {
         cashChangeFor={cashChangeFor}
         selectedCustomerId={selectedCustomerId}
         isPending={createOrder.isPending}
-        onOrderTypeChange={setOrderType}
+        onOrderTypeChange={(type) => {
+          setOrderType(type);
+          if (type !== "delivery") {
+            setDeliveryCity(null);
+            setDeliveryFeeCents(null);
+            setDeliveryFeeStatus(null);
+          }
+        }}
         onCustomerNameChange={setCustomerName}
         onCustomerPhoneChange={setCustomerPhone}
-        onDeliveryAddressChange={setDeliveryAddress}
+        onDeliveryAddressChange={(addr) => {
+          setDeliveryAddress(addr);
+        }}
+        onDeliveryFeeChange={(fee) => {
+          setDeliveryCity(fee.city);
+          setDeliveryFeeCents(fee.feeCents);
+          setDeliveryFeeStatus(fee.feeStatus);
+        }}
         onCustomerNotesChange={setCustomerNotes}
         onOrderNotesChange={setOrderNotes}
         onPaymentMethodChange={(method) => {

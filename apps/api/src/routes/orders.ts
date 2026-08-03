@@ -12,6 +12,7 @@ import {
   updateOrderDeliverySchema,
   idParamSchema,
   orderQuerySchema,
+  quoteDeliveryFeeSchema,
 } from "@restai/validators";
 import { ORDER_STATUS_TRANSITIONS, ORDER_ITEM_STATUS_TRANSITIONS } from "@restai/config";
 import { authMiddleware } from "../middleware/auth.js";
@@ -38,6 +39,7 @@ import {
   notifyDeliveryOrderStatusUpdated,
   notifyOrderEdited,
 } from "../services/whatsapp.service.js";
+import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
 import { restoreForOrder } from "../services/inventory.service.js";
 import { logger } from "../lib/logger.js";
 
@@ -47,6 +49,68 @@ orders.use("*", authMiddleware);
 orders.use("*", tenantMiddleware);
 orders.use("*", requireBranch);
 orders.use("*", requireActivePlan);
+
+/** Staff POS / dashboard: same fee quote as storefront (orders:create). */
+orders.post(
+  "/quote-delivery-fee",
+  requirePermission("orders:create"),
+  zValidator("json", quoteDeliveryFeeSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const body = c.req.valid("json");
+    const [branch] = await db
+      .select({ settings: schema.branches.settings })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, tenant.branchId))
+      .limit(1);
+    if (!branch) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Filial não encontrada" } },
+        404,
+      );
+    }
+
+    const quote = await quoteDeliveryFeeForAddress(
+      branch.settings,
+      body.address,
+      body.city,
+    );
+    if (!quote.ok) {
+      const status =
+        quote.code === "geocode_unavailable"
+          ? 503
+          : quote.code === "not_auto"
+            ? 400
+            : 422;
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: quote.code.toUpperCase(),
+            message: quote.message,
+            distance_miles: quote.distance_miles,
+            city: quote.city,
+          },
+        },
+        status,
+      );
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        fee_cents: quote.fee_cents,
+        fee_status: quote.fee_status,
+        distance_miles: quote.distance_miles,
+        tier_label: quote.tier_label,
+        max_miles: quote.max_miles,
+        city: quote.city,
+        formatted_address: quote.formatted_address,
+        message: quote.message ?? null,
+      },
+    });
+  },
+);
 
 function orderStatusFilterCondition(status: string | undefined) {
   if (!status || status === "all") return null;
@@ -244,6 +308,13 @@ orders.post(
         deliveryAddress: body.deliveryAddress,
         deliveryReference: body.deliveryReference,
         paymentMethod: body.paymentMethod,
+        deliveryCity: body.type === "delivery" ? body.deliveryCity ?? null : null,
+        deliveryFeeOverrideCents:
+          body.type === "delivery" && body.deliveryFeeCents !== undefined
+            ? body.deliveryFeeCents
+            : undefined,
+        deliveryFeeStatus:
+          body.type === "delivery" ? body.deliveryFeeStatus ?? undefined : undefined,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

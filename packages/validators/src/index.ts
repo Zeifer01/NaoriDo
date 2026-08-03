@@ -160,6 +160,11 @@ export const createOrderBaseSchema = z.object({
   deliveryPhone: z.string().max(20).optional(),
   deliveryAddress: z.string().max(500).optional(),
   deliveryReference: z.string().max(255).optional(),
+  /** City chosen in cities pricing mode (POS / storefront). */
+  deliveryCity: z.string().min(1).max(120).optional(),
+  /** Override computed/static delivery fee (cents). */
+  deliveryFeeCents: z.number().int().min(0).optional(),
+  deliveryFeeStatus: z.enum(["confirmed", "pending"]).optional(),
   paymentMethod: z
     .enum(["cash", "card", "pix", "zelle", "venmo", "cashapp", "transfer", "other", "yape", "plin"])
     .optional(),
