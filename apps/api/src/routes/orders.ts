@@ -208,6 +208,7 @@ orders.post(
           phone: body.deliveryPhone,
           address: body.deliveryAddress,
           notes: body.customerNotes,
+          reference: body.deliveryReference,
         });
         customerId = upserted.customer.id;
       }

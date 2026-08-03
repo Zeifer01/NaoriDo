@@ -26,6 +26,7 @@ export const customers = pgTable("customers", {
   email: varchar("email", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   birth_date: date("birth_date"),
+  /** Primary / default address (kept for backward compat; see customer_addresses). */
   address: text("address"),
   city: varchar("city", { length: 120 }),
   neighborhood: varchar("neighborhood", { length: 120 }),
@@ -35,6 +36,28 @@ export const customers = pgTable("customers", {
   notes: text("notes"),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** Extra delivery addresses (Endereço 1, 2, …). Never overwrite — only append. */
+export const customerAddresses = pgTable(
+  "customer_addresses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customer_id: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    label: varchar("label", { length: 50 }),
+    address: text("address").notNull(),
+    city: varchar("city", { length: 120 }),
+    neighborhood: varchar("neighborhood", { length: 120 }),
+    zip_code: varchar("zip_code", { length: 20 }),
+    state: varchar("state", { length: 80 }),
+    country: varchar("country", { length: 80 }),
+    reference: text("reference"),
+    sort_order: integer("sort_order").default(0).notNull(),
+    created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("idx_customer_addresses_customer").on(table.customer_id)],
+);
 
 export const loyaltyPrograms = pgTable("loyalty_programs", {
   id: uuid("id").primaryKey().defaultRandom(),

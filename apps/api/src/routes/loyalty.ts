@@ -6,6 +6,7 @@ import { db, schema } from "@restai/db";
 import {
   createLoyaltyProgramSchema,
   createCustomerSchema,
+  importCustomersSchema,
   idParamSchema,
   customerSearchSchema,
 } from "@restai/validators";
@@ -15,7 +16,12 @@ import { tenantMiddleware } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireFeature } from "../middleware/feature.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
-import { findOrCreateByPhone } from "../services/customer.service.js";
+import {
+  findOrCreateByPhone,
+  importCustomers,
+  exportCustomersForOrg,
+  listCustomerAddresses,
+} from "../services/customer.service.js";
 import { redeemReward } from "../services/loyalty.service.js";
 
 const loyalty = new Hono<AppEnv>();
@@ -203,6 +209,77 @@ loyalty.post(
   },
 );
 
+// GET /customers/export — CSV-oriented JSON (all customers + addresses)
+loyalty.get(
+  "/customers/export",
+  requirePermission("customers:read"),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { customers, addressByCustomer } = await exportCustomersForOrg(
+      tenant.organizationId,
+    );
+
+    const data = customers.map((cust) => {
+      const addrs = addressByCustomer.get(cust.id) ?? [];
+      const addressLines =
+        addrs.length > 0
+          ? addrs.map((a) => a.address)
+          : cust.address
+            ? [cust.address]
+            : [];
+      return {
+        name: cust.name,
+        phone: cust.phone,
+        email: cust.email,
+        notes: cust.notes,
+        address_1: addressLines[0] ?? null,
+        address_2: addressLines[1] ?? null,
+        address_3: addressLines[2] ?? null,
+        city: cust.city,
+        neighborhood: cust.neighborhood,
+        zip_code: cust.zip_code,
+        state: cust.state,
+        country: cust.country,
+        created_at: cust.created_at,
+      };
+    });
+
+    return c.json({ success: true, data });
+  },
+);
+
+// POST /customers/import — bulk create from CSV-parsed rows
+loyalty.post(
+  "/customers/import",
+  requirePermission("customers:create"),
+  zValidator("json", importCustomersSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const body = c.req.valid("json");
+
+    const result = await importCustomers({
+      organizationId: tenant.organizationId,
+      rows: body.rows.map((r) => ({
+        name: r.name,
+        phone: r.phone,
+        email: r.email || undefined,
+        address: r.address || undefined,
+        notes: r.notes || undefined,
+      })),
+    });
+
+    return c.json({
+      success: true,
+      data: {
+        created: result.created,
+        skipped: result.skipped,
+        errorCount: result.errors.length,
+        errors: result.errors.slice(0, 50),
+      },
+    });
+  },
+);
+
 // DELETE /customers/:id - Soft-delete: remove customer and related loyalty data
 loyalty.delete(
   "/customers/:id",
@@ -290,6 +367,8 @@ loyalty.get(
 
     const loyaltyInfo = loyaltyRows[0] || null;
 
+    const addresses = await listCustomerAddresses(id);
+
     // Get last 10 transactions
     let recentTransactions: any[] = [];
     if (loyaltyInfo) {
@@ -303,7 +382,12 @@ loyalty.get(
 
     return c.json({
       success: true,
-      data: { ...customer, loyalty: loyaltyInfo, recentTransactions },
+      data: {
+        ...customer,
+        loyalty: loyaltyInfo,
+        recentTransactions,
+        addresses,
+      },
     });
   },
 );

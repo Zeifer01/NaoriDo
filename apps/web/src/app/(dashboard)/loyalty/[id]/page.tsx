@@ -31,6 +31,7 @@ import {
   TrendingUp,
   TrendingDown,
   RefreshCw,
+  MapPin,
 } from "lucide-react";
 import {
   useLoyaltyCustomer,
@@ -232,6 +233,56 @@ export default function CustomerDetailPage({
                 {customer.birth_date}
               </div>
             )}
+            {(() => {
+              const addresses: Array<{
+                id: string;
+                label: string | null;
+                address: string;
+                city: string | null;
+                reference: string | null;
+              }> =
+                customer.addresses?.length > 0
+                  ? customer.addresses
+                  : customer.address
+                    ? [
+                        {
+                          id: "primary",
+                          label: "Endereço 1",
+                          address: customer.address,
+                          city: customer.city,
+                          reference: null,
+                        },
+                      ]
+                    : [];
+              if (addresses.length === 0) {
+                return (
+                  <p className="text-sm text-muted-foreground">
+                    Sem endereço cadastrado — será preenchido no próximo pedido de delivery.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2 pt-1">
+                  {addresses.map((a, idx) => (
+                    <div key={a.id} className="flex gap-2 text-sm text-foreground">
+                      <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-xs text-muted-foreground">
+                          {a.label || `Endereço ${idx + 1}`}
+                        </p>
+                        <p>{a.address}</p>
+                        {a.city && (
+                          <p className="text-xs text-muted-foreground">{a.city}</p>
+                        )}
+                        {a.reference && (
+                          <p className="text-xs text-muted-foreground">Ref: {a.reference}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               Cliente desde {formatDate(customer.created_at)}
             </div>

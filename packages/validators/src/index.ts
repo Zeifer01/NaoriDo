@@ -306,6 +306,27 @@ export const createCustomerSchema = z.object({
 
 export const updateCustomerSchema = createCustomerSchema.partial();
 
+export const importCustomersSchema = z.object({
+  rows: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(255),
+        phone: z.string().min(5).max(30),
+        email: z
+          .string()
+          .max(255)
+          .optional()
+          .refine((v) => !v || v.trim() === "" || z.string().email().safeParse(v).success, {
+            message: "E-mail inválido",
+          }),
+        address: z.string().max(500).optional(),
+        notes: z.string().max(1000).optional(),
+      }),
+    )
+    .min(1)
+    .max(5000),
+});
+
 // Report validators (legacy v1)
 export const reportQuerySchema = z.object({
   startDate: z.string(),
@@ -529,6 +550,7 @@ export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>
 export type CreateInventoryMovementInput = z.infer<typeof createInventoryMovementSchema>;
 export type CreateLoyaltyProgramInput = z.infer<typeof createLoyaltyProgramSchema>;
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
+export type ImportCustomersInput = z.infer<typeof importCustomersSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
 export type AnalyticsQueryInput = z.infer<typeof analyticsQuerySchema>;

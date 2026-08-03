@@ -63,6 +63,41 @@ export function useCreateCustomer() {
   });
 }
 
+export function useImportCustomers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { rows: Array<{ name: string; phone: string; email?: string; address?: string; notes?: string }> }) =>
+      apiFetch("/api/loyalty/customers/import", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["loyalty"] }),
+  });
+}
+
+export function useExportCustomers() {
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<
+        Array<{
+          name: string;
+          phone: string | null;
+          email: string | null;
+          notes: string | null;
+          address_1: string | null;
+          address_2: string | null;
+          address_3: string | null;
+          city: string | null;
+          neighborhood: string | null;
+          zip_code: string | null;
+          state: string | null;
+          country: string | null;
+          created_at: string;
+        }>
+      >("/api/loyalty/customers/export"),
+  });
+}
+
 export function useDeleteCustomer() {
   const qc = useQueryClient();
   return useMutation({

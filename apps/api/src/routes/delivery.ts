@@ -393,6 +393,12 @@ delivery.post(
           organizationId: branch.organization_id,
           phone: normalizePhone(body.deliveryPhone) || body.deliveryPhone.trim(),
           name: body.customerName?.trim() || "Cliente",
+          address:
+            orderType === "delivery" ? body.deliveryAddress?.trim() : undefined,
+          reference:
+            orderType === "delivery"
+              ? body.deliveryReference?.trim() || undefined
+              : undefined,
         });
         customerId = linked.customer.id;
       } catch {

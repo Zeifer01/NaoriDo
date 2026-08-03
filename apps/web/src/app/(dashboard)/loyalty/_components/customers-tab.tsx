@@ -7,11 +7,26 @@ import {
   CardContent,
 } from "@restai/ui/components/card";
 import { Button } from "@restai/ui/components/button";
-import { Plus, RefreshCw, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
-import { useLoyaltyCustomers, useDeleteCustomer } from "@/hooks/use-loyalty";
+import {
+  Plus,
+  RefreshCw,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Upload,
+  Download,
+} from "lucide-react";
+import {
+  useLoyaltyCustomers,
+  useDeleteCustomer,
+  useExportCustomers,
+} from "@/hooks/use-loyalty";
 import { SearchInput } from "@/components/search-input";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { downloadCsv } from "@/lib/export-csv";
+import { toast } from "sonner";
 import { CreateCustomerDialog } from "./customer-dialog";
+import { ImportCustomersDialog } from "./import-customers-dialog";
 
 const tierConfig: Record<string, { label: string; color: string }> = {
   Bronce: {
@@ -41,6 +56,7 @@ export function CustomersTab() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
@@ -56,6 +72,48 @@ export function CustomersTab() {
   const customers: any[] = data?.customers ?? [];
   const pagination = data?.pagination ?? { page: 1, limit: 20, total: 0, totalPages: 1 };
   const deleteCustomer = useDeleteCustomer();
+  const exportCustomers = useExportCustomers();
+
+  async function handleExport() {
+    try {
+      const rows = await exportCustomers.mutateAsync();
+      const dateStr = new Date().toISOString().slice(0, 10);
+      downloadCsv(
+        `clientes_${dateStr}.csv`,
+        [
+          "name",
+          "phone",
+          "email",
+          "address_1",
+          "address_2",
+          "address_3",
+          "city",
+          "neighborhood",
+          "zip_code",
+          "state",
+          "country",
+          "notes",
+        ],
+        (rows ?? []).map((r) => [
+          r.name,
+          r.phone,
+          r.email,
+          r.address_1,
+          r.address_2,
+          r.address_3,
+          r.city,
+          r.neighborhood,
+          r.zip_code,
+          r.state,
+          r.country,
+          r.notes,
+        ]),
+      );
+      toast.success(`${(rows ?? []).length} clientes exportados`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
 
   if (error) {
     return (
@@ -70,16 +128,31 @@ export function CustomersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <SearchInput
           value={search}
           onChange={handleSearch}
           placeholder="Buscar por nome, e-mail ou telefone..."
           className="flex-1"
         />
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="h-4 w-4 mr-2" />Cadastrar Cliente
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Importar CSV
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void handleExport()}
+            disabled={exportCustomers.isPending}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {exportCustomers.isPending ? "Exportando..." : "Exportar"}
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Cadastrar Cliente
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -181,6 +254,7 @@ export function CustomersTab() {
       )}
 
       <CreateCustomerDialog open={showCreate} onOpenChange={setShowCreate} />
+      <ImportCustomersDialog open={showImport} onOpenChange={setShowImport} />
 
       <ConfirmDialog
         open={!!deleteConfirm}
