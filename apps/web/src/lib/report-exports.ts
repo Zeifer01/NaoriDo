@@ -88,6 +88,30 @@ export function exportHubCsv(data: ExecutiveHubAnalytics, meta: ReportExportMeta
         Number((p.revenueShare * 100).toFixed(2)),
       ]),
     },
+    ...(data.projection
+      ? [
+          {
+            title: "Projeção semanas",
+            headers: ["Início", "Projetado", "Baixa", "Alta"],
+            rows: (data.projection.nextWeeks ?? []).map((w) => [
+              w.weekStart,
+              centsToNumber(w.projectedRevenueCents),
+              centsToNumber(w.lowCents),
+              centsToNumber(w.highCents),
+            ]),
+          },
+          {
+            title: "Projeção meses",
+            headers: ["Mês", "Projetado", "Baixa", "Alta"],
+            rows: data.projection.nextMonths.map((m) => [
+              m.month,
+              centsToNumber(m.projectedRevenueCents),
+              centsToNumber(m.lowCents),
+              centsToNumber(m.highCents),
+            ]),
+          },
+        ]
+      : []),
     {
       title: "Insights",
       headers: ["Severidade", "Título", "Mensagem"],
@@ -183,6 +207,20 @@ export function exportCustomersCsv(data: CustomerAnalytics, meta: ReportExportMe
       ]),
     },
     {
+      title: "Bairros",
+      headers: ["Bairro", "Clientes", "Receita"],
+      rows: data.byNeighborhood.map((n) => [
+        n.neighborhood,
+        n.customers,
+        centsToNumber(n.revenueCents),
+      ]),
+    },
+    {
+      title: "Cidades",
+      headers: ["Cidade", "Clientes", "Receita"],
+      rows: data.byCity.map((c) => [c.city, c.customers, centsToNumber(c.revenueCents)]),
+    },
+    {
       title: "Insights",
       headers: ["Severidade", "Título", "Mensagem"],
       rows: data.insights.map((i) => [i.severity, i.title, i.message]),
@@ -247,6 +285,22 @@ export function exportCustomersXlsx(data: CustomerAnalytics, meta: ReportExportM
         centsToNumber(a.revenueCents),
         Number((a.share * 100).toFixed(2)),
       ]),
+    },
+    {
+      name: "Bairros",
+      headers: ["Bairro", "Clientes", "Receita"],
+      rows: data.byNeighborhood.map((n) => [
+        n.neighborhood,
+        n.customers,
+        centsToNumber(n.revenueCents),
+      ]),
+      colWidths: [22, 10, 14],
+    },
+    {
+      name: "Cidades",
+      headers: ["Cidade", "Clientes", "Receita"],
+      rows: data.byCity.map((c) => [c.city, c.customers, centsToNumber(c.revenueCents)]),
+      colWidths: [22, 10, 14],
     },
     {
       name: "Insights",
@@ -330,7 +384,7 @@ export function exportFinanceXlsx(data: FinanceAnalytics, meta: ReportExportMeta
 }
 
 export function exportProductsCsv(data: ProductAnalytics, meta: ReportExportMeta) {
-  downloadCsvSections(fileBase(meta, "produtos"), [
+  downloadCsvSections(fileBase(meta, "pedidos"), [
     {
       title: metaPreamble(meta).join(" | "),
       headers: METRIC_HEADERS,
@@ -338,7 +392,7 @@ export function exportProductsCsv(data: ProductAnalytics, meta: ReportExportMeta
     },
     {
       title: "Top por receita",
-      headers: ["Produto", "Categoria", "Qtd", "Receita", "Share %", "Margem %"],
+      headers: ["Item", "Categoria", "Qtd", "Receita", "Share %", "Margem %"],
       rows: data.topByRevenue.map((p) => [
         p.name,
         p.categoryName ?? "",
@@ -346,6 +400,17 @@ export function exportProductsCsv(data: ProductAnalytics, meta: ReportExportMeta
         centsToNumber(p.revenueCents),
         Number((p.revenueShare * 100).toFixed(2)),
         p.marginRatio !== null ? Number((p.marginRatio * 100).toFixed(2)) : "",
+      ]),
+    },
+    {
+      title: "Top complementos",
+      headers: ["Complemento", "Grupo", "Vezes", "Receita", "Share %"],
+      rows: (data.topModifiers ?? []).map((m) => [
+        m.name,
+        m.groupName ?? "",
+        m.quantity,
+        centsToNumber(m.revenueCents),
+        Number((m.share * 100).toFixed(2)),
       ]),
     },
     {
@@ -360,14 +425,14 @@ export function exportProductsCsv(data: ProductAnalytics, meta: ReportExportMeta
     },
     {
       title: "Sem venda",
-      headers: ["Produto", "Categoria"],
+      headers: ["Item", "Categoria"],
       rows: data.withoutSales.map((p) => [p.name, p.categoryName ?? ""]),
     },
   ]);
 }
 
 export function exportProductsXlsx(data: ProductAnalytics, meta: ReportExportMeta) {
-  downloadXlsxWorkbook(fileBase(meta, "produtos"), [
+  downloadXlsxWorkbook(fileBase(meta, "pedidos"), [
     metaSheet(meta),
     {
       name: "Indicadores",
@@ -376,7 +441,7 @@ export function exportProductsXlsx(data: ProductAnalytics, meta: ReportExportMet
     },
     {
       name: "Top receita",
-      headers: ["Produto", "Categoria", "Qtd", "Receita", "Share %", "Custo", "Margem", "Margem %"],
+      headers: ["Item", "Categoria", "Qtd", "Receita", "Share %", "Custo", "Margem", "Margem %"],
       rows: data.topByRevenue.map((p) => [
         p.name,
         p.categoryName ?? "",
@@ -390,6 +455,18 @@ export function exportProductsXlsx(data: ProductAnalytics, meta: ReportExportMet
       colWidths: [28, 16, 8, 12, 10, 10, 10, 10],
     },
     {
+      name: "Complementos",
+      headers: ["Complemento", "Grupo", "Vezes", "Receita", "Share %"],
+      rows: (data.topModifiers ?? []).map((m) => [
+        m.name,
+        m.groupName ?? "",
+        m.quantity,
+        centsToNumber(m.revenueCents),
+        Number((m.share * 100).toFixed(2)),
+      ]),
+      colWidths: [28, 18, 10, 12, 10],
+    },
+    {
       name: "Categorias",
       headers: ["Categoria", "Qtd", "Receita", "Share %"],
       rows: data.byCategory.map((c) => [
@@ -401,7 +478,7 @@ export function exportProductsXlsx(data: ProductAnalytics, meta: ReportExportMet
     },
     {
       name: "Sem venda",
-      headers: ["Produto", "Categoria"],
+      headers: ["Item", "Categoria"],
       rows: data.withoutSales.map((p) => [p.name, p.categoryName ?? ""]),
     },
   ]);

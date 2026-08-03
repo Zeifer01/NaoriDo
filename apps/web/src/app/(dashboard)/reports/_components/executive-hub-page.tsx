@@ -261,7 +261,7 @@ export function ExecutiveHubPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-4">
-          <h2 className="text-sm font-semibold mb-3">Produtos que puxam o faturamento</h2>
+          <h2 className="text-sm font-semibold mb-3">Itens que puxam o faturamento</h2>
           <ul className="space-y-2">
             {(data?.topProducts ?? []).map((p) => (
               <li key={`${p.menuItemId}-${p.name}`} className="flex items-center justify-between text-sm gap-3">
@@ -280,23 +280,62 @@ export function ExecutiveHubPage() {
         <div className="rounded-xl border bg-card p-4 space-y-3">
           <h2 className="text-sm font-semibold flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
-            Projeção (próximos meses)
+            Projeções
           </h2>
           {data?.projection ? (
             <>
-              <ul className="space-y-2 text-sm">
-                {data.projection.nextMonths.map((m) => (
-                  <li key={m.month} className="flex justify-between gap-3">
-                    <span className="font-medium">{m.month}</span>
-                    <span className="tabular-nums text-muted-foreground">
-                      {formatCurrency(m.projectedRevenueCents)}
-                      <span className="text-[10px] ml-1">
-                        ({formatCurrency(m.lowCents)}–{formatCurrency(m.highCents)})
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                    Semanas
+                  </p>
+                  <ul className="space-y-1.5 text-sm">
+                    {(data.projection.nextWeeks ?? []).map((w) => (
+                      <li key={w.weekStart} className="flex justify-between gap-3">
+                        <span className="font-medium">Sem. {w.weekStart}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {formatCurrency(w.projectedRevenueCents)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1.5">
+                    Meses
+                  </p>
+                  <ul className="space-y-1.5 text-sm">
+                    {data.projection.nextMonths.map((m) => (
+                      <li key={m.month} className="flex justify-between gap-3">
+                        <span className="font-medium">{m.month}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {formatCurrency(m.projectedRevenueCents)}
+                          <span className="text-[10px] ml-1">
+                            ({formatCurrency(m.lowCents)}–{formatCurrency(m.highCents)})
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {data.projection.nextYear && (
+                  <div className="rounded-lg bg-muted/40 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      12 meses
+                    </p>
+                    <div className="flex justify-between gap-3 mt-1 text-sm">
+                      <span className="font-medium truncate">{data.projection.nextYear.yearLabel}</span>
+                      <span className="tabular-nums font-semibold shrink-0">
+                        {formatCurrency(data.projection.nextYear.projectedRevenueCents)}
                       </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Faixa {formatCurrency(data.projection.nextYear.lowCents)}–
+                      {formatCurrency(data.projection.nextYear.highCents)}
+                    </p>
+                  </div>
+                )}
+              </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {data.projection.disclaimer}
               </p>

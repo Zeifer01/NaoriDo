@@ -1,12 +1,13 @@
-import { and, eq, sum, notInArray, inArray } from "drizzle-orm";
+import { and, eq, sum, count, notInArray, inArray } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import type {
   AnalyticsPeriod,
   AnalyticsScope,
+  ModifierAnalyticsRow,
   ProductAnalytics,
   ProductAnalyticsRow,
 } from "@restai/types";
-import { metric, parsePeriodEnd, parsePeriodStart } from "./period.js";
+import { metric } from "./period.js";
 import { getCompletedOrderIds } from "./sales.js";
 
 async function loadSoldRows(scope: AnalyticsScope, period: AnalyticsPeriod) {
@@ -36,6 +37,56 @@ async function loadSoldRows(scope: AnalyticsScope, period: AnalyticsPeriod) {
       schema.menuCategories.name,
       schema.menuItems.cost_cents,
     );
+}
+
+async function loadTopModifiers(
+  scope: AnalyticsScope,
+  period: AnalyticsPeriod,
+  limit: number,
+): Promise<ModifierAnalyticsRow[]> {
+  const orderIds = await getCompletedOrderIds(scope, period);
+  if (orderIds.length === 0) return [];
+
+  const raw = await db
+    .select({
+      modifierId: schema.orderItemModifiers.modifier_id,
+      name: schema.orderItemModifiers.name,
+      groupName: schema.modifierGroups.name,
+      quantity: count(),
+      revenueCents: sum(schema.orderItemModifiers.price),
+    })
+    .from(schema.orderItemModifiers)
+    .innerJoin(
+      schema.orderItems,
+      eq(schema.orderItemModifiers.order_item_id, schema.orderItems.id),
+    )
+    .leftJoin(schema.modifiers, eq(schema.orderItemModifiers.modifier_id, schema.modifiers.id))
+    .leftJoin(
+      schema.modifierGroups,
+      eq(schema.modifiers.group_id, schema.modifierGroups.id),
+    )
+    .where(inArray(schema.orderItems.order_id, orderIds))
+    .groupBy(
+      schema.orderItemModifiers.modifier_id,
+      schema.orderItemModifiers.name,
+      schema.modifierGroups.name,
+    );
+
+  const totalQty = raw.reduce((a, r) => a + Number(r.quantity ?? 0), 0);
+  return raw
+    .map((r) => {
+      const quantity = Number(r.quantity ?? 0);
+      return {
+        modifierId: r.modifierId,
+        name: r.name,
+        groupName: r.groupName,
+        quantity,
+        revenueCents: Number(r.revenueCents ?? 0),
+        share: totalQty > 0 ? quantity / totalQty : 0,
+      };
+    })
+    .sort((a, b) => b.quantity - a.quantity || b.revenueCents - a.revenueCents)
+    .slice(0, limit);
 }
 
 function toRows(
@@ -74,7 +125,11 @@ export async function getProductAnalytics(params: {
   limit?: number;
 }): Promise<ProductAnalytics> {
   const { scope, period, limit = 20 } = params;
-  const rows = toRows(await loadSoldRows(scope, period));
+  const [soldRaw, topModifiers] = await Promise.all([
+    loadSoldRows(scope, period),
+    loadTopModifiers(scope, period, limit),
+  ]);
+  const rows = toRows(soldRaw);
 
   const byRevenue = [...rows].sort((a, b) => b.revenueCents - a.revenueCents);
   const byQty = [...rows].sort((a, b) => b.quantity - a.quantity);
@@ -168,5 +223,6 @@ export async function getProductAnalytics(params: {
       categoryName: r.categoryName,
     })),
     byCategory,
+    topModifiers,
   };
 }

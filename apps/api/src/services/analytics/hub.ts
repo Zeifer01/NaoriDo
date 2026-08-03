@@ -174,6 +174,8 @@ export async function getExecutiveHub(params: {
     insights,
     projection: {
       nextMonths: projection.nextMonths,
+      nextWeeks: projection.nextWeeks,
+      nextYear: projection.nextYear,
       monthlyTrendRatio: projection.monthlyTrendRatio,
       avgDailyRevenueCents: projection.avgDailyRevenueCents,
       lookbackDays: projection.lookbackDays,

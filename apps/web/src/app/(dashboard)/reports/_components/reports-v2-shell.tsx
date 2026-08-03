@@ -14,7 +14,7 @@ const V2_NAV = [
   { href: "/reports", label: "Hub", exact: true },
   { href: "/reports/clientes", label: "Clientes" },
   { href: "/reports/financeiro", label: "Financeiro" },
-  { href: "/reports/produtos", label: "Produtos" },
+  { href: "/reports/produtos", label: "Pedidos" },
 ];
 
 export function getDefaultAnalyticsDates() {

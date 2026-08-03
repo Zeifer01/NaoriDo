@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import type {
   AbcClass,
@@ -95,6 +95,33 @@ export async function getCustomerAnalytics(params: {
     })
     .from(schema.customers)
     .where(eq(schema.customers.organization_id, scope.organizationId));
+
+  // Fallback geo from customer_addresses (multi-address book)
+  const addressRows =
+    customers.length === 0
+      ? []
+      : await db
+          .select({
+            customerId: schema.customerAddresses.customer_id,
+            city: schema.customerAddresses.city,
+            neighborhood: schema.customerAddresses.neighborhood,
+            sortOrder: schema.customerAddresses.sort_order,
+          })
+          .from(schema.customerAddresses)
+          .innerJoin(
+            schema.customers,
+            eq(schema.customerAddresses.customer_id, schema.customers.id),
+          )
+          .where(eq(schema.customers.organization_id, scope.organizationId))
+          .orderBy(asc(schema.customerAddresses.sort_order));
+
+  const addrGeo = new Map<string, { city: string | null; neighborhood: string | null }>();
+  for (const a of addressRows) {
+    const cur = addrGeo.get(a.customerId) ?? { city: null, neighborhood: null };
+    if (!cur.neighborhood && a.neighborhood) cur.neighborhood = a.neighborhood;
+    if (!cur.city && a.city) cur.city = a.city;
+    addrGeo.set(a.customerId, cur);
+  }
 
   // Completed orders with customer (org-wide or branch)
   const orderWhere = [
@@ -231,13 +258,14 @@ export async function getCustomerAnalytics(params: {
     const isOccasional = orderCount > 0 && orderCount <= OCCASIONAL_MAX_ORDERS;
     const isVip = vipIds.has(c.id);
 
+    const fallback = addrGeo.get(c.id);
     rows.push({
       customerId: c.id,
       name: c.name,
       email: c.email,
       phone: c.phone,
-      city: c.city,
-      neighborhood: c.neighborhood,
+      city: c.city || fallback?.city || null,
+      neighborhood: c.neighborhood || fallback?.neighborhood || null,
       orderCount,
       totalSpentCents,
       avgTicketCents: orderCount > 0 ? Math.round(totalSpentCents / orderCount) : 0,

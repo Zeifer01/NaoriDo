@@ -97,6 +97,15 @@ export interface ProductAnalyticsRow {
   marginRatio: number | null;
 }
 
+export interface ModifierAnalyticsRow {
+  modifierId: string | null;
+  name: string;
+  groupName: string | null;
+  quantity: number;
+  revenueCents: number;
+  share: number;
+}
+
 export interface ProductAnalytics {
   period: AnalyticsPeriod;
   metrics: AnalyticsMetric[];
@@ -110,6 +119,8 @@ export interface ProductAnalytics {
     revenueCents: number;
     share: number;
   }[];
+  /** Top complementos / modifiers escolhidos nos pedidos concluídos. */
+  topModifiers: ModifierAnalyticsRow[];
 }
 
 export interface FinanceAnalytics {
@@ -197,6 +208,20 @@ export interface ExecutiveHubAnalytics {
       lowCents: number;
       highCents: number;
     }>;
+    /** Próximas N semanas (média diária × 7, com tendência). */
+    nextWeeks: Array<{
+      weekStart: string;
+      projectedRevenueCents: number;
+      lowCents: number;
+      highCents: number;
+    }>;
+    /** Projeção dos próximos 12 meses (soma anual). */
+    nextYear: {
+      yearLabel: string;
+      projectedRevenueCents: number;
+      lowCents: number;
+      highCents: number;
+    } | null;
     monthlyTrendRatio: number | null;
     avgDailyRevenueCents: number;
     lookbackDays: number;

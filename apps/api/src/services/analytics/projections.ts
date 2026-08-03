@@ -2,14 +2,25 @@ import type { AnalyticsPeriod, AnalyticsScope } from "@restai/types";
 import { loadDailySeries, loadOrderTotals } from "./sales.js";
 import { parsePeriodEnd, toDateKey } from "./period.js";
 
+export interface ProjectionHorizon {
+  projectedRevenueCents: number;
+  lowCents: number;
+  highCents: number;
+}
+
 export interface ProjectionResult {
   /** Simple linear projection of monthly revenue for next N months. */
-  nextMonths: Array<{
-    month: string;
-    projectedRevenueCents: number;
-    lowCents: number;
-    highCents: number;
-  }>;
+  nextMonths: Array<
+    ProjectionHorizon & {
+      month: string;
+    }
+  >;
+  nextWeeks: Array<
+    ProjectionHorizon & {
+      weekStart: string;
+    }
+  >;
+  nextYear: (ProjectionHorizon & { yearLabel: string }) | null;
   /** Trend from last 3 complete months (ratio). */
   monthlyTrendRatio: number | null;
   /** Average daily revenue in the lookback window. */
@@ -19,8 +30,16 @@ export interface ProjectionResult {
   disclaimer: string;
 }
 
+function band(base: number): ProjectionHorizon {
+  return {
+    projectedRevenueCents: base,
+    lowCents: Math.round(base * 0.8),
+    highCents: Math.round(base * 1.2),
+  };
+}
+
 /**
- * Project next months from recent daily revenue (linear average × days in month).
+ * Project next weeks / months / year from recent daily revenue (linear average).
  * Conservative band: ±20%.
  */
 export async function getRevenueProjection(params: {
@@ -29,9 +48,11 @@ export async function getRevenueProjection(params: {
   asOf?: string;
   lookbackDays?: number;
   monthsAhead?: number;
+  weeksAhead?: number;
 }): Promise<ProjectionResult> {
   const lookbackDays = params.lookbackDays ?? 90;
   const monthsAhead = params.monthsAhead ?? 3;
+  const weeksAhead = params.weeksAhead ?? 4;
   const asOf = params.asOf ? parsePeriodEnd(params.asOf) : new Date();
   const start = new Date(asOf.getTime() - (lookbackDays - 1) * 24 * 60 * 60 * 1000);
 
@@ -76,20 +97,58 @@ export async function getRevenueProjection(params: {
     const base = Math.round(avgDaily * daysInMonth * Math.pow(growthFactor, i));
     nextMonths.push({
       month: `${y}-${String(m + 1).padStart(2, "0")}`,
-      projectedRevenueCents: base,
-      lowCents: Math.round(base * 0.8),
-      highCents: Math.round(base * 1.2),
+      ...band(base),
     });
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
+  // Next weeks: start from Monday after asOf (or next calendar week)
+  const nextWeeks: ProjectionResult["nextWeeks"] = [];
+  const weekCursor = new Date(asOf);
+  weekCursor.setHours(0, 0, 0, 0);
+  // Advance to next Monday
+  const day = weekCursor.getDay(); // 0 Sun … 6 Sat
+  const daysUntilMon = day === 0 ? 1 : day === 1 ? 7 : 8 - day;
+  weekCursor.setDate(weekCursor.getDate() + daysUntilMon);
+  for (let i = 0; i < weeksAhead; i++) {
+    // Weekly growth ≈ monthly^(1/4) ≈ mild; use monthly growth diluted
+    const weekGrowth = Math.pow(growthFactor, i / 4);
+    const base = Math.round(avgDaily * 7 * weekGrowth);
+    nextWeeks.push({
+      weekStart: toDateKey(weekCursor),
+      ...band(base),
+    });
+    weekCursor.setDate(weekCursor.getDate() + 7);
+  }
+
+  // Annual: sum of next 12 months with same growth curve
+  let yearTotal = 0;
+  const yearCursor = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 1);
+  for (let i = 0; i < 12; i++) {
+    const y = yearCursor.getFullYear();
+    const m = yearCursor.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    yearTotal += Math.round(avgDaily * daysInMonth * Math.pow(growthFactor, i));
+    yearCursor.setMonth(yearCursor.getMonth() + 1);
+  }
+  const endYear = new Date(asOf.getFullYear(), asOf.getMonth() + 12, 1);
+  const nextYear: ProjectionResult["nextYear"] =
+    avgDaily > 0
+      ? {
+          yearLabel: `${toDateKey(new Date(asOf.getFullYear(), asOf.getMonth() + 1, 1)).slice(0, 7)} → ${toDateKey(new Date(endYear.getFullYear(), endYear.getMonth(), 0)).slice(0, 7)}`,
+          ...band(yearTotal),
+        }
+      : null;
+
   return {
     nextMonths,
+    nextWeeks,
+    nextYear,
     monthlyTrendRatio,
     avgDailyRevenueCents: avgDaily,
     lookbackDays,
     method: "linear_daily",
     disclaimer:
-      "Projeção linear com base na média diária recente e tendência mensal. Não considera sazonalidade externa, promoções ou eventos.",
+      "Projeção linear com base na média diária recente e tendência mensal (semana / mês / 12 meses). Não considera sazonalidade externa, promoções ou eventos.",
   };
 }

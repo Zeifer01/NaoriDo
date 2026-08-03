@@ -235,6 +235,70 @@ function ReportsClientesContent() {
         </div>
 
         <div className="rounded-xl border bg-card overflow-hidden">
+          <div className="p-4 border-b flex flex-col sm:flex-row sm:items-end sm:justify-between gap-1">
+            <div>
+              <h2 className="text-sm font-semibold">Mapa de bairros</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Onde a base compra — útil para rota, taxa e campanha local
+              </p>
+            </div>
+            {(data?.byNeighborhood.length ?? 0) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Top {(data?.byNeighborhood.length ?? 0) > 15 ? 15 : data?.byNeighborhood.length} de{" "}
+                {data?.byNeighborhood.length} bairros
+              </p>
+            )}
+          </div>
+          {(data?.byNeighborhood.length ?? 0) > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                  <tr>
+                    <th className="p-3 font-medium w-10">#</th>
+                    <th className="p-3 font-medium">Bairro</th>
+                    <th className="p-3 font-medium">Clientes</th>
+                    <th className="p-3 font-medium">Receita (LTV)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.byNeighborhood ?? []).slice(0, 15).map((n, i) => (
+                    <tr key={n.neighborhood} className="border-t">
+                      <td className="p-3 tabular-nums text-muted-foreground">{i + 1}</td>
+                      <td className="p-3 font-medium">{n.neighborhood}</td>
+                      <td className="p-3 tabular-nums">{n.customers}</td>
+                      <td className="p-3 tabular-nums">{formatCurrency(n.revenueCents)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            !isLoading && (
+              <p className="p-4 text-sm text-muted-foreground">
+                Ainda sem bairros cadastrados. Endereços salvos no delivery passam a alimentar este
+                ranking automaticamente.
+              </p>
+            )
+          )}
+        </div>
+
+        {(data?.byCity.length ?? 0) > 0 && (
+          <div className="rounded-xl border bg-card p-4">
+            <h2 className="text-sm font-semibold mb-3">Por cidade</h2>
+            <ul className="space-y-2 text-sm columns-1 sm:columns-2 gap-x-8">
+              {data!.byCity.slice(0, 12).map((c) => (
+                <li key={c.city} className="flex justify-between gap-3 break-inside-avoid py-0.5">
+                  <span>{c.city}</span>
+                  <span className="text-muted-foreground tabular-nums shrink-0">
+                    {c.customers} · {formatCurrency(c.revenueCents)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="rounded-xl border bg-card overflow-hidden">
           <div className="p-4 border-b">
             <h2 className="text-sm font-semibold">Ranking — melhores clientes</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -314,42 +378,6 @@ function ReportsClientesContent() {
             </table>
           </div>
         </div>
-
-        {(data?.byCity.length ?? 0) > 0 && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border bg-card p-4">
-              <h2 className="text-sm font-semibold mb-3">Por cidade</h2>
-              <ul className="space-y-2 text-sm">
-                {data!.byCity.slice(0, 10).map((c) => (
-                  <li key={c.city} className="flex justify-between">
-                    <span>{c.city}</span>
-                    <span className="text-muted-foreground tabular-nums">
-                      {c.customers} · {formatCurrency(c.revenueCents)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <h2 className="text-sm font-semibold mb-3">Por bairro</h2>
-              <ul className="space-y-2 text-sm">
-                {(data?.byNeighborhood ?? []).slice(0, 10).map((n) => (
-                  <li key={n.neighborhood} className="flex justify-between">
-                    <span>{n.neighborhood}</span>
-                    <span className="text-muted-foreground tabular-nums">
-                      {n.customers} · {formatCurrency(n.revenueCents)}
-                    </span>
-                  </li>
-                ))}
-                {(data?.byNeighborhood.length ?? 0) === 0 && (
-                  <p className="text-muted-foreground text-sm">
-                    Preencha bairro nos cadastros para destravar este mapa.
-                  </p>
-                )}
-              </ul>
-            </div>
-          </div>
-        )}
 
         <ReportPrintFooter title="Clientes (CRM)" />
       </div>
