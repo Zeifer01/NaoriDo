@@ -260,7 +260,7 @@ delivery.get("/:branchSlug/menu", async (c) => {
       ),
     );
 
-  const [items, salesRows] = await Promise.all([
+  const [items, salesRows, modifierLinks] = await Promise.all([
     db
       .select()
       .from(schema.menuItems)
@@ -284,12 +284,22 @@ delivery.get("/:branchSlug/menu", async (c) => {
         ),
       )
       .groupBy(schema.orderItems.menu_item_id),
+    db
+      .select({ item_id: schema.menuItemModifierGroups.item_id })
+      .from(schema.menuItemModifierGroups)
+      .innerJoin(
+        schema.menuItems,
+        eq(schema.menuItems.id, schema.menuItemModifierGroups.item_id),
+      )
+      .where(eq(schema.menuItems.branch_id, branch.id)),
   ]);
 
   const salesMap = new Map(salesRows.map((r) => [r.menu_item_id, r.total_sold]));
+  const itemsWithModifiers = new Set(modifierLinks.map((r) => r.item_id));
   const itemsWithSales = items.map((item) => ({
     ...item,
     total_sold: salesMap.get(item.id) ?? 0,
+    has_modifiers: itemsWithModifiers.has(item.id),
   }));
 
   return c.json({

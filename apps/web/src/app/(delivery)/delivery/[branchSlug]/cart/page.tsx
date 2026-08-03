@@ -688,7 +688,18 @@ export default function DeliveryCartPage({
                     <button
                       type="button"
                       className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--d-accent)] text-[var(--d-on-accent)] shadow-sm touch-manipulation"
-                      onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
+                      aria-label={
+                        item.modifiers.length > 0
+                          ? "Montar outro com complementos"
+                          : "Adicionar um"
+                      }
+                      onClick={() => {
+                        if (item.modifiers.length > 0) {
+                          router.push(`/delivery/${branchSlug}/menu/${item.menuItemId}`);
+                          return;
+                        }
+                        updateQuantity(item.lineId, item.quantity + 1);
+                      }}
                     >
                       <Plus className="h-4 w-4" />
                     </button>

@@ -75,15 +75,31 @@ customer.get("/:branchSlug/:tableCode/menu", async (c) => {
       ),
     );
 
-  const items = await db
-    .select()
-    .from(schema.menuItems)
-    .where(
-      and(
-        eq(schema.menuItems.branch_id, branch.id),
-        eq(schema.menuItems.is_available, true),
+  const [items, modifierLinks] = await Promise.all([
+    db
+      .select()
+      .from(schema.menuItems)
+      .where(
+        and(
+          eq(schema.menuItems.branch_id, branch.id),
+          eq(schema.menuItems.is_available, true),
+        ),
       ),
-    );
+    db
+      .select({ item_id: schema.menuItemModifierGroups.item_id })
+      .from(schema.menuItemModifierGroups)
+      .innerJoin(
+        schema.menuItems,
+        eq(schema.menuItems.id, schema.menuItemModifierGroups.item_id),
+      )
+      .where(eq(schema.menuItems.branch_id, branch.id)),
+  ]);
+
+  const itemsWithModifiers = new Set(modifierLinks.map((r) => r.item_id));
+  const itemsWithFlags = items.map((item) => ({
+    ...item,
+    has_modifiers: itemsWithModifiers.has(item.id),
+  }));
 
   return c.json({
     success: true,
@@ -91,7 +107,7 @@ customer.get("/:branchSlug/:tableCode/menu", async (c) => {
       branch: { id: branch.id, name: branch.name, slug: branch.slug, currency: branch.currency },
       table: { id: table.id, number: table.number },
       categories,
-      items,
+      items: itemsWithFlags,
     },
   });
 });

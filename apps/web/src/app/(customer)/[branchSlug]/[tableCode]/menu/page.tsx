@@ -22,6 +22,7 @@ interface MenuItem {
   image_url?: string | null;
   is_available: boolean;
   category_id: string;
+  has_modifiers?: boolean;
 }
 
 interface Category {
@@ -225,6 +226,10 @@ export default function CustomerMenuPage({
   const cartTotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
   const handleAddItem = (item: MenuItem) => {
+    if (item.has_modifiers) {
+      router.push(`/${branchSlug}/${tableCode}/menu/${item.id}`);
+      return;
+    }
     addItem({
       menuItemId: item.id,
       name: item.name,

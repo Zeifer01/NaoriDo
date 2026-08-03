@@ -27,6 +27,8 @@ interface MenuItem {
   image_url?: string | null;
   category_id: string;
   total_sold?: number;
+  /** True when item has complement / modifier groups — must open product page. */
+  has_modifiers?: boolean;
 }
 
 interface Category {
@@ -160,10 +162,25 @@ export default function DeliveryMenuPage({
 
   const getCartQty = (menuItemId: string) =>
     items
-      .filter((i) => i.menuItemId === menuItemId && i.modifiers.length === 0)
+      .filter((i) => i.menuItemId === menuItemId)
       .reduce((sum, i) => sum + i.quantity, 0);
 
-  const handleQuickAdd = (item: MenuItem) => {
+  const customizePath = (itemId: string) =>
+    `/delivery/${branchSlug}/menu/${itemId}`;
+
+  const removeOneFromCart = (menuItemId: string) => {
+    const lines = items.filter((i) => i.menuItemId === menuItemId);
+    if (lines.length === 0) return;
+    const last = lines[lines.length - 1]!;
+    updateQuantity(last.lineId, last.quantity - 1);
+  };
+
+  /** Plain items (no complements) can quick-add; cups with modifiers always open the wizard. */
+  const handleAddClick = (item: MenuItem) => {
+    if (item.has_modifiers) {
+      router.push(customizePath(item.id));
+      return;
+    }
     const existingLine = items.find(
       (i) => i.menuItemId === item.id && i.modifiers.length === 0,
     );
@@ -419,14 +436,7 @@ export default function DeliveryMenuPage({
                           type="button"
                           aria-label="Remover um"
                           className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--d-card-solid)] text-[var(--d-accent-dark)] shadow-sm transition active:scale-95 touch-manipulation"
-                          onClick={() => {
-                            const line = items.find(
-                              (i) =>
-                                i.menuItemId === item.id &&
-                                i.modifiers.length === 0,
-                            );
-                            if (line) updateQuantity(line.lineId, line.quantity - 1);
-                          }}
+                          onClick={() => removeOneFromCart(item.id)}
                         >
                           <Minus className="h-4 w-4" />
                         </button>
@@ -435,9 +445,13 @@ export default function DeliveryMenuPage({
                         </span>
                         <button
                           type="button"
-                          aria-label="Adicionar um"
+                          aria-label={
+                            item.has_modifiers
+                              ? "Adicionar outro com complementos"
+                              : "Adicionar um"
+                          }
                           className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--d-accent)] text-[var(--d-on-accent)] shadow-sm transition active:scale-95 touch-manipulation"
-                          onClick={() => handleQuickAdd(item)}
+                          onClick={() => handleAddClick(item)}
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -445,7 +459,7 @@ export default function DeliveryMenuPage({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleQuickAdd(item)}
+                        onClick={() => handleAddClick(item)}
                         className="inline-flex h-10 items-center gap-1.5 rounded-full bg-[var(--d-accent)] px-5 text-sm font-medium text-[var(--d-on-accent)] shadow-sm transition active:scale-95"
                       >
                         <Plus className="h-4 w-4" />

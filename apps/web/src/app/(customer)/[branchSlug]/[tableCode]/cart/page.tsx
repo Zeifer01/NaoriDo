@@ -609,7 +609,13 @@ export default function CartPage({
                   <Button
                     size="icon"
                     className="h-8 w-8 rounded-full"
-                    onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
+                    onClick={() => {
+                      if (item.modifiers.length > 0) {
+                        router.push(`/${branchSlug}/${tableCode}/menu/${item.menuItemId}`);
+                        return;
+                      }
+                      updateQuantity(item.menuItemId, item.quantity + 1);
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </Button>

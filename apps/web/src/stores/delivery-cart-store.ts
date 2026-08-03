@@ -94,9 +94,8 @@ export const useDeliveryCartStore = create<DeliveryCartState>((set, get) => ({
       return;
     }
     const current = get().items.find((i) => i.lineId === lineId);
-    // Customized lines stay qty 1 — increasing duplicates instead
+    // Customized cups stay qty 1 — another cup must go through the complement flow
     if (current && current.modifiers.length > 0 && quantity > current.quantity) {
-      get().duplicateLine(lineId);
       return;
     }
     set({
