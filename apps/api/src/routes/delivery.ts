@@ -706,11 +706,49 @@ delivery.get(
         name: schema.orderItems.name,
         quantity: schema.orderItems.quantity,
         total: schema.orderItems.total,
+        notes: schema.orderItems.notes,
       })
       .from(schema.orderItems)
       .where(eq(schema.orderItems.order_id, orderId));
 
-    return c.json({ success: true, data: { ...order, items } });
+    const itemIds = items.map((i) => i.id);
+    const modifierRows =
+      itemIds.length === 0
+        ? []
+        : await db
+            .select({
+              order_item_id: schema.orderItemModifiers.order_item_id,
+              name: schema.orderItemModifiers.name,
+              price: schema.orderItemModifiers.price,
+              is_outside_cup: schema.orderItemModifiers.is_outside_cup,
+            })
+            .from(schema.orderItemModifiers)
+            .where(
+              itemIds.length === 1
+                ? eq(schema.orderItemModifiers.order_item_id, itemIds[0]!)
+                : inArray(schema.orderItemModifiers.order_item_id, itemIds),
+            );
+
+    const modsByItem = new Map<
+      string,
+      Array<{ name: string; price: number; is_outside_cup: boolean }>
+    >();
+    for (const m of modifierRows) {
+      const list = modsByItem.get(m.order_item_id) ?? [];
+      list.push({
+        name: m.name,
+        price: m.price,
+        is_outside_cup: m.is_outside_cup,
+      });
+      modsByItem.set(m.order_item_id, list);
+    }
+
+    const itemsWithModifiers = items.map((item) => ({
+      ...item,
+      modifiers: modsByItem.get(item.id) ?? [],
+    }));
+
+    return c.json({ success: true, data: { ...order, items: itemsWithModifiers } });
   },
 );
 

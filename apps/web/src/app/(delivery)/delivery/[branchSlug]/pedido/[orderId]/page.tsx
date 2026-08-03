@@ -17,6 +17,7 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { useDeliveryStore } from "@/stores/delivery-store";
 import { useDeliveryBranch } from "@/hooks/use-delivery-branch";
 import { deliveryClasses } from "@/app/(delivery)/_components/delivery-theme";
+import { formatModifierDisplayName } from "@restai/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
@@ -302,26 +303,65 @@ export default function DeliveryOrderStatusPage({
 
             {(order.items || []).map((item: any) => (
               <div key={item.id}>
-                <div className="flex items-center justify-between rounded-xl border border-[var(--d-border)] bg-[var(--d-card)] px-3 py-2.5 text-sm">
-                  <span>
-                    {item.quantity}x {item.name}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-[var(--d-accent-dark)]">
-                      {formatCurrency(item.total, currency)}
+                <div className="rounded-xl border border-[var(--d-border)] bg-[var(--d-card)] px-3 py-2.5 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium text-[var(--d-text-strong)]">
+                      {item.quantity}x {item.name}
                     </span>
-                    {canEdit && (order.items || []).length > 1 && (
-                      <button
-                        type="button"
-                        aria-label={`Remover ${item.name}`}
-                        onClick={() => setConfirmRemoveId(item.id)}
-                        disabled={removingItemId !== null}
-                        className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-[var(--d-placeholder)] transition hover:bg-[#F5E8E8] hover:text-[#8A4A4A] disabled:opacity-40"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-medium text-[var(--d-accent-dark)]">
+                        {formatCurrency(item.total, currency)}
+                      </span>
+                      {canEdit && (order.items || []).length > 1 && (
+                        <button
+                          type="button"
+                          aria-label={`Remover ${item.name}`}
+                          onClick={() => setConfirmRemoveId(item.id)}
+                          disabled={removingItemId !== null}
+                          className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-[var(--d-placeholder)] transition hover:bg-[#F5E8E8] hover:text-[#8A4A4A] disabled:opacity-40"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {(item.modifiers?.length ?? 0) > 0 && (
+                    <ul className="mt-1.5 space-y-0.5 border-t border-[var(--d-border)]/60 pt-1.5">
+                      {item.modifiers.map(
+                        (
+                          mod: {
+                            name: string;
+                            price?: number;
+                            is_outside_cup?: boolean;
+                          },
+                          idx: number,
+                        ) => (
+                          <li
+                            key={`${item.id}-mod-${idx}`}
+                            className="flex justify-between gap-2 text-xs text-[var(--d-text-muted)]"
+                          >
+                            <span>
+                              {formatModifierDisplayName(
+                                mod.name,
+                                mod.is_outside_cup === true,
+                                currency === "USD",
+                              )}
+                            </span>
+                            {(mod.price ?? 0) > 0 && (
+                              <span className="tabular-nums shrink-0">
+                                +{formatCurrency(mod.price ?? 0, currency)}
+                              </span>
+                            )}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  )}
+                  {item.notes && (
+                    <p className="mt-1 text-xs italic text-[var(--d-text-muted)]">
+                      Obs: {item.notes}
+                    </p>
+                  )}
                 </div>
 
                 {confirmRemoveId === item.id && (
