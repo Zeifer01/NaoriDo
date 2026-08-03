@@ -19,6 +19,9 @@ export * from "./delivery-payments";
 // Delivery fee pricing (zones vs radius)
 export * from "./delivery-pricing";
 
+// Order number session / archive cycle (turno, feira, …)
+export * from "./order-session";
+
 // Roles hierarchy and permissions
 export const ROLES = {
   super_admin: { level: 0, label: "Super Admin" },

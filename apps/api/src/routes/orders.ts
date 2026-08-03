@@ -353,7 +353,7 @@ orders.post(
 );
 
 // POST /reset-sequence - Archive current session's order numbers and restart at 1
-// Orders are NEVER deleted. Numeric order_numbers get a session prefix (e.g. "feira1-42").
+// Orders are NEVER deleted. Numeric order_numbers get a session prefix (e.g. "turno1-42").
 orders.post("/reset-sequence", requirePermission("orders:write"), async (c) => {
   const tenant = c.get("tenant") as any;
 
@@ -371,9 +371,21 @@ orders.post("/reset-sequence", requirePermission("orders:write"), async (c) => {
       },
     });
   } catch (err) {
-    logger.error("Failed to archive order session", { error: (err as Error).message });
+    logger.error("Failed to archive order session", {
+      error: (err as Error).message,
+      stack: (err as Error).stack,
+    });
     return c.json(
-      { success: false, error: { code: "INTERNAL_ERROR", message: "Erro ao arquivar sessão de pedidos" } },
+      {
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message:
+            (err as Error).message?.includes("is not defined")
+              ? "Erro ao arquivar sessão de pedidos"
+              : (err as Error).message || "Erro ao arquivar sessão de pedidos",
+        },
+      },
       500,
     );
   }

@@ -17,7 +17,7 @@ import { PaymentDialog } from "../payments/_components/payment-dialog";
 import { toast } from "sonner";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { useFeatures } from "@/hooks/use-features";
-import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel, getSimplifiedOrderStatusLabel } from "@restai/config";
+import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel, getSimplifiedOrderStatusLabel, getOrderSessionConfig } from "@restai/config";
 import { getActiveCurrency } from "@/stores/currency-store";
 
 const PAGE_SIZE = 20;
@@ -44,6 +44,7 @@ export default function OrdersPage() {
   const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
   const updatingTargetStatus = updateStatus.isPending ? updateStatus.variables?.status ?? null : null;
+  const orderSession = getOrderSessionConfig((branchSettings as any)?.settings);
 
   const handlePrintReceipt = async (order: any) => {
     try {
@@ -129,8 +130,8 @@ export default function OrdersPage() {
       const result = await resetSequence.mutateAsync();
       toast.success(
         result.archivedCount > 0
-          ? `${result.archivedCount} pedido(s) da ${result.sessionName} arquivado(s). Próximos pedidos começam em #1 (${result.nextSessionName}).`
-          : `Sequência reiniciada. Próximos pedidos serão da ${result.nextSessionName}, começando em #1.`,
+          ? `${result.archivedCount} pedido(s) do ${orderSession.label} ${result.sessionName} arquivado(s). Próximos começam em #1 (${result.nextSessionName}).`
+          : `Contagem reiniciada. Próximos pedidos serão do ${orderSession.label} ${result.nextSessionName}, começando em #1.`,
       );
       setResetSequenceOpen(false);
       setPage(1);
@@ -256,7 +257,7 @@ export default function OrdersPage() {
             </Button>
             <Button variant="outline" onClick={() => setResetSequenceOpen(true)}>
               <RotateCcw className="h-4 w-4 mr-2" />
-              Reiniciar sequência
+              Fechar {orderSession.label}
             </Button>
           </div>
         }
@@ -317,11 +318,11 @@ export default function OrdersPage() {
       <ConfirmDialog
         open={resetSequenceOpen}
         onOpenChange={setResetSequenceOpen}
-        title="Arquivar sessão e reiniciar contagem"
-        description="Os pedidos atuais terão seus números arquivados com o prefixo da sessão (ex: feira1-1, feira1-120). Nenhum pedido será apagado ou alterado. A contagem reinicia em #1 para a próxima sessão."
+        title={`Fechar ${orderSession.label} e reiniciar contagem`}
+        description={`Os pedidos atuais do ${orderSession.label} ${orderSession.currentSessionName} terão os números arquivados (ex: ${orderSession.exampleArchived}, ${orderSession.currentSessionName}-120). Nenhum pedido será apagado. A contagem reinicia em #1 para o ${orderSession.label} ${orderSession.nextSessionName}.`}
         onConfirm={handleResetSequence}
         loading={resetSequence.isPending}
-        confirmLabel="Arquivar e reiniciar"
+        confirmLabel={`Fechar ${orderSession.label}`}
       />
 
       <PaymentDialog

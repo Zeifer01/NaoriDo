@@ -1,5 +1,6 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { schema, type DbOrTx } from "@restai/db";
+import { getOrderSessionConfig } from "@restai/config";
 
 export async function allocateOrderNumber(
   tx: DbOrTx,
@@ -63,9 +64,8 @@ export async function resetBranchOrderSequence(
 
 /**
  * Archives the current session's orders by prefixing their order_number
- * (e.g. "42" → "feira1-42"), then increments the session counter and
- * resets the order sequence to 1. No orders are deleted or modified beyond
- * the order_number rename.
+ * (e.g. "42" → "turno1-42" or "feira1-42"), then increments the session
+ * counter and resets the order sequence to 1. No orders are deleted.
  */
 export async function archiveCurrentSession(
   tx: DbOrTx,
@@ -79,10 +79,9 @@ export async function archiveCurrentSession(
     .limit(1);
 
   const settings = (branch?.settings || {}) as Record<string, unknown>;
-  const prefix = (settings.order_session_prefix as string | undefined) || "feira";
-  const sessionNum = (settings.order_session_number as number | undefined) ?? 1;
-  const sessionName = `${prefix}${sessionNum}`;
-  const nextSessionName = `${prefix}${sessionNum + 1}`;
+  const { prefix, sessionNumber } = getOrderSessionConfig(settings);
+  const sessionName = `${prefix}${sessionNumber}`;
+  const nextSessionName = `${prefix}${sessionNumber + 1}`;
 
   // Prefix only pure-numeric order numbers (skip already-archived ones)
   const updated = await tx
@@ -103,7 +102,8 @@ export async function archiveCurrentSession(
     .set({
       settings: {
         ...settings,
-        order_session_number: sessionNum + 1,
+        order_session_prefix: prefix,
+        order_session_number: sessionNumber + 1,
         order_sequence_next: 1,
       },
       updated_at: new Date(),
