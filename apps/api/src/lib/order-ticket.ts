@@ -33,11 +33,40 @@ export type OrderTicketInput = {
   total?: number | null;
   currency?: string;
   items: TicketItem[];
-  /** @deprecated lean kitchen ticket no longer prints a header label */
+  /** @deprecated use branchLabel for multi-branch kitchen tickets */
   headerLabel?: string;
+  /**
+   * Short branch tag in the ticket title, e.g. WORCESTER → `*ORDEM WORCESTER #32*`.
+   * Prefer `settings.order_ticket_label`, else derived from branch name.
+   */
+  branchLabel?: string | null;
   /** Explicit cash-change line; if omitted, parsed from notes (`Troco: …`). */
   cashChangeLabel?: string | null;
 };
+
+/**
+ * Resolve the short label used in `*ORDEM {LABEL} #N*`.
+ * Settings key `order_ticket_label` wins; otherwise last token of the branch name.
+ */
+export function resolveOrderTicketBranchLabel(
+  branchName?: string | null,
+  settings?: unknown,
+  explicit?: string | null,
+): string | null {
+  if (explicit?.trim()) return explicit.trim().toUpperCase();
+  const s = (settings || {}) as Record<string, unknown>;
+  if (typeof s.order_ticket_label === "string" && s.order_ticket_label.trim()) {
+    return s.order_ticket_label.trim().toUpperCase();
+  }
+  if (!branchName?.trim()) return null;
+  const cleaned = branchName
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/acai\s*house/gi, "")
+    .trim();
+  const last = cleaned.split(/\s+/).filter(Boolean).pop();
+  return last ? last.toUpperCase() : null;
+}
 
 export const CASH_CHANGE_NOTE_PREFIX = "Troco:";
 
@@ -130,7 +159,7 @@ function formatModifiers(
  * Lean kitchen ticket. Keep in sync with apps/web/src/lib/order-ticket.ts
  *
  * Example:
- *   *ORDEM #25*
+ *   *ORDEM WORCESTER #25*
  *
  *   Cliente: …
  *
@@ -150,7 +179,10 @@ export function formatOrderTicketText(data: OrderTicketInput): string {
   const { cashChangeLabel: fromNotes, notes: restNotes } = splitOrderNotes(data.notes);
   const cashChange = data.cashChangeLabel ?? fromNotes;
 
-  const header: string[] = [`*ORDEM #${data.orderNumber}*`];
+  const branchTag = data.branchLabel?.trim()
+    ? ` ${data.branchLabel.trim().toUpperCase()}`
+    : "";
+  const header: string[] = [`*ORDEM${branchTag} #${data.orderNumber}*`];
   if (data.tableName) header.push(data.tableName);
   if (data.customerName) header.push(`Cliente: ${data.customerName}`);
   if (data.deliveryPhone) header.push(`Tel: ${data.deliveryPhone}`);

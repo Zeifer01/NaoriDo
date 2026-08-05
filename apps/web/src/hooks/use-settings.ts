@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/fetcher";
 import { useAuthStore } from "@/stores/auth-store";
+import { resolveOrderTicketBranchLabel } from "@/lib/order-ticket";
 
 export function useOrgSettings() {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -17,6 +18,13 @@ export function useBranchSettings() {
     queryKey: ["settings", "branch"],
     queryFn: () => apiFetch("/api/settings/branch"),
   });
+}
+
+/** Short label for kitchen WhatsApp ticket: `*ORDEM WORCESTER #32*` */
+export function useOrderTicketBranchLabel(): string | null {
+  const { data } = useBranchSettings();
+  const branch = data as { name?: string; settings?: unknown } | undefined;
+  return resolveOrderTicketBranchLabel(branch?.name, branch?.settings);
 }
 
 export function useUpdateOrg() {

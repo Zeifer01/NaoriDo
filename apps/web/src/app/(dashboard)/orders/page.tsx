@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@restai/ui/components/button";
 import { Download, RefreshCw, RotateCcw } from "lucide-react";
 import { useOrders, useUpdateOrderStatus, useDeleteOrder, useResetOrderSequence } from "@/hooks/use-orders";
-import { useOrgSettings, useBranchSettings } from "@/hooks/use-settings";
+import { useOrgSettings, useBranchSettings, useOrderTicketBranchLabel } from "@/hooks/use-settings";
 import { usePrintReceipt } from "@/components/print-ticket";
 import { apiFetch } from "@/lib/fetcher";
 import { downloadXlsx } from "@/lib/export-xlsx";
@@ -42,6 +42,7 @@ export default function OrdersPage() {
   const { data: branchSettings } = useBranchSettings();
   const printReceipt = usePrintReceipt();
   const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
+  const branchLabel = useOrderTicketBranchLabel();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
   const updatingTargetStatus = updateStatus.isPending ? updateStatus.variables?.status ?? null : null;
   const orderSession = getOrderSessionConfig((branchSettings as any)?.settings);
@@ -88,7 +89,11 @@ export default function OrdersPage() {
     try {
       const orderDetail = await apiFetch(`/api/orders/${order.id}`);
       await copyOrderTicket(
-        orderToTicketInput(orderDetail, { headerLabel: kitchenLabel }),
+        orderToTicketInput(orderDetail, {
+          headerLabel: kitchenLabel,
+          branchLabel,
+          currency: getActiveCurrency(),
+        }),
       );
       toast.success("Comanda copiada");
     } catch (err: any) {

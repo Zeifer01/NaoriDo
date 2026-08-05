@@ -12,9 +12,10 @@ import {
 } from "./_components/cart-sidebar";
 import { ModifierDialog, type CartModifier } from "./_components/modifier-dialog";
 import { SuccessDialog } from "./_components/success-dialog";
-import { buildCashChangeNote } from "@/lib/order-ticket";
+import { buildCashChangeNote, resolveOrderTicketBranchLabel } from "@/lib/order-ticket";
 import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
+import { useBranchSettings } from "@/hooks/use-settings";
 
 export interface PosCartItem {
   lineId: string;
@@ -62,6 +63,11 @@ export default function PosPage() {
 
   const [modDialogItem, setModDialogItem] = useState<any>(null);
   const [modDialogOpen, setModDialogOpen] = useState(false);
+  const { data: branchSettings } = useBranchSettings();
+  const branchLabel = resolveOrderTicketBranchLabel(
+    (branchSettings as any)?.name,
+    (branchSettings as any)?.settings,
+  );
 
   const { data: categories } = useCategories();
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
@@ -196,6 +202,7 @@ export default function PosPage() {
         notes: combinedNotes,
         createdAt: new Date().toISOString(),
         currency,
+        branchLabel,
         items: cart.map((item) => ({
           name: item.name,
           quantity: item.quantity,

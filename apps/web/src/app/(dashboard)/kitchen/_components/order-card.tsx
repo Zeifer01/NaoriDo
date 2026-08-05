@@ -22,6 +22,7 @@ import { getActiveCurrency } from "@/stores/currency-store";
 import { deliveryPaymentLabel, getSimplifiedReadyLabel } from "@restai/config";
 import { getTimeDiff, getTimeUrgency } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
+import { useOrderTicketBranchLabel } from "@/hooks/use-settings";
 import { OrderNotifyActions } from "./order-notify-actions";
 
 const VISIBLE_ITEMS_LIMIT = 4;
@@ -140,6 +141,7 @@ export function KitchenOrderCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
+  const branchLabel = useOrderTicketBranchLabel();
   const orderType = order.type || order.order_type;
   const orderNum = order.orderNumber || order.order_number || order.id;
   const tableName = order.tableName || order.table_name || "";
@@ -343,6 +345,7 @@ export function KitchenOrderCard({
               await copyOrderTicket(
                 orderToTicketInput(order, {
                   headerLabel: kitchenLabel,
+                  branchLabel,
                   currency: getActiveCurrency(),
                 }),
               );

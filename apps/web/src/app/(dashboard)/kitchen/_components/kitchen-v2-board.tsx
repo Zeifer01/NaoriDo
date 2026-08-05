@@ -40,6 +40,7 @@ import {
   type KitchenColumnStatus,
 } from "./kitchen-context";
 import { useFeatures } from "@/hooks/use-features";
+import { useOrderTicketBranchLabel } from "@/hooks/use-settings";
 import { OrderNotifyActions } from "./order-notify-actions";
 
 type TypeFilter = "all" | "dine_in" | "takeout" | "delivery";
@@ -109,6 +110,7 @@ function CompactCard({
     simplifiedOrderStatus,
   } = useKitchenContext();
   const { kitchenLabel } = useFeatures();
+  const branchLabel = useOrderTicketBranchLabel();
 
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: order.id,
@@ -305,6 +307,7 @@ function CompactCard({
                 await copyOrderTicket(
                   orderToTicketInput(order, {
                     headerLabel: kitchenLabel,
+                    branchLabel,
                     currency: getActiveCurrency(),
                   }),
                 );

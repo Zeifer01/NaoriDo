@@ -11,7 +11,10 @@ import {
   type WhatsAppMessageKey,
   type WhatsAppMessageTemplates,
 } from "../lib/whatsapp-messages.js";
-import { formatOrderTicketText } from "../lib/order-ticket.js";
+import {
+  formatOrderTicketText,
+  resolveOrderTicketBranchLabel,
+} from "../lib/order-ticket.js";
 import {
   fetchConnectionState,
   formatPhoneForWhatsApp,
@@ -311,6 +314,7 @@ export async function sendManualOrderNotify(
       notes: order.notes,
       total: order.total,
       currency: branch.currency || "BRL",
+      branchLabel: resolveOrderTicketBranchLabel(branch.name, branch.settings),
       items,
     });
 
