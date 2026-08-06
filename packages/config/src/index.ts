@@ -19,6 +19,9 @@ export * from "./delivery-payments";
 // Delivery fee pricing (zones vs radius)
 export * from "./delivery-pricing";
 
+// Street address + city suffix for tickets / CRM
+export * from "./address";
+
 // Order number session / archive cycle (turno, feira, …)
 export * from "./order-session";
 

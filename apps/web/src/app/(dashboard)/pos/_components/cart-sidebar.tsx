@@ -27,6 +27,7 @@ import {
   deliveryPaymentLabel,
   parseDeliveryPricing,
   getDeliveryFeeCents,
+  appendCityToAddress,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { apiFetch } from "@/lib/fetcher";
@@ -53,6 +54,10 @@ export type PosCustomerSuggestion = {
 function formatCustomerAddress(c: PosCustomerSuggestion): string {
   const parts = [c.address, c.neighborhood, c.city].filter(Boolean);
   return parts.join(", ");
+}
+
+function phoneDigits(value: string): string {
+  return value.replace(/\D/g, "");
 }
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -131,13 +136,28 @@ export function CartSidebar({
   onCreateOrder: () => void;
 }) {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [searchSource, setSearchSource] = useState<"name" | "phone">("name");
   const [quoting, setQuoting] = useState(false);
   const [feeError, setFeeError] = useState<string | null>(null);
   const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const debouncedName = useDebouncedValue(customerName.trim(), 250);
+  const debouncedPhone = useDebouncedValue(customerPhone.trim(), 250);
   const debouncedAddress = useDebouncedValue(deliveryAddress.trim(), 600);
-  const searchEnabled = debouncedName.length >= 2 && !selectedCustomerId;
+  const debouncedPhoneDigits = phoneDigits(debouncedPhone);
+  const nameSearchReady = debouncedName.length >= 2;
+  const phoneSearchReady = debouncedPhoneDigits.length >= 3;
+  const searchEnabled =
+    !selectedCustomerId && (nameSearchReady || phoneSearchReady);
+  /** Prefer the field the attendant is actively typing. */
+  const searchTerm =
+    searchSource === "phone" && phoneSearchReady
+      ? debouncedPhoneDigits
+      : nameSearchReady
+        ? debouncedName
+        : phoneSearchReady
+          ? debouncedPhoneDigits
+          : undefined;
   const { data: branchSettings } = useBranchSettings();
   const currency = (branchSettings as any)?.currency || "BRL";
   const preferEnglish = currency === "USD";
@@ -156,7 +176,7 @@ export function CartSidebar({
   );
 
   const { data: customersData, isFetching } = useLoyaltyCustomers(
-    searchEnabled ? debouncedName : undefined,
+    searchEnabled ? searchTerm : undefined,
     1,
     searchEnabled,
   );
@@ -188,6 +208,15 @@ export function CartSidebar({
     const city = pricing.cities.find((c) => c.name === cityName);
     if (!city) return;
     setFeeError(null);
+    const cityNames = pricing.cities.map((c) => c.name);
+    const nextAddress = appendCityToAddress(
+      deliveryAddress,
+      city.name,
+      cityNames,
+    );
+    if (nextAddress !== deliveryAddress) {
+      onDeliveryAddressChange(nextAddress);
+    }
     onDeliveryFeeChange({
       city: city.name,
       feeCents: city.fee_cents,
@@ -336,7 +365,7 @@ export function CartSidebar({
         </Button>
       </div>
 
-      {/* Customer autocomplete */}
+      {/* Customer autocomplete — name or phone */}
       <div className="mb-2 space-y-2 shrink-0" ref={wrapRef}>
         <div className="relative">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -345,17 +374,48 @@ export function CartSidebar({
             value={customerName}
             onChange={(e) => {
               onClearSelectedCustomer();
+              setSearchSource("name");
               onCustomerNameChange(e.target.value);
               setSuggestionsOpen(true);
             }}
-            onFocus={() => setSuggestionsOpen(true)}
+            onFocus={() => {
+              setSearchSource("name");
+              setSuggestionsOpen(true);
+            }}
             className="pl-9 text-sm"
             autoComplete="off"
           />
-          {suggestionsOpen && searchEnabled && (suggestions.length > 0 || isFetching) && (
-            <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-y-auto">
+        </div>
+
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Telefone (busca ou novo)"
+            value={customerPhone}
+            onChange={(e) => {
+              onClearSelectedCustomer();
+              setSearchSource("phone");
+              onCustomerPhoneChange(e.target.value);
+              setSuggestionsOpen(true);
+            }}
+            onFocus={() => {
+              setSearchSource("phone");
+              setSuggestionsOpen(true);
+            }}
+            className="pl-9 text-sm"
+            autoComplete="off"
+            inputMode="tel"
+          />
+        </div>
+
+        {suggestionsOpen &&
+          searchEnabled &&
+          (suggestions.length > 0 || isFetching) && (
+            <div className="relative z-50 -mt-1 rounded-md border bg-popover shadow-md max-h-56 overflow-y-auto">
               {isFetching && suggestions.length === 0 && (
-                <p className="px-3 py-2 text-xs text-muted-foreground">Buscando…</p>
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  Buscando…
+                </p>
               )}
               {suggestions.map((c) => {
                 const addr = formatCustomerAddress(c);
@@ -370,9 +430,14 @@ export function CartSidebar({
                     }}
                   >
                     <p className="text-sm font-medium leading-tight">{c.name}</p>
-                    {(c.phone || addr) && (
+                    {c.phone && (
+                      <p className="text-[11px] font-medium text-foreground/80 mt-0.5 tabular-nums">
+                        {c.phone}
+                      </p>
+                    )}
+                    {addr && (
                       <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
-                        {[c.phone, addr].filter(Boolean).join(" · ")}
+                        {addr}
                       </p>
                     )}
                     {c.notes && (
@@ -385,17 +450,6 @@ export function CartSidebar({
               })}
             </div>
           )}
-        </div>
-
-        <div className="relative">
-          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Telefone (opcional)"
-            value={customerPhone}
-            onChange={(e) => onCustomerPhoneChange(e.target.value)}
-            className="pl-9 text-sm"
-          />
-        </div>
 
         {orderType === "delivery" && (
           <div className="space-y-2">

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { eq, and, inArray, or, isNotNull, sql, ne } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
+  appendCityToAddress,
   getDeliveryFeeCents,
   parseDeliveryPaymentMethods,
   parseDeliveryPricing,
@@ -558,14 +559,20 @@ delivery.post(
     }
 
     let customerId: string | null = null;
+    const rawDeliveryAddress =
+      orderType === "delivery" ? body.deliveryAddress?.trim() || null : null;
+    const deliveryAddressWithCity =
+      orderType === "delivery" && rawDeliveryAddress
+        ? appendCityToAddress(rawDeliveryAddress, deliveryCity)
+        : rawDeliveryAddress;
+
     if (body.deliveryPhone?.trim()) {
       try {
         const linked = await findOrCreateByPhone({
           organizationId: branch.organization_id,
           phone: normalizePhone(body.deliveryPhone) || body.deliveryPhone.trim(),
           name: body.customerName?.trim() || "Cliente",
-          address:
-            orderType === "delivery" ? body.deliveryAddress?.trim() : undefined,
+          address: deliveryAddressWithCity || undefined,
           city: orderType === "delivery" ? deliveryCity || undefined : undefined,
           reference:
             orderType === "delivery"
@@ -590,7 +597,7 @@ delivery.post(
         customerId,
         notes: body.notes,
         deliveryPhone: body.deliveryPhone,
-        deliveryAddress: orderType === "delivery" ? body.deliveryAddress : null,
+        deliveryAddress: deliveryAddressWithCity,
         deliveryReference: orderType === "delivery" ? body.deliveryReference : null,
         couponCode: body.couponCode || null,
         redemptionId: body.redemptionId || null,

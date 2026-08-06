@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, inArray, asc, sql } from "drizzle-orm";
+import { eq, and, inArray, asc, desc, sql } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { updateOrderItemStatusSchema, idParamSchema, kitchenQuerySchema } from "@restai/validators";
 import { ORDER_ITEM_STATUS_TRANSITIONS } from "@restai/config";
@@ -22,7 +22,7 @@ kitchen.use("*", tenantMiddleware);
 kitchen.use("*", requireBranch);
 kitchen.use("*", requireActivePlan);
 
-// GET /orders - Active kitchen orders (FIFO, with table/customer names, no N+1)
+// GET /orders - Active kitchen/comandas orders (newest first)
 kitchen.get("/orders", requirePermission("orders:read"), zValidator("query", kitchenQuerySchema), async (c) => {
   const tenant = c.get("tenant") as any;
   const { status } = c.req.valid("query");
@@ -69,7 +69,7 @@ kitchen.get("/orders", requirePermission("orders:read"), zValidator("query", kit
         inArray(schema.orders.status, statusList as any),
       ),
     )
-    .orderBy(asc(schema.orders.created_at));
+    .orderBy(desc(schema.orders.created_at));
 
   if (activeOrders.length === 0) {
     return c.json({ success: true, data: [] });

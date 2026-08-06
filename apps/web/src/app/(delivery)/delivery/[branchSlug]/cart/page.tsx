@@ -28,6 +28,7 @@ import {
   deliveryPaymentLabel,
   calcModifiersChargeCents,
   formatModifierDisplayName,
+  appendCityToAddress,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
@@ -175,6 +176,7 @@ export default function DeliveryCartPage({
     register,
     handleSubmit,
     setValue,
+    getValues,
     watch,
     formState: { errors },
   } = useForm<CheckoutForm>({
@@ -193,6 +195,12 @@ export default function DeliveryCartPage({
     const city = cities.find((c) => c.name === cityName);
     if (!city) return;
     setSelectedCity(city.name);
+    const cityNames = cities.map((c) => c.name);
+    const currentAddress = getValues("deliveryAddress") || "";
+    const nextAddress = appendCityToAddress(currentAddress, city.name, cityNames);
+    if (nextAddress !== currentAddress) {
+      setValue("deliveryAddress", nextAddress, { shouldDirty: true });
+    }
     setFeeQuote({
       fee_cents: city.fee_cents,
       fee_status: "pending",
@@ -409,7 +417,13 @@ export default function DeliveryCartPage({
       fulfillment,
       customerName: form.customerName,
       deliveryPhone: form.deliveryPhone,
-      deliveryAddress: isPickup ? undefined : form.deliveryAddress,
+      deliveryAddress: isPickup
+        ? undefined
+        : appendCityToAddress(
+            form.deliveryAddress || "",
+            pricingMode === "cities" ? selectedCity : null,
+            cities.map((c) => c.name),
+          ) || undefined,
       deliveryReference: isPickup ? undefined : form.deliveryReference || undefined,
       deliveryZoneId:
         !isPickup && pricingMode === "zones" && selectedZoneId ? selectedZoneId : undefined,

@@ -14,7 +14,7 @@ import {
   orderQuerySchema,
   quoteDeliveryFeeSchema,
 } from "@restai/validators";
-import { ORDER_STATUS_TRANSITIONS, ORDER_ITEM_STATUS_TRANSITIONS } from "@restai/config";
+import { ORDER_STATUS_TRANSITIONS, ORDER_ITEM_STATUS_TRANSITIONS, appendCityToAddress } from "@restai/config";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -281,6 +281,13 @@ orders.post(
       const customerName = body.customerName?.trim() || "Cliente PDV";
       let customerId = body.customerId ?? null;
 
+      const deliveryCity =
+        body.type === "delivery" ? body.deliveryCity?.trim() || null : null;
+      const deliveryAddress =
+        body.type === "delivery" && body.deliveryAddress
+          ? appendCityToAddress(body.deliveryAddress, deliveryCity)
+          : body.deliveryAddress;
+
       // Link / upsert CRM customer from POS fields (safe anti-homonym rules)
       if (customerName && customerName !== "Cliente PDV") {
         const upserted = await upsertCustomerFromPos({
@@ -288,7 +295,7 @@ orders.post(
           name: customerName,
           customerId,
           phone: body.deliveryPhone,
-          address: body.deliveryAddress,
+          address: deliveryAddress,
           notes: body.customerNotes,
           reference: body.deliveryReference,
         });
@@ -305,10 +312,10 @@ orders.post(
         notes: body.notes,
         tableSessionId,
         deliveryPhone: body.deliveryPhone,
-        deliveryAddress: body.deliveryAddress,
+        deliveryAddress,
         deliveryReference: body.deliveryReference,
         paymentMethod: body.paymentMethod,
-        deliveryCity: body.type === "delivery" ? body.deliveryCity ?? null : null,
+        deliveryCity,
         deliveryFeeOverrideCents:
           body.type === "delivery" && body.deliveryFeeCents !== undefined
             ? body.deliveryFeeCents

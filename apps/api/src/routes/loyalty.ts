@@ -98,11 +98,16 @@ loyalty.get("/customers", requirePermission("customers:read"), zValidator("query
 
   if (search) {
     const pattern = `%${search}%`;
+    const digits = search.replace(/\D/g, "");
+    const phoneMatch =
+      digits.length >= 3
+        ? sql`regexp_replace(coalesce(${schema.customers.phone}, ''), '[^0-9]', '', 'g') LIKE ${`%${digits}%`}`
+        : like(schema.customers.phone, pattern);
     conditions.push(
       or(
         like(schema.customers.name, pattern),
         like(schema.customers.email, pattern),
-        like(schema.customers.phone, pattern),
+        phoneMatch,
       )!,
     );
   }

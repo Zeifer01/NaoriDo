@@ -16,6 +16,7 @@ import { buildCashChangeNote, resolveOrderTicketBranchLabel } from "@/lib/order-
 import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
+import { appendCityToAddress, getDeliveryFeeCents } from "@restai/config";
 
 export interface PosCartItem {
   lineId: string;
@@ -192,17 +193,38 @@ export default function PosPage() {
           : null;
       const combinedNotes = [trocoNote, orderNotes.trim()].filter(Boolean).join("\n") || undefined;
 
+      const itemsSubtotal = cart.reduce((sum, item) => {
+        const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
+        return sum + (item.unitPrice + modTotal) * item.quantity;
+      }, 0);
+      const branchSettingsObj = ((branchSettings as any)?.settings ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const feeCents =
+        orderType === "delivery"
+          ? deliveryFeeCents != null
+            ? deliveryFeeCents
+            : getDeliveryFeeCents(branchSettingsObj)
+          : 0;
+      const ticketTotal = itemsSubtotal + feeCents;
+      const addressForOrder =
+        orderType === "delivery"
+          ? appendCityToAddress(deliveryAddress.trim(), deliveryCity)
+          : undefined;
+
       const ticketPreview: OrderTicketInput = {
         orderNumber: "…",
         customerName: name,
         type: orderType,
         deliveryPhone: customerPhone || undefined,
-        deliveryAddress: orderType === "delivery" ? deliveryAddress.trim() : undefined,
+        deliveryAddress: addressForOrder,
         paymentMethod,
         notes: combinedNotes,
         createdAt: new Date().toISOString(),
         currency,
         branchLabel,
+        total: ticketTotal,
         items: cart.map((item) => ({
           name: item.name,
           quantity: item.quantity,
@@ -219,8 +241,7 @@ export default function PosPage() {
         customerName: name,
         customerId: selectedCustomerId || undefined,
         deliveryPhone: customerPhone.trim() || undefined,
-        deliveryAddress:
-          orderType === "delivery" ? deliveryAddress.trim() : undefined,
+        deliveryAddress: addressForOrder,
         deliveryCity:
           orderType === "delivery" && deliveryCity ? deliveryCity : undefined,
         deliveryFeeCents:
@@ -247,8 +268,10 @@ export default function PosPage() {
 
       const orderNumber =
         result.order_number || result.orderNumber || result.order?.order_number || "";
+      const resultTotal =
+        result.total ?? result.order?.total ?? ticketTotal;
       setLastOrderNumber(orderNumber);
-      setLastTicket({ ...ticketPreview, orderNumber });
+      setLastTicket({ ...ticketPreview, orderNumber, total: resultTotal });
       setCart([]);
       resetCustomerFields();
       setSuccessDialog(true);
