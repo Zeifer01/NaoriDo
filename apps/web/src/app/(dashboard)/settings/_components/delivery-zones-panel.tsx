@@ -39,9 +39,9 @@ function ZoneRow({
   onMoveDown: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="flex items-start gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
       {/* reorder arrows */}
-      <div className="flex flex-col shrink-0">
+      <div className="flex flex-col shrink-0 pt-0.5">
         <button
           type="button"
           onClick={onMoveUp}
@@ -66,29 +66,31 @@ function ZoneRow({
       <button
         type="button"
         onClick={() => onToggle(zone.id, !zone.is_active)}
-        className={`h-4 w-4 shrink-0 rounded-full border-2 transition-colors ${
+        className={`mt-1 h-4 w-4 shrink-0 rounded-full border-2 transition-colors ${
           zone.is_active ? "border-primary bg-primary" : "border-muted-foreground/30"
         }`}
         title={zone.is_active ? "Desativar" : "Ativar"}
       />
 
-      <span className={`flex-1 text-sm ${!zone.is_active ? "text-muted-foreground line-through" : ""}`}>
+      <span
+        className={`flex-1 text-sm whitespace-pre-line ${!zone.is_active ? "text-muted-foreground line-through" : ""}`}
+      >
         {zone.name}
       </span>
-      <span className="text-sm font-semibold shrink-0">
+      <span className="text-sm font-semibold shrink-0 pt-0.5">
         {formatCurrency(zone.fee_cents, currency)}
       </span>
       <button
         type="button"
         onClick={() => onEdit(zone)}
-        className="p-1 text-muted-foreground hover:text-foreground rounded"
+        className="p-1 text-muted-foreground hover:text-foreground rounded mt-0.5"
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
         onClick={() => onDelete(zone.id)}
-        className="p-1 text-muted-foreground hover:text-destructive rounded"
+        className="p-1 text-muted-foreground hover:text-destructive rounded mt-0.5"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
@@ -120,40 +122,48 @@ function ZoneForm({
   };
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-muted/30 px-3 py-2">
-      <Input
+    <div className="flex items-start gap-2 rounded-lg border border-primary/40 bg-muted/30 px-3 py-2">
+      <textarea
         autoFocus
-        placeholder="Nome do bairro / zona"
+        placeholder={"Bairros…\nData e horário (ex.: 13/08 — 13 hrs às 19 hrs)"}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="flex-1 h-8 text-sm"
-        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+        rows={3}
+        maxLength={255}
+        className="flex-1 min-h-[4.5rem] rounded-md border border-input bg-background px-3 py-2 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) handleSubmit();
+        }}
       />
-      <Input
-        placeholder="Taxa (R$)"
-        type="number"
-        step="0.01"
-        min="0"
-        value={fee}
-        onChange={(e) => setFee(e.target.value)}
-        className="w-28 h-8 text-sm"
-        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-      />
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={saving}
-        className="p-1 text-primary hover:text-primary/80 rounded"
-      >
-        <Check className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="p-1 text-muted-foreground hover:text-foreground rounded"
-      >
-        <X className="h-4 w-4" />
-      </button>
+      <div className="flex flex-col gap-2 shrink-0">
+        <Input
+          placeholder="Taxa (R$)"
+          type="number"
+          step="0.01"
+          min="0"
+          value={fee}
+          onChange={(e) => setFee(e.target.value)}
+          className="w-28 h-8 text-sm"
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+        />
+        <div className="flex justify-end gap-1">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="p-1 text-primary hover:text-primary/80 rounded"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="p-1 text-muted-foreground hover:text-foreground rounded"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -230,8 +240,9 @@ export function DeliveryZonesPanel({ currency }: { currency: string }) {
         <div>
           <p className="text-sm font-medium">Zonas de entrega</p>
           <p className="text-xs text-muted-foreground">
-            Taxa de entrega por bairro/região. Quando cadastradas (e frete por raio estiver desligado),
-            o cliente escolhe sua zona no checkout.
+            Taxa de entrega por bairro/região. Pode usar Enter para quebrar linha
+            (ex.: bairros na 1ª linha, data/horário na 2ª). No checkout o texto
+            aparece com a mesma quebra.
           </p>
         </div>
         {!adding && (

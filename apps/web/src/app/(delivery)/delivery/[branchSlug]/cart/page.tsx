@@ -337,7 +337,7 @@ export default function DeliveryCartPage({
           ? "Delivery"
           : "Entrega"
       : selectedZone
-        ? selectedZone.name
+        ? selectedZone.name.split("\n")[0]!.trim() || selectedZone.name
         : preferEnglish
           ? "Delivery"
           : "Entrega";
@@ -563,15 +563,17 @@ export default function DeliveryCartPage({
                 key={zone.id}
                 type="button"
                 onClick={() => setSelectedZoneId(zone.id)}
-                className={`w-full flex items-center justify-between rounded-2xl border px-4 py-3 text-sm transition ${
+                className={`w-full flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-sm transition ${
                   selectedZoneId === zone.id
                     ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
                     : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
                 }`}
               >
-                <span className="font-medium">{zone.name}</span>
+                <span className="font-medium text-left whitespace-pre-line">
+                  {zone.name}
+                </span>
                 <span
-                  className={`font-semibold ${selectedZoneId === zone.id ? "text-[var(--d-accent-dark)]" : ""}`}
+                  className={`font-semibold shrink-0 ${selectedZoneId === zone.id ? "text-[var(--d-accent-dark)]" : ""}`}
                 >
                   {formatCurrency(zone.fee_cents, currency)}
                 </span>
