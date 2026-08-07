@@ -197,3 +197,21 @@ api.naorido.com.br {
 		format console
 	}
 }
+
+# ─── Monitoramento (Netdata) ────────────────────────────────────────────────
+# Dashboard local (127.0.0.1:19999) exposto via subdomínio com Basic Auth.
+# Hash gerado com: caddy hash-password --plaintext '<senha>'
+monitor.automatizappy.com {
+	basic_auth {
+		admin $2a$14$3Lo8seq5N2hOEhBBGxTeiey3GStV/OcvYsghN1EzDhA/oWMQYV.jy
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+	}
+
+	reverse_proxy 127.0.0.1:19999
+}
