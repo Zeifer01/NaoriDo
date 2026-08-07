@@ -39,6 +39,7 @@ nul
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
@@ -78,3 +79,6 @@ apps/api/uploads/
 # Database dumps (root level only — não afeta migrations do Drizzle)
 /*.sql
 /*.sql.gz
+
+# Planilhas soltas na raiz (uso local, não faz parte do produto)
+/*.xlsx

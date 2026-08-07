@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
 } from "@restai/ui/components/tabs";
-import { Star, Users, Gift, Ticket } from "lucide-react";
+import { Star, Gift, Ticket, ContactRound } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@restai/ui/components/button";
 import { LoyaltyStats } from "./_components/loyalty-stats";
 import { ProgramsTab } from "./_components/programs-tab";
-import { CustomersTab } from "./_components/customers-tab";
 import { RewardsTab } from "./_components/rewards-tab";
 import { CouponsTab } from "./_components/coupons-tab";
 
@@ -22,7 +23,15 @@ export default function LoyaltyPage() {
     <div className="space-y-6">
       <PageHeader
         title="Fidelidade"
-        description="Gerencie seus clientes, programa de pontos, recompensas e cupons"
+        description="Programa de pontos, recompensas e cupons"
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/customers">
+              <ContactRound className="h-4 w-4 mr-2" />
+              Ir para Clientes
+            </Link>
+          </Button>
+        }
       />
 
       <LoyaltyStats />
@@ -32,10 +41,6 @@ export default function LoyaltyPage() {
           <TabsTrigger value="programs">
             <Star className="h-4 w-4 mr-2" />
             Programas
-          </TabsTrigger>
-          <TabsTrigger value="customers">
-            <Users className="h-4 w-4 mr-2" />
-            Clientes
           </TabsTrigger>
           <TabsTrigger value="rewards">
             <Gift className="h-4 w-4 mr-2" />
@@ -49,9 +54,6 @@ export default function LoyaltyPage() {
 
         <TabsContent value="programs">
           <ProgramsTab />
-        </TabsContent>
-        <TabsContent value="customers">
-          <CustomersTab />
         </TabsContent>
         <TabsContent value="rewards">
           <RewardsTab />
