@@ -10,7 +10,8 @@ import {
 } from "@restai/ui/components/tabs";
 import { Star, Gift, Ticket, ContactRound } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@restai/ui/components/button";
+import { buttonVariants } from "@restai/ui/components/button";
+import { cn } from "@restai/ui";
 import { LoyaltyStats } from "./_components/loyalty-stats";
 import { ProgramsTab } from "./_components/programs-tab";
 import { RewardsTab } from "./_components/rewards-tab";
@@ -25,12 +26,13 @@ export default function LoyaltyPage() {
         title="Fidelidade"
         description="Programa de pontos, recompensas e cupons"
         actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/customers">
-              <ContactRound className="h-4 w-4 mr-2" />
-              Ir para Clientes
-            </Link>
-          </Button>
+          <Link
+            href="/customers"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <ContactRound className="h-4 w-4 mr-2" />
+            Ir para Clientes
+          </Link>
         }
       />
 
