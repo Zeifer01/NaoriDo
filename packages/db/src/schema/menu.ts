@@ -44,12 +44,18 @@ export const menuItems = pgTable("menu_items", {
   cost_cents: integer("cost_cents"),
   supplier: varchar("supplier", { length: 255 }),
   image_url: text("image_url"),
+  /**
+   * Optional internal barcode (Code128). Used by fair/POS scan (Naori Do).
+   * Null for manufacturer-coded products (e.g. Korin) and for orgs that do not use barcodes.
+   */
+  barcode: varchar("barcode", { length: 64 }),
   is_available: boolean("is_available").default(true).notNull(),
   sort_order: integer("sort_order").default(0).notNull(),
   preparation_time_min: integer("preparation_time_min"),
 }, (table) => [
   index("idx_menu_items_branch").on(table.branch_id),
   index("idx_menu_items_category").on(table.category_id),
+  index("idx_menu_items_org_barcode").on(table.organization_id, table.barcode),
 ]);
 
 export const modifierGroups = pgTable("modifier_groups", {

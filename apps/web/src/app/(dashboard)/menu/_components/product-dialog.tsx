@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@restai/ui/components/dialog";
-import { Link2, Unlink } from "lucide-react";
+import { Link2, Unlink, RefreshCw, Printer } from "lucide-react";
 import {
   useCreateMenuItem,
   useUpdateMenuItem,
@@ -23,6 +23,10 @@ import {
 } from "@/hooks/use-menu";
 import { toast } from "sonner";
 import { ImageUploadButton } from "./image-upload-button";
+import { PrintLabelDialog } from "./print-label-dialog";
+import { useFeatures } from "@/hooks/use-features";
+import { generateInternalBarcode } from "@/lib/barcode";
+import { BarcodeSvg } from "@/components/barcode-svg";
 
 function Skeleton({ className }: { className?: string }) {
   return (
@@ -48,6 +52,7 @@ export function ProductDialog({
   const updateItem = useUpdateMenuItem();
   const linkGroup = useLinkModifierGroup();
   const unlinkGroup = useUnlinkModifierGroup();
+  const { posBarcodes } = useFeatures();
 
   const { data: linkedGroups, isLoading: linkedLoading } =
     useItemModifierGroups(initial?.id ?? "");
@@ -69,6 +74,8 @@ export function ProductDialog({
   const [imageUrl, setImageUrl] = useState<string>(
     initial?.image_url ?? initial?.imageUrl ?? ""
   );
+  const [barcode, setBarcode] = useState<string>(initial?.barcode ?? "");
+  const [printOpen, setPrintOpen] = useState(false);
   const [linkKey, setLinkKey] = useState(0);
 
   const loading = createItem.isPending || updateItem.isPending;
@@ -106,6 +113,10 @@ export function ProductDialog({
       preparationTimeMin: prepTime ? parseInt(prepTime, 10) : undefined,
     };
 
+    if (posBarcodes) {
+      payload.barcode = barcode.trim() ? barcode.trim() : null;
+    }
+
     try {
       if (isEdit) {
         await updateItem.mutateAsync({ id: initial.id, ...payload });
@@ -141,6 +152,7 @@ export function ProductDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
@@ -225,6 +237,53 @@ export function ProductDialog({
               />
             </div>
           </div>
+
+          {posBarcodes && (
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="prod-barcode">Código de barras (interno)</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBarcode(generateInternalBarcode())}
+                  >
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Gerar
+                  </Button>
+                  {isEdit && barcode.trim() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPrintOpen(true)}
+                    >
+                      <Printer className="mr-1.5 h-3.5 w-3.5" />
+                      Etiqueta
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <Input
+                id="prod-barcode"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value.toUpperCase())}
+                placeholder="ND1234567890 — deixe vazio se o produto já tem código Korin"
+                autoComplete="off"
+              />
+              {barcode.trim() && (
+                <div className="flex justify-center rounded-md bg-white p-2">
+                  <BarcodeSvg value={barcode.trim()} height={44} />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Use só nos hortifruti da feira. Produtos Korin com código de fábrica podem
+                ficar sem este campo.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>Imagen</Label>
             <ImageUploadButton
@@ -313,5 +372,18 @@ export function ProductDialog({
         </form>
       </DialogContent>
     </Dialog>
+
+      {posBarcodes && (
+        <PrintLabelDialog
+          open={printOpen}
+          onOpenChange={setPrintOpen}
+          item={{
+            name: name.trim() || initial?.name || "Produto",
+            price: Math.round(parseFloat(priceSoles || "0") * 100) || initial?.price || 0,
+            barcode: barcode.trim() || null,
+          }}
+        />
+      )}
+    </>
   );
 }

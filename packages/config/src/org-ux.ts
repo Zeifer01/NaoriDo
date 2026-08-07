@@ -20,12 +20,18 @@ export interface OrgUxFlags {
    * Default `v1` keeps the full status machine labels for Naori Do etc.
    */
   order_status_ux: OrderStatusUx;
+  /**
+   * POS / menu barcodes (scanner + label print). Default `false` keeps Açaí House unchanged.
+   * Enable per org via `organizations.settings.pos_barcodes`.
+   */
+  pos_barcodes: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   reports_ux: "v1",
   kitchen_ux: "v1",
   order_status_ux: "v1",
+  pos_barcodes: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -88,7 +94,12 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
       s.order_status_ux,
       DEFAULT_ORG_UX_FLAGS.order_status_ux,
     ),
+    pos_barcodes: s.pos_barcodes === true,
   };
+}
+
+export function hasPosBarcodes(settings: unknown): boolean {
+  return getOrgUxFlags(settings).pos_barcodes;
 }
 
 /** Sidebar / page label for the kitchen board (e.g. "Comandas" for açaí ops). */

@@ -76,6 +76,13 @@ export const createMenuItemSchema = z.object({
   comparePriceCents: z.number().int().min(0).nullable().optional(),
   costCents: z.number().int().min(0).nullable().optional(),
   supplier: z.string().max(255).nullable().optional(),
+  /** Internal Code128 barcode; null clears. Empty string treated as null. */
+  barcode: z
+    .string()
+    .max(64)
+    .regex(/^[A-Za-z0-9\-_.]*$/, "Código de barras inválido")
+    .nullable()
+    .optional(),
   imageUrl: optionalUploadUrlSchema,
   isAvailable: z.boolean().default(true),
   sortOrder: z.number().int().min(0).default(0),

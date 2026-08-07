@@ -11,6 +11,7 @@ import {
   ToggleRight,
   UtensilsCrossed,
   ArrowUpDown,
+  Printer,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -27,6 +28,8 @@ import { CategoryDialog } from "./category-dialog";
 import { ProductDialog } from "./product-dialog";
 import { ImageUploadButton } from "./image-upload-button";
 import { ReorderPanel } from "./reorder-panel";
+import { PrintLabelDialog } from "./print-label-dialog";
+import { useFeatures } from "@/hooks/use-features";
 
 function Skeleton({ className }: { className?: string }) {
   return (
@@ -62,6 +65,8 @@ export function ProductsPainel({
     id: string;
     name: string;
   } | null>(null);
+  const [labelItem, setLabelItem] = useState<any>(null);
+  const { posBarcodes } = useFeatures();
 
   const categoryList: any[] = categories ?? [];
   const allItems: any[] = menuItems ?? [];
@@ -437,6 +442,15 @@ export function ProductsPainel({
                       >
                         <Edit className="h-3.5 w-3.5" />
                       </button>
+                      {posBarcodes && item.barcode && (
+                        <button
+                          className="p-1.5 rounded-md bg-background/80 hover:bg-background transition-colors"
+                          title="Imprimir etiqueta"
+                          onClick={() => setLabelItem(item)}
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       <button
                         className="p-1.5 rounded-md bg-background/80 hover:bg-background transition-colors"
                         onClick={() =>
@@ -514,6 +528,23 @@ export function ProductsPainel({
           categories={categoryList}
           allModifierGroups={allModifierGroups}
           initial={editingProduct}
+        />
+      )}
+      {posBarcodes && (
+        <PrintLabelDialog
+          open={!!labelItem}
+          onOpenChange={(v) => {
+            if (!v) setLabelItem(null);
+          }}
+          item={
+            labelItem
+              ? {
+                  name: labelItem.name,
+                  price: labelItem.price,
+                  barcode: labelItem.barcode ?? null,
+                }
+              : null
+          }
         />
       )}
       {confirmDelete && (

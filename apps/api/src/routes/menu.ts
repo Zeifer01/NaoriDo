@@ -241,6 +241,39 @@ menu.delete(
 
 // --- Items ---
 
+// GET /items/by-barcode?code= — POS scanner lookup (must be before /items/:id)
+menu.get("/items/by-barcode", requirePermission("menu:read"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const code = (c.req.query("code") || "").trim();
+  if (!code) {
+    return c.json(
+      { success: false, error: { code: "VALIDATION_ERROR", message: "Informe o código" } },
+      400,
+    );
+  }
+
+  const [item] = await db
+    .select()
+    .from(schema.menuItems)
+    .where(
+      and(
+        eq(schema.menuItems.branch_id, tenant.branchId),
+        eq(schema.menuItems.organization_id, tenant.organizationId),
+        eq(schema.menuItems.barcode, code),
+      ),
+    )
+    .limit(1);
+
+  if (!item) {
+    return c.json(
+      { success: false, error: { code: "NOT_FOUND", message: "Código não encontrado" } },
+      404,
+    );
+  }
+
+  return c.json({ success: true, data: item });
+});
+
 // GET /items
 menu.get("/items", requirePermission("menu:read"), async (c) => {
   const tenant = c.get("tenant") as any;
@@ -291,6 +324,29 @@ menu.post(
       );
     }
 
+    const barcodeValue = body.barcode?.trim() ? body.barcode.trim() : null;
+    if (barcodeValue) {
+      const [dup] = await db
+        .select({ id: schema.menuItems.id })
+        .from(schema.menuItems)
+        .where(
+          and(
+            eq(schema.menuItems.organization_id, tenant.organizationId),
+            eq(schema.menuItems.barcode, barcodeValue),
+          ),
+        )
+        .limit(1);
+      if (dup) {
+        return c.json(
+          {
+            success: false,
+            error: { code: "CONFLICT", message: "Este código de barras já está em uso" },
+          },
+          409,
+        );
+      }
+    }
+
     const [item] = await db
       .insert(schema.menuItems)
       .values({
@@ -303,6 +359,7 @@ menu.post(
         compare_price_cents: body.comparePriceCents ?? null,
         cost_cents: body.costCents ?? null,
         supplier: body.supplier ?? null,
+        barcode: barcodeValue,
         image_url: body.imageUrl,
         is_available: body.isAvailable,
         sort_order: body.sortOrder,
@@ -401,6 +458,31 @@ menu.patch(
     if (body.comparePriceCents !== undefined) updateData.compare_price_cents = body.comparePriceCents ?? null;
     if (body.costCents !== undefined) updateData.cost_cents = body.costCents ?? null;
     if (body.supplier !== undefined) updateData.supplier = body.supplier ?? null;
+    if (body.barcode !== undefined) {
+      const barcodeValue = body.barcode?.trim() ? body.barcode.trim() : null;
+      if (barcodeValue) {
+        const [dup] = await db
+          .select({ id: schema.menuItems.id })
+          .from(schema.menuItems)
+          .where(
+            and(
+              eq(schema.menuItems.organization_id, tenant.organizationId),
+              eq(schema.menuItems.barcode, barcodeValue),
+            ),
+          )
+          .limit(1);
+        if (dup && dup.id !== id) {
+          return c.json(
+            {
+              success: false,
+              error: { code: "CONFLICT", message: "Este código de barras já está em uso" },
+            },
+            409,
+          );
+        }
+      }
+      updateData.barcode = barcodeValue;
+    }
     if (body.imageUrl !== undefined) updateData.image_url = body.imageUrl;
     if (body.isAvailable !== undefined) updateData.is_available = body.isAvailable;
     if (body.sortOrder !== undefined) updateData.sort_order = body.sortOrder;

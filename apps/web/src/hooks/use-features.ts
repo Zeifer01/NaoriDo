@@ -31,11 +31,13 @@ interface UseFeaturesResult {
   isSuperAdmin: boolean;
   /** Returns true when the active plan includes the given feature. */
   has: (feature: PlanFeature) => boolean;
-  /** Per-org UX flags (reports_ux / kitchen_ux / order_status_ux). */
+  /** Per-org UX flags (reports_ux / kitchen_ux / order_status_ux / pos_barcodes). */
   ux: OrgUxFlags;
   reportsUx: UxVersion;
   kitchenUx: UxVersion;
   orderStatusUx: OrderStatusUx;
+  /** True when fair/POS barcode scan + label print is enabled for this org. */
+  posBarcodes: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -118,6 +120,7 @@ export function useFeatures(): UseFeaturesResult {
       reportsUx: ux.reports_ux,
       kitchenUx: ux.kitchen_ux,
       orderStatusUx: ux.order_status_ux,
+      posBarcodes: ux.pos_barcodes,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

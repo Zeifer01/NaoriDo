@@ -12,10 +12,12 @@ import {
 } from "./_components/cart-sidebar";
 import { ModifierDialog, type CartModifier } from "./_components/modifier-dialog";
 import { SuccessDialog } from "./_components/success-dialog";
+import { PosBarcodeScanInput } from "./_components/barcode-scan-input";
 import { buildCashChangeNote, resolveOrderTicketBranchLabel } from "@/lib/order-ticket";
 import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
+import { useFeatures } from "@/hooks/use-features";
 import { appendCityToAddress, getDeliveryFeeCents } from "@restai/config";
 
 export interface PosCartItem {
@@ -74,6 +76,7 @@ export default function PosPage() {
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
   const createOrder = useCreateOrder();
   const currency = useCurrencyStore((s) => s.currency);
+  const { posBarcodes } = useFeatures();
 
   const allItems: any[] = menuItems ?? [];
 
@@ -283,17 +286,28 @@ export default function PosPage() {
 
   return (
     <div className="flex gap-4 h-[calc(100vh-8rem)]">
-      <ProductGrid
-        categories={categories ?? []}
-        items={allItems}
-        isLoading={itemsLoading}
-        search={search}
-        onSearchChange={setSearch}
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
-        cart={cart}
-        onItemClick={handleItemClick}
-      />
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        {posBarcodes && (
+          <PosBarcodeScanInput
+            onItemFound={(item) => {
+              handleItemClick(item);
+            }}
+          />
+        )}
+        <div className="min-h-0 flex-1">
+          <ProductGrid
+            categories={categories ?? []}
+            items={allItems}
+            isLoading={itemsLoading}
+            search={search}
+            onSearchChange={setSearch}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+            cart={cart}
+            onItemClick={handleItemClick}
+          />
+        </div>
+      </div>
 
       <CartSidebar
         cart={cart}
