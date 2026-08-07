@@ -162,8 +162,12 @@ function rewriteToDelivery(
 ) {
   const url = request.nextUrl.clone();
   const deliveryRest = toDeliveryRestPath(restPath);
-  const suffix = deliveryRest.startsWith("/") ? deliveryRest : `/${deliveryRest}`;
-  url.pathname = `/delivery/${branchSlug}${suffix}`;
+  if (!deliveryRest || deliveryRest === "/") {
+    url.pathname = `/delivery/${branchSlug}`;
+  } else {
+    const suffix = deliveryRest.startsWith("/") ? deliveryRest : `/${deliveryRest}`;
+    url.pathname = `/delivery/${branchSlug}${suffix}`;
+  }
   return NextResponse.rewrite(url, {
     request: { headers: withOrgHeaders(request, org) },
   });
@@ -201,12 +205,14 @@ function redirectOrRewriteStorefront(
   search: string,
 ) {
   const parts = pathname.split("/").filter(Boolean);
+  const isBranchWelcome =
+    parts.length === 1 && org.branches.some((b) => b.slug === parts[0]);
   const isBranchScoped =
     parts.length >= 2 &&
     org.branches.some((b) => b.slug === parts[0]) &&
     (parts[1] === "pedir" || parts[1] === "cart" || parts[1] === "pedido");
 
-  if (!isPublicStorefrontPath(pathname) && !isBranchScoped) {
+  if (!isPublicStorefrontPath(pathname) && !isBranchScoped && !isBranchWelcome) {
     return null;
   }
 
@@ -226,8 +232,14 @@ function redirectOrRewriteStorefront(
 }
 
 /** Map legacy /delivery/{slug}/rest → public path on storefront origin. */
-function legacyPublicPath(branchSlug: string, rest: string, multiBranch: boolean): string {
-  let path = rest || "/menu";
+function legacyPublicPath(branchSlug: string, rest: string | undefined, multiBranch: boolean): string {
+  const isWelcomeRoot = !rest || rest === "/";
+  // Branch root = página de boas-vindas (não o cardápio)
+  if (isWelcomeRoot) {
+    return multiBranch ? `/${branchSlug}` : "/";
+  }
+
+  let path = rest;
   // Prefer public alias /pedir for storefront menu
   if (path === "/menu" || path.startsWith("/menu/")) {
     path = `/pedir${path.slice("/menu".length)}`;
@@ -244,6 +256,13 @@ function tryBranchScopedStorefront(
   pathname: string,
 ) {
   const parts = pathname.split("/").filter(Boolean);
+  if (parts.length === 1) {
+    const maybeSlug = parts[0];
+    if (org.branches.some((b) => b.slug === maybeSlug)) {
+      // /{branch} → página de boas-vindas (landing_enabled) ou redirect interno ao cardápio
+      return rewriteToDelivery(request, org, maybeSlug, "/");
+    }
+  }
   if (parts.length >= 2) {
     const maybeSlug = parts[0];
     const segment = parts[1];
@@ -274,7 +293,7 @@ export async function proxy(request: NextRequest) {
   const legacyMatch = pathname.match(/^\/delivery\/([^/]+)(\/.*)?$/);
   if (legacyMatch && !isLocalHost(hostname)) {
     const branchSlug = legacyMatch[1];
-    const rest = legacyMatch[2] || "/menu";
+    const restRaw = legacyMatch[2]; // undefined | "/" | "/menu" | ...
     try {
       const res = await fetch(
         `${API_URL.replace(/\/$/, "")}/api/public/legacy-delivery-redirect?branchSlug=${encodeURIComponent(branchSlug)}`,
@@ -289,10 +308,14 @@ export async function proxy(request: NextRequest) {
           const originMatch = json.data.location.match(/^(https?:\/\/[^/]+)/);
           const origin = originMatch?.[1];
           if (origin) {
-            const targetPath = legacyPublicPath(branchSlug, rest, json.data.multiBranch);
+            // Welcome root: /delivery/{slug} → /{slug} (boas-vindas), not /pedir
+            const targetPath = legacyPublicPath(
+              branchSlug,
+              restRaw,
+              json.data.multiBranch,
+            );
             const currentHost = hostname;
             const primaryHost = origin.replace(/^https?:\/\//, "");
-            // Redirect when using legacy path shape, or wrong host
             if (pathname.startsWith("/delivery/") || currentHost !== primaryHost) {
               return NextResponse.redirect(`${origin}${targetPath}${search}`, 301);
             }

@@ -25,7 +25,7 @@ export default async function DeliveryLandingPage({
   } catch {}
 
   if (!landing?.enabled) {
-    redirect(`/delivery/${branchSlug}/menu`);
+    redirect(`/${branchSlug}/pedir`);
   }
 
   const orgName = branch?.org_name || branch?.name || "";
@@ -34,7 +34,8 @@ export default async function DeliveryLandingPage({
     landing.description ||
     "Conheça nosso cardápio e faça seu pedido de forma fácil e rápida.";
   const buttonText = landing.button_text || "Ver Cardápio";
-  const buttonUrl = landing.button_url || `/delivery/${branchSlug}/menu`;
+  const menuHref = `/${branchSlug}/pedir`;
+  const buttonUrl = landing.button_url || menuHref;
 
   return (
     <div
@@ -91,7 +92,7 @@ export default async function DeliveryLandingPage({
       {/* Subtle divider + skip link */}
       <div className="mt-16 text-xs" style={{ color: "var(--d-placeholder)" }}>
         <a
-          href={`/delivery/${branchSlug}/menu`}
+          href={menuHref}
           className="underline underline-offset-2 hover:opacity-80"
         >
           Ir direto ao cardápio
