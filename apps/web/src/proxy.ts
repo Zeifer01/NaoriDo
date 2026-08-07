@@ -183,6 +183,48 @@ function redirectToOrigin(origin: string, pathname: string, search: string) {
   return NextResponse.redirect(`${base}${path}${search}`, 302);
 }
 
+/** Hostname from an origin like https://www.example.com (no port handling needed for our tenants). */
+function hostnameFromOrigin(origin: string): string {
+  return origin.replace(/^https?:\/\//, "").split("/")[0]?.toLowerCase() ?? "";
+}
+
+/**
+ * When landing/staff and storefront share one host (no pedidos.*), serve the
+ * cardápio instead of redirecting to the same URL (infinite 302 loop).
+ * Only handles public storefront paths (`/pedir`, `/cart`, `/pedido`, branch-scoped).
+ */
+function redirectOrRewriteStorefront(
+  request: NextRequest,
+  org: ResolveHostData,
+  hostname: string,
+  pathname: string,
+  search: string,
+) {
+  const parts = pathname.split("/").filter(Boolean);
+  const isBranchScoped =
+    parts.length >= 2 &&
+    org.branches.some((b) => b.slug === parts[0]) &&
+    (parts[1] === "pedir" || parts[1] === "cart" || parts[1] === "pedido");
+
+  if (!isPublicStorefrontPath(pathname) && !isBranchScoped) {
+    return null;
+  }
+
+  const storefrontHost = hostnameFromOrigin(org.storefrontOrigin);
+  if (storefrontHost && storefrontHost !== hostname) {
+    return redirectToOrigin(org.storefrontOrigin, pathname, search);
+  }
+
+  const scoped = tryBranchScopedStorefront(request, org, pathname);
+  if (scoped) return scoped;
+
+  if (isPublicStorefrontPath(pathname) && org.defaultBranchSlug) {
+    return rewriteToDelivery(request, org, org.defaultBranchSlug, pathname);
+  }
+
+  return null;
+}
+
 /** Map legacy /delivery/{slug}/rest → public path on storefront origin. */
 function legacyPublicPath(branchSlug: string, rest: string, multiBranch: boolean): string {
   let path = rest || "/menu";
@@ -296,19 +338,14 @@ export async function proxy(request: NextRequest) {
     if (isStaffAppPath(pathname)) {
       return redirectToOrigin(org.staffOrigin, pathname, search);
     }
-    if (isPublicStorefrontPath(pathname)) {
-      return redirectToOrigin(org.storefrontOrigin, pathname, search);
-    }
-    const branchScoped = pathname.split("/").filter(Boolean);
-    if (
-      branchScoped.length >= 2 &&
-      org.branches.some((b) => b.slug === branchScoped[0]) &&
-      (branchScoped[1] === "pedir" ||
-        branchScoped[1] === "cart" ||
-        branchScoped[1] === "pedido")
-    ) {
-      return redirectToOrigin(org.storefrontOrigin, pathname, search);
-    }
+    const storefront = redirectOrRewriteStorefront(
+      request,
+      org,
+      hostname,
+      pathname,
+      search,
+    );
+    if (storefront) return storefront;
     if (pathname === "/" || pathname === "" || pathname === "/site") {
       return rewriteToSite(request, org);
     }
@@ -352,25 +389,14 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (isPublicStorefrontPath(pathname)) {
-    // Prefer pedidos host when distinct from current
-    const storefrontHost = org.storefrontOrigin.replace(/^https?:\/\//, "");
-    if (storefrontHost && storefrontHost !== hostname) {
-      return redirectToOrigin(org.storefrontOrigin, pathname, search);
-    }
-    if (defaultBranch) {
-      return rewriteToDelivery(request, org, defaultBranch, pathname);
-    }
-  }
-
-  const scopedStaff = tryBranchScopedStorefront(request, org, pathname);
-  if (scopedStaff) {
-    const storefrontHost = org.storefrontOrigin.replace(/^https?:\/\//, "");
-    if (storefrontHost && storefrontHost !== hostname) {
-      return redirectToOrigin(org.storefrontOrigin, pathname, search);
-    }
-    return scopedStaff;
-  }
+  const storefrontOnStaff = redirectOrRewriteStorefront(
+    request,
+    org,
+    hostname,
+    pathname,
+    search,
+  );
+  if (storefrontOnStaff) return storefrontOnStaff;
 
   if (isStaffAppPath(pathname) || pathname === "/" || pathname === "") {
     return NextResponse.next({ request: { headers } });
