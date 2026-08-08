@@ -381,8 +381,11 @@ export function CartSidebar({
         </Button>
       </div>
 
+      {/* Customer form + cart items share one scroll area, so the item list
+          never gets squeezed into a tiny box by a tall customer form above it. */}
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-0.5">
       {/* Customer autocomplete — name or phone */}
-      <div className="mb-2 space-y-2 shrink-0" ref={wrapRef}>
+      <div className="mb-2 space-y-2" ref={wrapRef}>
         <div className="relative">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -598,7 +601,7 @@ export function CartSidebar({
       </div>
 
       {/* Cart items */}
-      <div className="flex-1 overflow-y-auto space-y-1.5 mb-3 min-h-0">
+      <div className="space-y-1.5">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <ShoppingCart className="h-10 w-10 mb-2 opacity-20" />
@@ -706,6 +709,7 @@ export function CartSidebar({
             );
           })
         )}
+      </div>
       </div>
 
       {cart.length > 0 && (
