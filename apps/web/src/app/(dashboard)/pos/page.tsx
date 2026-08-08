@@ -18,7 +18,7 @@ import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
 import { useFeatures } from "@/hooks/use-features";
-import { appendCityToAddress, getDeliveryFeeCents } from "@restai/config";
+import { appendCityToAddress, getDeliveryFeeCents, calcItemTotalCents } from "@restai/config";
 
 export interface PosCartItem {
   lineId: string;
@@ -26,6 +26,8 @@ export interface PosCartItem {
   name: string;
   imageUrl: string | null;
   unitPrice: number;
+  promoQuantity: number | null;
+  promoPriceCents: number | null;
   quantity: number;
   notes?: string;
   modifiers: CartModifier[];
@@ -51,6 +53,7 @@ export default function PosPage() {
   const [customerNotes, setCustomerNotes] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [manualDiscount, setManualDiscount] = useState("");
   const [needsCashChange, setNeedsCashChange] = useState(false);
   const [cashChangeFor, setCashChangeFor] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -88,6 +91,7 @@ export default function PosPage() {
     setSelectedCustomerId(null);
     setOrderNotes("");
     setPaymentMethod("");
+    setManualDiscount("");
     setNeedsCashChange(false);
     setCashChangeFor("");
     setDeliveryCity(null);
@@ -120,6 +124,8 @@ export default function PosPage() {
             name: item.name,
             imageUrl: item.image_url || null,
             unitPrice: item.price,
+            promoQuantity: item.promo_quantity ?? null,
+            promoPriceCents: item.promo_price_cents ?? null,
             quantity: 1,
             notes: notes || undefined,
             modifiers: mods.map((m) => ({ ...m })),
@@ -148,6 +154,8 @@ export default function PosPage() {
           name: item.name,
           imageUrl: item.image_url || null,
           unitPrice: item.price,
+          promoQuantity: item.promo_quantity ?? null,
+          promoPriceCents: item.promo_price_cents ?? null,
           quantity: qty,
           notes: notes || undefined,
           modifiers: [],
@@ -198,7 +206,11 @@ export default function PosPage() {
 
       const itemsSubtotal = cart.reduce((sum, item) => {
         const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
-        return sum + (item.unitPrice + modTotal) * item.quantity;
+        const baseTotal = calcItemTotalCents(
+          { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
+          item.quantity,
+        );
+        return sum + baseTotal + modTotal * item.quantity;
       }, 0);
       const branchSettingsObj = ((branchSettings as any)?.settings ?? {}) as Record<
         string,
@@ -210,7 +222,10 @@ export default function PosPage() {
             ? deliveryFeeCents
             : getDeliveryFeeCents(branchSettingsObj)
           : 0;
-      const ticketTotal = itemsSubtotal + feeCents;
+      const manualDiscountCents = Math.round(
+        (Number(manualDiscount.replace(",", ".")) || 0) * 100,
+      );
+      const ticketTotal = Math.max(0, itemsSubtotal + feeCents - manualDiscountCents);
       const addressForOrder =
         orderType === "delivery"
           ? appendCityToAddress(deliveryAddress.trim(), deliveryCity)
@@ -257,6 +272,7 @@ export default function PosPage() {
             : undefined,
         customerNotes: customerNotes.trim() || undefined,
         paymentMethod,
+        manualDiscountCents: manualDiscountCents > 0 ? manualDiscountCents : undefined,
         items: cart.map((item) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
@@ -324,6 +340,7 @@ export default function PosPage() {
         needsCashChange={needsCashChange}
         cashChangeFor={cashChangeFor}
         selectedCustomerId={selectedCustomerId}
+        manualDiscount={manualDiscount}
         isPending={createOrder.isPending}
         onOrderTypeChange={(type) => {
           setOrderType(type);
@@ -354,6 +371,7 @@ export default function PosPage() {
         }}
         onNeedsCashChangeChange={setNeedsCashChange}
         onCashChangeForChange={setCashChangeFor}
+        onManualDiscountChange={setManualDiscount}
         onSelectCustomer={handleSelectCustomer}
         onClearSelectedCustomer={() => setSelectedCustomerId(null)}
         onUpdateQty={updateCartQty}

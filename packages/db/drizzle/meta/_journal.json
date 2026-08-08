@@ -99,6 +99,13 @@
       "when": 1785900000000,
       "tag": "0016_menu_item_barcode",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786164104322,
+      "tag": "0017_menu_item_promo",
+      "breakpoints": true
     }
   ]
 }

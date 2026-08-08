@@ -65,6 +65,15 @@ export function ProductDialog({
   const [comparePriceSoles, setComparePriceSoles] = useState(
     initial?.compare_price_cents ? (initial.compare_price_cents / 100).toFixed(2) : ""
   );
+  const [promoEnabled, setPromoEnabled] = useState(
+    !!(initial?.promo_quantity && initial?.promo_price_cents)
+  );
+  const [promoQuantity, setPromoQuantity] = useState(
+    initial?.promo_quantity ? String(initial.promo_quantity) : ""
+  );
+  const [promoPriceSoles, setPromoPriceSoles] = useState(
+    initial?.promo_price_cents ? (initial.promo_price_cents / 100).toFixed(2) : ""
+  );
   const [categoryId, setCategoryId] = useState(
     initial?.category_id ?? initial?.categoryId ?? categories[0]?.id ?? ""
   );
@@ -103,11 +112,30 @@ export function ProductDialog({
       ? Math.round(parseFloat(comparePriceSoles) * 100)
       : null;
 
+    let promoQuantityValue: number | null = null;
+    let promoPriceInCents: number | null = null;
+    if (promoEnabled) {
+      const qty = parseInt(promoQuantity, 10);
+      const promoCents = promoPriceSoles ? Math.round(parseFloat(promoPriceSoles) * 100) : NaN;
+      if (!Number.isInteger(qty) || qty < 2) {
+        toast.error("Promoção: informe uma quantidade válida (mínimo 2)");
+        return;
+      }
+      if (isNaN(promoCents) || promoCents < 0) {
+        toast.error("Promoção: informe o preço do lote");
+        return;
+      }
+      promoQuantityValue = qty;
+      promoPriceInCents = promoCents;
+    }
+
     const payload: any = {
       name: name.trim(),
       description: description.trim() || undefined,
       price: priceInCents,
       comparePriceCents: comparePriceInCents,
+      promoQuantity: promoQuantityValue,
+      promoPriceCents: promoPriceInCents,
       categoryId,
       imageUrl: imageUrl || undefined,
       preparationTimeMin: prepTime ? parseInt(prepTime, 10) : undefined,
@@ -223,6 +251,51 @@ export function ProductDialog({
                 placeholder="0,00 (opcional)"
               />
             </div>
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-border p-4">
+            <label className="flex items-center gap-2 text-sm cursor-pointer font-medium">
+              <input
+                type="checkbox"
+                checked={promoEnabled}
+                onChange={(e) => setPromoEnabled(e.target.checked)}
+                className="rounded border-input accent-primary"
+              />
+              Preço promocional (leve N por R$X)
+            </label>
+            {promoEnabled && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prod-promo-qty">Quantidade</Label>
+                  <Input
+                    id="prod-promo-qty"
+                    type="number"
+                    step="1"
+                    min="2"
+                    value={promoQuantity}
+                    onChange={(e) => setPromoQuantity(e.target.value)}
+                    placeholder="Ex: 2"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prod-promo-price">Preço do lote (R$)</Label>
+                  <Input
+                    id="prod-promo-price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={promoPriceSoles}
+                    onChange={(e) => setPromoPriceSoles(e.target.value)}
+                    placeholder="Ex: 10,00"
+                  />
+                </div>
+                {promoQuantity && promoPriceSoles && (
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    Ex: levando {promoQuantity} un. o cliente paga R${parseFloat(promoPriceSoles || "0").toFixed(2)} no total.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2 sm:col-span-1">

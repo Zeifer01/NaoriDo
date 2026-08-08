@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus } from "@restai/config";
+import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -39,6 +39,8 @@ interface CreateOrderParams {
   customerId?: string | null;
   couponCode?: string | null;
   redemptionId?: string | null;
+  /** Manual discount (cents) applied by staff at checkout, e.g. for a bulk-quantity promo tier without automatic pricing support. */
+  manualDiscountCents?: number | null;
   deliveryPhone?: string | null;
   deliveryAddress?: string | null;
   deliveryReference?: string | null;
@@ -69,6 +71,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     customerId,
     couponCode,
     redemptionId,
+    manualDiscountCents,
     deliveryPhone,
     deliveryAddress,
     deliveryReference,
@@ -206,7 +209,15 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     // (e.g. Nutella ×3 with free_quantity).
     const remainingSnaps = [...snapshots];
 
-    const itemTotal = (menuItem.price + modifierPricePerUnit) * item.quantity;
+    const itemTotal =
+      calcItemTotalCents(
+        {
+          unitPriceCents: menuItem.price,
+          promoQuantity: menuItem.promo_quantity,
+          promoPriceCents: menuItem.promo_price_cents,
+        },
+        item.quantity,
+      ) + modifierPricePerUnit * item.quantity;
     subtotal += itemTotal;
 
     orderItemsData.push({
@@ -284,6 +295,12 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     }
 
     discount += redemptionDiscount;
+
+    // Manual discount entered by staff at checkout (e.g. bulk-quantity promo
+    // tier without automatic pricing support). Clamped so total never goes negative.
+    if (manualDiscountCents && manualDiscountCents > 0) {
+      discount += Math.min(manualDiscountCents, Math.max(0, subtotal - discount));
+    }
 
     // IGV se calcula sobre la base imponible (subtotal - descuento)
     const taxableBase = subtotal - discount;
@@ -1105,7 +1122,15 @@ export async function addItemToOrder(params: AddItemParams): Promise<OrderWithMe
   const modifierPricePerUnit = calcModifiersChargeCents(priced, groupConfigs);
   const snapshots = calcModifierSnapshotPrices(priced, groupConfigs);
   const remainingSnaps = [...snapshots];
-  const lineTotal = (menuItem.price + modifierPricePerUnit) * quantity;
+  const lineTotal =
+    calcItemTotalCents(
+      {
+        unitPriceCents: menuItem.price,
+        promoQuantity: menuItem.promo_quantity,
+        promoPriceCents: menuItem.promo_price_cents,
+      },
+      quantity,
+    ) + modifierPricePerUnit * quantity;
 
   await db.transaction(async (tx) => {
     const [item] = await tx

@@ -357,6 +357,8 @@ menu.post(
         description: body.description,
         price: body.price,
         compare_price_cents: body.comparePriceCents ?? null,
+        promo_quantity: body.promoQuantity ?? null,
+        promo_price_cents: body.promoPriceCents ?? null,
         cost_cents: body.costCents ?? null,
         supplier: body.supplier ?? null,
         barcode: barcodeValue,
@@ -456,6 +458,8 @@ menu.patch(
     if (body.description !== undefined) updateData.description = body.description;
     if (body.price !== undefined) updateData.price = body.price;
     if (body.comparePriceCents !== undefined) updateData.compare_price_cents = body.comparePriceCents ?? null;
+    if (body.promoQuantity !== undefined) updateData.promo_quantity = body.promoQuantity ?? null;
+    if (body.promoPriceCents !== undefined) updateData.promo_price_cents = body.promoPriceCents ?? null;
     if (body.costCents !== undefined) updateData.cost_cents = body.costCents ?? null;
     if (body.supplier !== undefined) updateData.supplier = body.supplier ?? null;
     if (body.barcode !== undefined) {

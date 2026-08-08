@@ -322,6 +322,7 @@ orders.post(
             : undefined,
         deliveryFeeStatus:
           body.type === "delivery" ? body.deliveryFeeStatus ?? undefined : undefined,
+        manualDiscountCents: body.manualDiscountCents,
       });
     } catch (err) {
       if (err instanceof OrderValidationError) {

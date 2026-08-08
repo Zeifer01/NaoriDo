@@ -40,6 +40,13 @@ export const menuItems = pgTable("menu_items", {
   description: text("description"),
   price: integer("price").notNull(), // stored in cents
   compare_price_cents: integer("compare_price_cents"), // retail price for "De Para" display
+  /**
+   * Quantity-break promo ("leve N por R$X"). Both fields must be set together.
+   * When quantity >= promo_quantity, every full multiple of promo_quantity is
+   * charged promo_price_cents; the remainder is charged at the normal price.
+   */
+  promo_quantity: integer("promo_quantity"),
+  promo_price_cents: integer("promo_price_cents"),
   /** Optional COGS in cents — enables margin analytics when set. */
   cost_cents: integer("cost_cents"),
   supplier: varchar("supplier", { length: 255 }),

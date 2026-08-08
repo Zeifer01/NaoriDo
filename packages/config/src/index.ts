@@ -7,6 +7,9 @@ export * from "./org-ux";
 // Complemento / modifier pricing with free_quantity
 export * from "./modifier-pricing";
 
+// Quantity-break item promo pricing ("leve N por R$X")
+export * from "./item-pricing";
+
 // Platform domain identity (Automatizappy)
 export * from "./platform";
 

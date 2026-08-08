@@ -21,7 +21,7 @@ import {
   notifyDeliveryOrderCreated,
 } from "../services/whatsapp.service.js";
 import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
-import { isLegacyOutsideCupGroupName } from "@restai/config";
+import { isLegacyOutsideCupGroupName, calcItemTotalCents } from "@restai/config";
 import { wsManager } from "../ws/manager.js";
 import { orgHasFeature } from "../lib/features.js";
 import { resolveHost } from "../lib/tenant-host.js";
@@ -933,7 +933,14 @@ delivery.post(
     let addedSubtotal = 0;
     for (const requested of newItems) {
       const menuItem = menuItems.find((m) => m.id === requested.menuItemId)!;
-      const itemTotal = menuItem.price * requested.quantity;
+      const itemTotal = calcItemTotalCents(
+        {
+          unitPriceCents: menuItem.price,
+          promoQuantity: menuItem.promo_quantity,
+          promoPriceCents: menuItem.promo_price_cents,
+        },
+        requested.quantity,
+      );
       addedSubtotal += itemTotal;
 
       await db.insert(schema.orderItems).values({

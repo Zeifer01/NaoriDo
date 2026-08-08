@@ -28,6 +28,7 @@ import {
   parseDeliveryPricing,
   getDeliveryFeeCents,
   appendCityToAddress,
+  calcItemTotalCents,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { apiFetch } from "@/lib/fetcher";
@@ -84,6 +85,7 @@ export function CartSidebar({
   needsCashChange,
   cashChangeFor,
   selectedCustomerId,
+  manualDiscount,
   isPending,
   onOrderTypeChange,
   onCustomerNameChange,
@@ -95,6 +97,7 @@ export function CartSidebar({
   onPaymentMethodChange,
   onNeedsCashChangeChange,
   onCashChangeForChange,
+  onManualDiscountChange,
   onSelectCustomer,
   onClearSelectedCustomer,
   onUpdateQty,
@@ -117,6 +120,8 @@ export function CartSidebar({
   /** Dollars/reais as typed by attendant (not cents). */
   cashChangeFor: string;
   selectedCustomerId: string | null;
+  /** Manual discount, reais as typed by attendant (not cents). */
+  manualDiscount: string;
   isPending: boolean;
   onOrderTypeChange: (type: PosOrderType) => void;
   onCustomerNameChange: (name: string) => void;
@@ -128,6 +133,7 @@ export function CartSidebar({
   onPaymentMethodChange: (method: string) => void;
   onNeedsCashChangeChange: (value: boolean) => void;
   onCashChangeForChange: (value: string) => void;
+  onManualDiscountChange: (value: string) => void;
   onSelectCustomer: (customer: PosCustomerSuggestion) => void;
   onClearSelectedCustomer: () => void;
   onUpdateQty: (lineId: string, qty: number) => void;
@@ -290,7 +296,11 @@ export function CartSidebar({
 
   const subtotal = cart.reduce((sum, item) => {
     const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
-    return sum + (item.unitPrice + modTotal) * item.quantity;
+    const baseTotal = calcItemTotalCents(
+      { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
+      item.quantity,
+    );
+    return sum + baseTotal + modTotal * item.quantity;
   }, 0);
   const deliveryFeeShown =
     orderType === "delivery"
@@ -298,7 +308,13 @@ export function CartSidebar({
         ? (deliveryFeeCents ?? 0)
         : flatFeeCents
       : 0;
-  const total = subtotal + (orderType === "delivery" ? deliveryFeeShown : 0);
+  const manualDiscountCents = Math.round(
+    (Number(manualDiscount.replace(",", ".")) || 0) * 100,
+  );
+  const total = Math.max(
+    0,
+    subtotal + (orderType === "delivery" ? deliveryFeeShown : 0) - manualDiscountCents,
+  );
   const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const deliveryNeedsAddress =
@@ -591,7 +607,11 @@ export function CartSidebar({
         ) : (
           cart.map((item) => {
             const modTotal = item.modifiers.reduce((s, m) => s + m.price, 0);
-            const lineTotal = (item.unitPrice + modTotal) * item.quantity;
+            const lineTotal =
+              calcItemTotalCents(
+                { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
+                item.quantity,
+              ) + modTotal * item.quantity;
             return (
               <div
                 key={item.lineId}
@@ -614,6 +634,11 @@ export function CartSidebar({
                     <p className="text-xs text-muted-foreground">
                       {formatCurrency(item.unitPrice + modTotal)} c/u
                     </p>
+                    {item.promoQuantity && item.promoPriceCents && item.quantity >= item.promoQuantity && (
+                      <p className="text-[11px] font-medium text-green-600 dark:text-green-500">
+                        Promoção aplicada: {item.promoQuantity}un por {formatCurrency(item.promoPriceCents)}
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => onRemove(item.lineId)}
@@ -711,6 +736,18 @@ export function CartSidebar({
               </span>
             </div>
           )}
+          <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground pt-1">
+            <span>Desconto manual (R$)</span>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={manualDiscount}
+              onChange={(e) => onManualDiscountChange(e.target.value)}
+              placeholder="0,00"
+              className="h-7 w-24 text-right text-sm"
+            />
+          </div>
           <div className="flex justify-between font-bold text-lg">
             <span>Total</span>
             <span className="text-primary">{formatCurrency(total)}</span>

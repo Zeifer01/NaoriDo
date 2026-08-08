@@ -74,6 +74,9 @@ export const createMenuItemSchema = z.object({
   description: z.string().max(1000).optional(),
   price: z.number().int().min(0, "O preço não pode ser negativo"),
   comparePriceCents: z.number().int().min(0).nullable().optional(),
+  /** Quantity-break promo ("leve N por R$X"). Set both together, or both null to clear. */
+  promoQuantity: z.number().int().min(2).nullable().optional(),
+  promoPriceCents: z.number().int().min(0).nullable().optional(),
   costCents: z.number().int().min(0).nullable().optional(),
   supplier: z.string().max(255).nullable().optional(),
   /** Internal Code128 barcode; null clears. Empty string treated as null. */
@@ -178,6 +181,8 @@ export const createOrderBaseSchema = z.object({
   items: z.array(createOrderItemSchema).min(1, "O pedido deve ter pelo menos um item"),
   couponCode: z.string().max(50).optional(),
   redemptionId: z.string().uuid().optional(),
+  /** Manual discount (cents) applied by staff at checkout — e.g. bulk-quantity promo tier without automatic pricing support. */
+  manualDiscountCents: z.number().int().min(0).optional(),
 });
 
 export const createOrderSchema = createOrderBaseSchema.superRefine((data, ctx) => {
