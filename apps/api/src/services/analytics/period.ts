@@ -1,4 +1,5 @@
 import type { AnalyticsMetric, AnalyticsPeriod } from "@restai/types";
+import { localDateStringToUtc, endOfDayInTimezone } from "../../lib/timezone.js";
 
 const WEEKDAY_LABELS = [
   "Domingo",
@@ -14,16 +15,21 @@ export function weekdayLabel(weekday: number): string {
   return WEEKDAY_LABELS[weekday] ?? String(weekday);
 }
 
-/** Parse YYYY-MM-DD (or ISO) into start-of-day UTC Date for range filters. */
-export function parsePeriodStart(isoDate: string): Date {
-  const d = new Date(isoDate.includes("T") ? isoDate : `${isoDate}T00:00:00.000Z`);
-  return d;
+/**
+ * Parse YYYY-MM-DD (or ISO) into start-of-day Date for range filters, in the
+ * given IANA timezone. Default `tz="UTC"` preserves the legacy behavior for
+ * every organization that hasn't opted into branch-configured timezones.
+ */
+export function parsePeriodStart(isoDate: string, tz: string = "UTC"): Date {
+  if (isoDate.includes("T")) return new Date(isoDate);
+  return localDateStringToUtc(isoDate, tz);
 }
 
-/** End of day inclusive (23:59:59.999 UTC of the given calendar day). */
-export function parsePeriodEnd(isoDate: string): Date {
-  const d = new Date(isoDate.includes("T") ? isoDate : `${isoDate}T23:59:59.999Z`);
-  return d;
+/** End of day inclusive (23:59:59.999 of the given calendar day, in `tz`). */
+export function parsePeriodEnd(isoDate: string, tz: string = "UTC"): Date {
+  if (isoDate.includes("T")) return new Date(isoDate);
+  const nextDayStart = endOfDayInTimezone(tz, localDateStringToUtc(isoDate, tz));
+  return new Date(nextDayStart.getTime() - 1);
 }
 
 export function toDateKey(date: Date): string {

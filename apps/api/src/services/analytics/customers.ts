@@ -78,8 +78,8 @@ export async function getCustomerAnalytics(params: {
     lostDays = LOST_DAYS,
   } = params;
 
-  const periodStart = parsePeriodStart(period.start);
-  const periodEnd = parsePeriodEnd(period.end);
+  const periodStart = parsePeriodStart(period.start, scope.timezone);
+  const periodEnd = parsePeriodEnd(period.end, scope.timezone);
   const now = periodEnd;
 
   // All customers in org
@@ -208,8 +208,8 @@ export async function getCustomerAnalytics(params: {
   // Compare period new customers
   let prevNew = 0;
   if (comparePeriod) {
-    const cStart = parsePeriodStart(comparePeriod.start);
-    const cEnd = parsePeriodEnd(comparePeriod.end);
+    const cStart = parsePeriodStart(comparePeriod.start, scope.timezone);
+    const cEnd = parsePeriodEnd(comparePeriod.end, scope.timezone);
     for (const agg of byCustomer.values()) {
       if (agg.firstOrderAt >= cStart && agg.firstOrderAt <= cEnd) prevNew += 1;
     }

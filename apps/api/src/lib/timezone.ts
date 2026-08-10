@@ -74,6 +74,15 @@ export function localDateStringToUtc(dateStr: string, tz: string): Date {
   return new Date(guess.getTime() - offsetMsAt(guess, tz));
 }
 
+async function orgHasBranchTimezoneFlag(organizationId: string): Promise<boolean> {
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, organizationId))
+    .limit(1);
+  return !!org && hasBranchTimezone(org.settings);
+}
+
 /**
  * Resolves the IANA timezone to use for a tenant's date-boundary queries.
  * Returns the branch's configured `timezone` only when the organization has
@@ -86,18 +95,38 @@ export async function resolveTenantTimezone(
   branchId: string | null,
 ): Promise<string | undefined> {
   if (!branchId) return undefined;
-
-  const [org] = await db
-    .select({ settings: schema.organizations.settings })
-    .from(schema.organizations)
-    .where(eq(schema.organizations.id, organizationId))
-    .limit(1);
-  if (!org || !hasBranchTimezone(org.settings)) return undefined;
+  if (!(await orgHasBranchTimezoneFlag(organizationId))) return undefined;
 
   const [branch] = await db
     .select({ timezone: schema.branches.timezone })
     .from(schema.branches)
     .where(eq(schema.branches.id, branchId))
+    .limit(1);
+
+  return branch?.timezone ?? undefined;
+}
+
+/**
+ * Same as `resolveTenantTimezone`, but for scopes that may be org-wide
+ * (no specific branch, e.g. CRM/analytics "all branches" views). Falls back
+ * to any branch of the organization, since orgs opting into
+ * `use_branch_timezone` are expected to have all branches in the same
+ * real-world timezone.
+ */
+export async function resolveScopeTimezone(
+  organizationId: string,
+  branchId?: string,
+): Promise<string | undefined> {
+  if (!(await orgHasBranchTimezoneFlag(organizationId))) return undefined;
+
+  const [branch] = await db
+    .select({ timezone: schema.branches.timezone })
+    .from(schema.branches)
+    .where(
+      branchId
+        ? eq(schema.branches.id, branchId)
+        : eq(schema.branches.organization_id, organizationId),
+    )
     .limit(1);
 
   return branch?.timezone ?? undefined;

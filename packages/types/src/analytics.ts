@@ -17,6 +17,8 @@ export type AnalyticsGranularity = "day" | "week" | "month";
 export interface AnalyticsScope {
   organizationId: string;
   branchId?: string;
+  /** IANA timezone for day/hour/weekday boundaries. Undefined = legacy UTC boundaries. */
+  timezone?: string;
 }
 
 export interface AnalyticsQuery {

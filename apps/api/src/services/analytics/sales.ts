@@ -29,8 +29,8 @@ function orderScopeWhere(scope: AnalyticsScope, start: Date, end: Date) {
 }
 
 async function loadOrderTotals(scope: AnalyticsScope, period: AnalyticsPeriod) {
-  const start = parsePeriodStart(period.start);
-  const end = parsePeriodEnd(period.end);
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
 
   const [totals] = await db
     .select({
@@ -54,19 +54,20 @@ async function loadDailySeries(
   scope: AnalyticsScope,
   period: AnalyticsPeriod,
 ): Promise<TimeSeriesPoint[]> {
-  const start = parsePeriodStart(period.start);
-  const end = parsePeriodEnd(period.end);
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
+  const tz = scope.timezone ?? "UTC";
 
   const rows = await db
     .select({
-      date: sql<string>`to_char(${schema.orders.created_at} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`,
+      date: sql<string>`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`,
       orders: count(),
       revenueCents: sum(schema.orders.total),
     })
     .from(schema.orders)
     .where(orderScopeWhere(scope, start, end))
-    .groupBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`)
-    .orderBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`);
+    .groupBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`)
+    .orderBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`);
 
   return rows.map((r) => ({
     date: r.date,
@@ -76,8 +77,8 @@ async function loadDailySeries(
 }
 
 async function loadPaymentBreakdown(scope: AnalyticsScope, period: AnalyticsPeriod) {
-  const start = parsePeriodStart(period.start);
-  const end = parsePeriodEnd(period.end);
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
 
   const orderIds = await db
     .select({ id: schema.orders.id })
@@ -116,19 +117,20 @@ async function loadPaymentBreakdown(scope: AnalyticsScope, period: AnalyticsPeri
 }
 
 async function loadByHour(scope: AnalyticsScope, period: AnalyticsPeriod) {
-  const start = parsePeriodStart(period.start);
-  const end = parsePeriodEnd(period.end);
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
+  const tz = scope.timezone ?? "UTC";
 
   const rows = await db
     .select({
-      hour: sql<number>`extract(hour from ${schema.orders.created_at} AT TIME ZONE 'UTC')::int`,
+      hour: sql<number>`extract(hour from ${schema.orders.created_at} AT TIME ZONE ${tz})::int`,
       orders: count(),
       revenueCents: sum(schema.orders.total),
     })
     .from(schema.orders)
     .where(orderScopeWhere(scope, start, end))
-    .groupBy(sql`extract(hour from ${schema.orders.created_at} AT TIME ZONE 'UTC')`)
-    .orderBy(sql`extract(hour from ${schema.orders.created_at} AT TIME ZONE 'UTC')`);
+    .groupBy(sql`extract(hour from ${schema.orders.created_at} AT TIME ZONE ${tz})`)
+    .orderBy(sql`extract(hour from ${schema.orders.created_at} AT TIME ZONE ${tz})`);
 
   return rows.map((r) => ({
     hour: Number(r.hour),
@@ -138,19 +140,20 @@ async function loadByHour(scope: AnalyticsScope, period: AnalyticsPeriod) {
 }
 
 async function loadByWeekday(scope: AnalyticsScope, period: AnalyticsPeriod) {
-  const start = parsePeriodStart(period.start);
-  const end = parsePeriodEnd(period.end);
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
+  const tz = scope.timezone ?? "UTC";
 
   const rows = await db
     .select({
-      weekday: sql<number>`extract(dow from ${schema.orders.created_at} AT TIME ZONE 'UTC')::int`,
+      weekday: sql<number>`extract(dow from ${schema.orders.created_at} AT TIME ZONE ${tz})::int`,
       orders: count(),
       revenueCents: sum(schema.orders.total),
     })
     .from(schema.orders)
     .where(orderScopeWhere(scope, start, end))
-    .groupBy(sql`extract(dow from ${schema.orders.created_at} AT TIME ZONE 'UTC')`)
-    .orderBy(sql`extract(dow from ${schema.orders.created_at} AT TIME ZONE 'UTC')`);
+    .groupBy(sql`extract(dow from ${schema.orders.created_at} AT TIME ZONE ${tz})`)
+    .orderBy(sql`extract(dow from ${schema.orders.created_at} AT TIME ZONE ${tz})`);
 
   return rows.map((r) => {
     const weekday = Number(r.weekday);
@@ -215,8 +218,8 @@ export async function getCompletedOrderIds(
   scope: AnalyticsScope,
   period: AnalyticsPeriod,
 ): Promise<string[]> {
-  const start = parsePeriodStart(period.start);
-  const end = parsePeriodEnd(period.end);
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
   const rows = await db
     .select({ id: schema.orders.id })
     .from(schema.orders)

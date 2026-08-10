@@ -18,6 +18,7 @@ import {
 } from "../services/analytics/index.js";
 import { db, schema } from "@restai/db";
 import { eq } from "drizzle-orm";
+import { resolveScopeTimezone } from "../lib/timezone.js";
 
 const analyticsQuerySchema = z.object({
   startDate: z.string().min(4),
@@ -65,13 +66,16 @@ async function requireReportsV2(c: any, next: () => Promise<void>) {
 
 analytics.use("*", requireReportsV2);
 
-function buildScope(
+async function buildScope(
   tenant: { organizationId: string; branchId: string },
   orgWide?: boolean,
 ) {
+  const branchId = orgWide ? undefined : tenant.branchId;
+  const timezone = await resolveScopeTimezone(tenant.organizationId, branchId ?? tenant.branchId);
   return {
     organizationId: tenant.organizationId,
-    branchId: orgWide ? undefined : tenant.branchId,
+    branchId,
+    timezone,
   };
 }
 
@@ -95,7 +99,7 @@ analytics.get(
     const query = c.req.valid("query");
     const { period, comparePeriod } = buildPeriods(query);
     const data = await getExecutiveHub({
-      scope: buildScope(tenant, query.orgWide),
+      scope: await buildScope(tenant, query.orgWide),
       period,
       comparePeriod,
     });
@@ -115,7 +119,7 @@ analytics.get(
     const { period, comparePeriod } = buildPeriods(query);
     // CRM is org-scoped by default (customer lives at org level)
     const data = await getCustomerAnalytics({
-      scope: buildScope(tenant, query.orgWide ?? true),
+      scope: await buildScope(tenant, query.orgWide ?? true),
       period,
       comparePeriod,
     });
@@ -134,7 +138,7 @@ analytics.get(
     const query = c.req.valid("query");
     const { period, comparePeriod } = buildPeriods(query);
     const data = await getFinanceAnalytics({
-      scope: buildScope(tenant, query.orgWide),
+      scope: await buildScope(tenant, query.orgWide),
       period,
       comparePeriod,
     });
@@ -153,7 +157,7 @@ analytics.get(
     const query = c.req.valid("query");
     const { period } = buildPeriods(query);
     const data = await getProductAnalytics({
-      scope: buildScope(tenant, query.orgWide),
+      scope: await buildScope(tenant, query.orgWide),
       period,
     });
     return c.json({ success: true, data });
@@ -171,7 +175,7 @@ analytics.get(
     const query = c.req.valid("query");
     const { period, comparePeriod } = buildPeriods(query);
     const data = await getSalesAnalytics({
-      scope: buildScope(tenant, query.orgWide),
+      scope: await buildScope(tenant, query.orgWide),
       period,
       comparePeriod,
     });

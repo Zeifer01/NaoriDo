@@ -53,7 +53,7 @@ export async function getRevenueProjection(params: {
   const lookbackDays = params.lookbackDays ?? 90;
   const monthsAhead = params.monthsAhead ?? 3;
   const weeksAhead = params.weeksAhead ?? 4;
-  const asOf = params.asOf ? parsePeriodEnd(params.asOf) : new Date();
+  const asOf = params.asOf ? parsePeriodEnd(params.asOf, params.scope.timezone) : new Date();
   const start = new Date(asOf.getTime() - (lookbackDays - 1) * 24 * 60 * 60 * 1000);
 
   const period: AnalyticsPeriod = {
