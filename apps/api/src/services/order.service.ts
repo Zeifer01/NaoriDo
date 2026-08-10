@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
+import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcSequentialFreeChargeCents, calcSequentialFreeSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -24,7 +24,6 @@ export function isOrderEditable(status: string): boolean {
 // TOTAL across all modifier groups combined — the 4th onward is charged at
 // its normal price regardless of type (recheio, mousse, complemento simples).
 const LOYALTY_FREE_COMPLEMENTOS = 3;
-const LOYALTY_VIRTUAL_GROUP_ID = "__loyalty_complementos__";
 
 // Types for order creation input
 interface OrderItemInput {
@@ -223,21 +222,18 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
 
     const applyLoyaltyDiscount = orgHasLoyaltyStickerCard && item.loyaltyDiscount === true;
 
-    // Loyalty sticker card: cup is free + up to LOYALTY_FREE_COMPLEMENTOS
-    // complementos are free ACROSS all groups combined (not per group like
-    // the menu's normal free_quantity) — from the next one on, charge each
-    // at its own price. Reuses the same "most expensive slots free first"
-    // fairness rule as normal free_quantity pricing, just pooled into one
-    // virtual group instead of the item's real modifier groups.
-    const pricingGroupConfigs = applyLoyaltyDiscount
-      ? [{ id: LOYALTY_VIRTUAL_GROUP_ID, freeQuantity: LOYALTY_FREE_COMPLEMENTOS }]
-      : groupConfigs;
-    const pricingPriced = applyLoyaltyDiscount
-      ? priced.map((m) => ({ ...m, groupId: LOYALTY_VIRTUAL_GROUP_ID }))
-      : priced;
-
-    const modifierPricePerUnit = calcModifiersChargeCents(pricingPriced, pricingGroupConfigs);
-    const snapshots = calcModifierSnapshotPrices(pricingPriced, pricingGroupConfigs);
+    // Loyalty sticker card: cup is free + the first LOYALTY_FREE_COMPLEMENTOS
+    // complementos the staff added (in that order) are free, ACROSS all
+    // groups combined — from the next one on, charge its real price, even
+    // if it's a pricier recheio/mousse. Sequential, NOT price-sorted: unlike
+    // the menu's normal free_quantity (which frees the priciest slots
+    // first), the card doesn't get to "pick" the 3 most expensive items.
+    const modifierPricePerUnit = applyLoyaltyDiscount
+      ? calcSequentialFreeChargeCents(priced, LOYALTY_FREE_COMPLEMENTOS)
+      : calcModifiersChargeCents(priced, groupConfigs);
+    const snapshots = applyLoyaltyDiscount
+      ? calcSequentialFreeSnapshotPrices(priced, LOYALTY_FREE_COMPLEMENTOS)
+      : calcModifierSnapshotPrices(priced, groupConfigs);
     // Consume snapshots one-by-one so duplicate modifier ids keep distinct prices
     // (e.g. Nutella ×3 with free_quantity).
     const remainingSnaps = [...snapshots];

@@ -119,3 +119,39 @@ export function calcModifiersChargeCents(
     0,
   );
 }
+
+/**
+ * Sequential ("first N free") allocation: the first `freeCount` entries in
+ * `selected`, in the given order, are free; every entry after that is
+ * charged at its own price — regardless of price. Deliberately does NOT
+ * sort by price like `calcModifierSnapshotPrices` above (which frees the
+ * priciest slots first, appropriate for the menu's own free_quantity promos).
+ * Used for ordinal rewards where the free slots are "whichever N the
+ * customer picked first", not "whichever N are worth the most" — e.g. the
+ * loyalty sticker card: first 3 complementos are free, the 4th onward costs
+ * whatever it costs, even if it's a pricier recheio/mousse.
+ */
+export function calcSequentialFreeSnapshotPrices(
+  selected: PricedModifier[],
+  freeCount: number,
+): ModifierPriceSnapshot[] {
+  return selected.map((m, i) => ({
+    id: m.id,
+    groupId: m.groupId,
+    listPrice: m.price,
+    effectivePrice: i < freeCount ? 0 : m.price,
+    outsideCup: m.outsideCup === true,
+    outsideCupFee: 0,
+  }));
+}
+
+export function calcSequentialFreeChargeCents(
+  selected: PricedModifier[],
+  freeCount: number,
+): number {
+  if (selected.length === 0) return 0;
+  return calcSequentialFreeSnapshotPrices(selected, freeCount).reduce(
+    (sum, s) => sum + s.effectivePrice,
+    0,
+  );
+}

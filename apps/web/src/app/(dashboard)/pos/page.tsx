@@ -18,23 +18,21 @@ import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
 import { useFeatures } from "@/hooks/use-features";
-import { appendCityToAddress, getDeliveryFeeCents, calcItemTotalCents, calcModifiersChargeCents } from "@restai/config";
+import { appendCityToAddress, getDeliveryFeeCents, calcItemTotalCents, calcSequentialFreeChargeCents } from "@restai/config";
 
-// Loyalty sticker card (Açaí House): cup free + up to 3 complementos free
-// TOTAL, regardless of type — mirrors apps/api/src/services/order.service.ts.
+// Loyalty sticker card (Açaí House): cup free + the first 3 complementos
+// added (in that order) are free — the 4th onward costs its real price,
+// even if pricier. Mirrors apps/api/src/services/order.service.ts.
 const LOYALTY_FREE_COMPLEMENTOS = 3;
-const LOYALTY_VIRTUAL_GROUP_ID = "__loyalty_complementos__";
 
 function loyaltyModifiersChargeCents(modifiers: CartModifier[]): number {
   const priced = modifiers.map((m) => ({
     id: m.modifierId,
-    groupId: LOYALTY_VIRTUAL_GROUP_ID,
+    groupId: "",
     price: m.price,
     outsideCup: m.outsideCup,
   }));
-  return calcModifiersChargeCents(priced, [
-    { id: LOYALTY_VIRTUAL_GROUP_ID, freeQuantity: LOYALTY_FREE_COMPLEMENTOS },
-  ]);
+  return calcSequentialFreeChargeCents(priced, LOYALTY_FREE_COMPLEMENTOS);
 }
 
 export interface PosCartItem {
