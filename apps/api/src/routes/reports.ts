@@ -9,7 +9,7 @@ import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireFeature } from "../middleware/feature.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
-import { peruStartOfDay } from "../lib/timezone.js";
+import { startOfDayInTimezone, resolveTenantTimezone } from "../lib/timezone.js";
 
 const reports = new Hono<AppEnv>();
 
@@ -23,7 +23,8 @@ reports.use("*", requireFeature("reports"));
 reports.get("/dashboard", requirePermission("reports:read"), async (c) => {
   const tenant = c.get("tenant") as any;
 
-  const today = peruStartOfDay();
+  const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
+  const today = startOfDayInTimezone(tz);
 
   // Today's orders
   const [orderStats] = await db
@@ -91,6 +92,10 @@ reports.get(
     // Set end to end of day
     end.setHours(23, 59, 59, 999);
 
+    // Legacy default matches the previous unqualified to_char() behavior,
+    // which used the Postgres session timezone (UTC in production).
+    const tz = (await resolveTenantTimezone(tenant.organizationId, tenant.branchId)) ?? "UTC";
+
     // Totals for the range
     const [totals] = await db
       .select({
@@ -112,7 +117,7 @@ reports.get(
     // Daily breakdown
     const dailyData = await db
       .select({
-        date: sql<string>`to_char(${schema.orders.created_at}, 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`,
         orders: count(),
         revenue: sum(schema.orders.total),
       })
@@ -125,8 +130,8 @@ reports.get(
           eq(schema.orders.status, "completed"),
         ),
       )
-      .groupBy(sql`to_char(${schema.orders.created_at}, 'YYYY-MM-DD')`)
-      .orderBy(sql`to_char(${schema.orders.created_at}, 'YYYY-MM-DD')`);
+      .groupBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`);
 
     // Payment method breakdown - join completed orders with payments
     const completedOrders = await db

@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from "@restai/ui/components/dialog";
 import { Printer } from "lucide-react";
-import { useOrgSettings, useBranchSettings } from "@/hooks/use-settings";
+import { useOrgSettings, useBranchSettings, useDisplayTimezone } from "@/hooks/use-settings";
 import { usePrintReceipt } from "@/components/print-ticket";
 import { apiFetch } from "@/lib/fetcher";
 
@@ -32,6 +32,7 @@ export function ReceiptDialog({ open, onOpenChange, payment }: ReceiptDialogProp
   const { data: orgSettings } = useOrgSettings();
   const { data: branchSettings } = useBranchSettings();
   const printReceipt = usePrintReceipt();
+  const displayTimezone = useDisplayTimezone();
 
   const isFormValid = () => {
     if (docType === "boleta_simple") return true;
@@ -61,6 +62,7 @@ export function ReceiptDialog({ open, onOpenChange, payment }: ReceiptDialogProp
         address: branch?.address || undefined,
         orderNumber: payment.order_number || orderData?.order_number || "",
         createdAt: payment.created_at || new Date().toISOString(),
+        timeZone: displayTimezone,
         items: items.map((i: any) => ({
           name: i.name,
           quantity: i.quantity,
@@ -82,6 +84,7 @@ export function ReceiptDialog({ open, onOpenChange, payment }: ReceiptDialogProp
         businessName: org?.name || "Restaurante",
         orderNumber: payment.order_number || "",
         createdAt: payment.created_at || new Date().toISOString(),
+        timeZone: displayTimezone,
         items: [],
         subtotal: 0,
         tax: 0,

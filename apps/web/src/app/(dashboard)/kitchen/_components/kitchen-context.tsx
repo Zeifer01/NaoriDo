@@ -15,6 +15,7 @@ import { useKitchenOrders, useUpdateKitchenItemStatus } from "@/hooks/use-kitche
 import { useUpdateOrderStatus } from "@/hooks/use-orders";
 import { usePrintKitchenTicket } from "@/components/print-ticket";
 import { useFeatures } from "@/hooks/use-features";
+import { useDisplayTimezone } from "@/hooks/use-settings";
 import { toast } from "sonner";
 import type { WsMessage } from "@restai/types";
 
@@ -103,6 +104,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
   const updateOrderStatus = useUpdateOrderStatus();
   const printKitchenTicket = usePrintKitchenTicket();
   const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
+  const displayTimezone = useDisplayTimezone();
 
   const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
   const prevOrderIdsRef = useRef<Set<string>>(new Set());
@@ -159,6 +161,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
         deliveryReference: order.deliveryReference || order.delivery_reference || undefined,
         paymentMethod: order.paymentMethod || order.payment_method || undefined,
         headerLabel: kitchenLabel,
+        timeZone: displayTimezone,
         items: (order.items || []).map((i: any) => ({
           name: i.name,
           quantity: i.quantity,
@@ -170,7 +173,7 @@ export function KitchenProvider({ children }: { children: ReactNode }) {
         notes: order.notes,
       });
     },
-    [printKitchenTicket, kitchenLabel]
+    [printKitchenTicket, kitchenLabel, displayTimezone]
   );
 
   const orders: any[] = data ?? [];

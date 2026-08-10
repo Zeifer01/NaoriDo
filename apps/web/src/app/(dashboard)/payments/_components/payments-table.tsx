@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { SearchInput } from "@/components/search-input";
+import { useDisplayTimezone } from "@/hooks/use-settings";
 
 const methodLabels: Record<string, string> = {
   cash: "Dinheiro",
@@ -61,6 +62,7 @@ export function PaymentsTable({
   onInvoice,
   onReceipt,
 }: PaymentsTableProps) {
+  const displayTimezone = useDisplayTimezone();
   const filteredPayments = payments.filter((p: any) => {
     const matchesSearch =
       (p.order_number || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -151,7 +153,7 @@ export function PaymentsTable({
                         {payment.reference || "-"}
                       </td>
                       <td className="p-3 text-sm text-muted-foreground text-right hidden lg:table-cell">
-                        {payment.created_at ? formatDate(payment.created_at) : "-"}
+                        {payment.created_at ? formatDate(payment.created_at, displayTimezone) : "-"}
                       </td>
                       <td className="p-3 text-center">
                         <div className="flex items-center justify-center gap-1">

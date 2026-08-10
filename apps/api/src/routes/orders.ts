@@ -42,6 +42,11 @@ import {
 import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
 import { restoreForOrder } from "../services/inventory.service.js";
 import { logger } from "../lib/logger.js";
+import {
+  resolveTenantTimezone,
+  localDateStringToUtc,
+  endOfDayInTimezone,
+} from "../lib/timezone.js";
 
 const orders = new Hono<AppEnv>();
 
@@ -125,6 +130,39 @@ function orderStatusFilterCondition(status: string | undefined) {
   return inArray(schema.orders.status, parts);
 }
 
+/**
+ * `startDate`/`endDate` range conditions for `orders.created_at`.
+ * Legacy default parses the date string as local time of the API process
+ * (UTC in production, since no `use_branch_timezone` opt-in is set) —
+ * matches the previous unqualified `new Date(...)` behavior exactly.
+ */
+function dateRangeConditions(
+  startDate: string | undefined,
+  endDate: string | undefined,
+  tz: string | undefined,
+) {
+  const conditions = [];
+  if (startDate) {
+    conditions.push(
+      gte(
+        schema.orders.created_at,
+        tz ? localDateStringToUtc(startDate, tz) : new Date(`${startDate}T00:00:00`),
+      ),
+    );
+  }
+  if (endDate) {
+    let end: Date;
+    if (tz) {
+      end = endOfDayInTimezone(tz, localDateStringToUtc(endDate, tz));
+    } else {
+      end = new Date(`${endDate}T00:00:00`);
+      end.setDate(end.getDate() + 1);
+    }
+    conditions.push(lt(schema.orders.created_at, end));
+  }
+  return conditions;
+}
+
 // GET / - List orders
 orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuerySchema), async (c) => {
   const tenant = c.get("tenant") as any;
@@ -139,15 +177,8 @@ orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuery
   const statusCond = orderStatusFilterCondition(status);
   if (statusCond) conditions.push(statusCond);
 
-  if (startDate) {
-    conditions.push(gte(schema.orders.created_at, new Date(`${startDate}T00:00:00`)));
-  }
-
-  if (endDate) {
-    const end = new Date(`${endDate}T00:00:00`);
-    end.setDate(end.getDate() + 1);
-    conditions.push(lt(schema.orders.created_at, end));
-  }
+  const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
+  conditions.push(...dateRangeConditions(startDate, endDate, tz));
 
   const whereClause = and(...conditions);
 
@@ -206,14 +237,8 @@ orders.get("/export", requirePermission("orders:read"), async (c) => {
     const statusCond = orderStatusFilterCondition(status);
     if (statusCond) conditions.push(statusCond);
   }
-  if (startDate) {
-    conditions.push(gte(schema.orders.created_at, new Date(`${startDate}T00:00:00`)));
-  }
-  if (endDate) {
-    const end = new Date(`${endDate}T00:00:00`);
-    end.setDate(end.getDate() + 1);
-    conditions.push(lt(schema.orders.created_at, end));
-  }
+  const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
+  conditions.push(...dateRangeConditions(startDate, endDate, tz));
 
   const allOrders = await db
     .select({

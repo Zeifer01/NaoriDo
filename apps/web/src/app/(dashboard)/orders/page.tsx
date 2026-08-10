@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@restai/ui/components/button";
 import { Download, RefreshCw, RotateCcw } from "lucide-react";
 import { useOrders, useUpdateOrderStatus, useDeleteOrder, useResetOrderSequence } from "@/hooks/use-orders";
-import { useOrgSettings, useBranchSettings, useOrderTicketBranchLabel } from "@/hooks/use-settings";
+import { useOrgSettings, useBranchSettings, useOrderTicketBranchLabel, useDisplayTimezone } from "@/hooks/use-settings";
 import { usePrintReceipt } from "@/components/print-ticket";
 import { apiFetch } from "@/lib/fetcher";
 import { downloadXlsx } from "@/lib/export-xlsx";
@@ -43,6 +43,7 @@ export default function OrdersPage() {
   const printReceipt = usePrintReceipt();
   const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
   const branchLabel = useOrderTicketBranchLabel();
+  const displayTimezone = useDisplayTimezone();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
   const updatingTargetStatus = updateStatus.isPending ? updateStatus.variables?.status ?? null : null;
   const orderSession = getOrderSessionConfig((branchSettings as any)?.settings);
@@ -59,6 +60,7 @@ export default function OrdersPage() {
         address: branch?.address || undefined,
         orderNumber: order.order_number || order.id,
         createdAt: order.created_at || new Date().toISOString(),
+        timeZone: displayTimezone,
         items: items.map((i: any) => ({
           name: i.name,
           quantity: i.quantity,
@@ -76,6 +78,7 @@ export default function OrdersPage() {
         businessName: org?.name || "Restaurante",
         orderNumber: order.order_number || order.id,
         createdAt: order.created_at || new Date().toISOString(),
+        timeZone: displayTimezone,
         items: [],
         subtotal: order.subtotal ?? 0,
         tax: order.tax ?? 0,

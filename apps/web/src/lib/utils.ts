@@ -20,11 +20,13 @@ export function formatCurrency(
   return `${info.symbol} ${value}`;
 }
 
-export function formatDate(date: string | Date): string {
+export const DEFAULT_DISPLAY_TIMEZONE = "America/Sao_Paulo";
+
+export function formatDate(date: string | Date, timeZone: string = DEFAULT_DISPLAY_TIMEZONE): string {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "America/Sao_Paulo",
+    timeZone,
   }).format(new Date(date));
 }
 

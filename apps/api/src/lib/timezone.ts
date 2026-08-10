@@ -1,25 +1,104 @@
 /**
- * Peru timezone utilities.
- * Peru is always UTC-5 (no DST).
+ * Timezone-aware day-boundary helpers for "today" / date-range style queries.
+ *
+ * Legacy default is America/Lima (UTC-5, no DST) — matches the platform's
+ * original hardcoded behavior. Callers only see a different timezone when the
+ * organization has opted in via `settings.use_branch_timezone` (see
+ * packages/config/src/org-ux.ts) and resolve it explicitly through
+ * `resolveTenantTimezone`. This keeps every organization's behavior unchanged
+ * unless it opts in.
  */
+import { db, schema } from "@restai/db";
+import { eq } from "drizzle-orm";
+import { hasBranchTimezone } from "@restai/config";
 
-const PERU_OFFSET_MS = -5 * 60 * 60 * 1000;
+const LEGACY_TIMEZONE = "America/Lima";
 
-/**
- * Returns the start of "today" in Peru timezone (UTC-5),
- * expressed as a UTC Date object.
- */
-export function peruStartOfDay(date: Date = new Date()): Date {
-  const peruTime = new Date(date.getTime() + PERU_OFFSET_MS);
-  return new Date(
-    Date.UTC(peruTime.getUTCFullYear(), peruTime.getUTCMonth(), peruTime.getUTCDate()) - PERU_OFFSET_MS,
+function offsetMsAt(instant: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+    .formatToParts(instant)
+    .reduce<Record<string, string>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = p.value;
+      return acc;
+    }, {});
+
+  const asUTC = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
   );
+  return asUTC - instant.getTime();
+}
+
+/** Start of "today" (local midnight) in the given IANA timezone, as a UTC Date. */
+export function startOfDayInTimezone(tz: string = LEGACY_TIMEZONE, date: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = p.value;
+      return acc;
+    }, {});
+
+  const guess = new Date(
+    Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), 0, 0, 0),
+  );
+  return new Date(guess.getTime() - offsetMsAt(guess, tz));
+}
+
+/** Start of the next local day in the given IANA timezone, as a UTC Date (exclusive end-of-day bound). */
+export function endOfDayInTimezone(tz: string = LEGACY_TIMEZONE, date: Date = new Date()): Date {
+  return startOfDayInTimezone(tz, new Date(date.getTime() + 24 * 60 * 60 * 1000));
+}
+
+/** Local midnight of an explicit "YYYY-MM-DD" calendar date in the given IANA timezone, as a UTC Date. */
+export function localDateStringToUtc(dateStr: string, tz: string): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const guess = new Date(Date.UTC(year!, month! - 1, day!, 0, 0, 0));
+  return new Date(guess.getTime() - offsetMsAt(guess, tz));
 }
 
 /**
- * Returns the end of "today" in Peru timezone (UTC-5),
- * expressed as a UTC Date object (start of next day).
+ * Resolves the IANA timezone to use for a tenant's date-boundary queries.
+ * Returns the branch's configured `timezone` only when the organization has
+ * opted in via `settings.use_branch_timezone`; otherwise `undefined`, so
+ * callers fall back to their pre-existing default (unchanged for every
+ * organization that hasn't opted in).
  */
-export function peruEndOfDay(date: Date = new Date()): Date {
-  return new Date(peruStartOfDay(date).getTime() + 24 * 60 * 60 * 1000);
+export async function resolveTenantTimezone(
+  organizationId: string,
+  branchId: string | null,
+): Promise<string | undefined> {
+  if (!branchId) return undefined;
+
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, organizationId))
+    .limit(1);
+  if (!org || !hasBranchTimezone(org.settings)) return undefined;
+
+  const [branch] = await db
+    .select({ timezone: schema.branches.timezone })
+    .from(schema.branches)
+    .where(eq(schema.branches.id, branchId))
+    .limit(1);
+
+  return branch?.timezone ?? undefined;
 }

@@ -25,6 +25,14 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.pos_barcodes`.
    */
   pos_barcodes: boolean;
+  /**
+   * When `true`, date/time boundaries (dashboard "today", sales daily breakdown,
+   * order date filters, printed tickets) use the branch's configured `timezone`
+   * column instead of the platform's legacy hardcoded defaults. Default `false`
+   * keeps every existing organization's behavior unchanged.
+   * Enable per org via `organizations.settings.use_branch_timezone`.
+   */
+  use_branch_timezone: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -32,6 +40,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   kitchen_ux: "v1",
   order_status_ux: "v1",
   pos_barcodes: false,
+  use_branch_timezone: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -95,11 +104,17 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
       DEFAULT_ORG_UX_FLAGS.order_status_ux,
     ),
     pos_barcodes: s.pos_barcodes === true,
+    use_branch_timezone: s.use_branch_timezone === true,
   };
 }
 
 export function hasPosBarcodes(settings: unknown): boolean {
   return getOrgUxFlags(settings).pos_barcodes;
+}
+
+/** True when the org has opted into branch-configured (not hardcoded) timezone logic. */
+export function hasBranchTimezone(settings: unknown): boolean {
+  return getOrgUxFlags(settings).use_branch_timezone;
 }
 
 /** Sidebar / page label for the kitchen board (e.g. "Comandas" for açaí ops). */

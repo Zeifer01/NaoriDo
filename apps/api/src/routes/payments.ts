@@ -8,7 +8,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
-import { peruStartOfDay, peruEndOfDay } from "../lib/timezone.js";
+import { startOfDayInTimezone, endOfDayInTimezone, resolveTenantTimezone } from "../lib/timezone.js";
 
 const payments = new Hono<AppEnv>();
 
@@ -21,8 +21,9 @@ payments.use("*", requireActivePlan);
 payments.get("/summary", requirePermission("payments:read"), async (c) => {
   const tenant = c.get("tenant") as any;
 
-  const startOfDay = peruStartOfDay();
-  const endOfDay = peruEndOfDay();
+  const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
+  const startOfDay = startOfDayInTimezone(tz);
+  const endOfDay = endOfDayInTimezone(tz);
 
   const conditions = [
     eq(schema.payments.branch_id, tenant.branchId),

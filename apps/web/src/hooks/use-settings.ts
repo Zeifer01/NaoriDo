@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/fetcher";
 import { useAuthStore } from "@/stores/auth-store";
 import { resolveOrderTicketBranchLabel } from "@/lib/order-ticket";
+import { hasBranchTimezone } from "@restai/config";
+import { DEFAULT_DISPLAY_TIMEZONE } from "@/lib/utils";
 
 export function useOrgSettings() {
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -18,6 +20,21 @@ export function useBranchSettings() {
     queryKey: ["settings", "branch"],
     queryFn: () => apiFetch("/api/settings/branch"),
   });
+}
+
+/**
+ * Effective IANA timezone for displaying order/payment dates and printed
+ * tickets. Returns the branch's configured `timezone` only when the org has
+ * opted in via `settings.use_branch_timezone`; otherwise the platform's
+ * legacy hardcoded default (unchanged for every organization that hasn't
+ * opted in).
+ */
+export function useDisplayTimezone(): string {
+  const { data: org } = useOrgSettings();
+  const { data: branch } = useBranchSettings();
+  const settings = (org as { settings?: unknown } | undefined)?.settings;
+  const branchTimezone = (branch as { timezone?: string } | undefined)?.timezone;
+  return hasBranchTimezone(settings) && branchTimezone ? branchTimezone : DEFAULT_DISPLAY_TIMEZONE;
 }
 
 /** Short label for kitchen WhatsApp ticket: `*ORDEM WORCESTER #32*` */

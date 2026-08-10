@@ -5,6 +5,7 @@ import { Badge } from "@restai/ui/components/badge";
 import { Button } from "@restai/ui/components/button";
 import { ChevronLeft, ChevronRight, Copy, DollarSign, Eye, Loader2, Pencil, Printer, Trash2 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useDisplayTimezone } from "@/hooks/use-settings";
 import {
   deliveryPaymentLabel,
   getSimplifiedOrderStatusLabel,
@@ -123,6 +124,7 @@ export function OrdersTable({
   deletingOrderId,
   simplifiedOrderStatus = false,
 }: OrdersTableProps) {
+  const displayTimezone = useDisplayTimezone();
   const filteredOrders = orders.filter((order: any) => {
     const orderNum = order.order_number || "";
     const customer = order.customer_name || "";
@@ -276,7 +278,7 @@ export function OrdersTable({
                           {formatCurrency(order.total ?? 0)}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground text-right hidden lg:table-cell">
-                          {createdAt ? formatDate(createdAt) : "-"}
+                          {createdAt ? formatDate(createdAt, displayTimezone) : "-"}
                         </td>
                         <td className="p-3 text-center hidden md:table-cell">
                           <div className="flex items-center justify-center gap-1">

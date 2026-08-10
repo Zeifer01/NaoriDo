@@ -24,6 +24,7 @@ interface KitchenTicketData {
   deliveryReference?: string;
   paymentMethod?: string;
   headerLabel?: string;
+  timeZone?: string;
 }
 
 
@@ -42,16 +43,17 @@ interface ReceiptTicketData {
   docType?: "boleta_simple" | "boleta_electronica" | "factura";
   docNumber?: string;
   docHolderName?: string;
+  timeZone?: string;
 }
 
 function formatMoney(cents: number): string {
   return formatCurrency(cents, getActiveCurrency());
 }
 
-function formatDateTime(dateStr: string): string {
+function formatDateTime(dateStr: string, timeZone: string = "America/Sao_Paulo"): string {
   const d = new Date(dateStr);
   return d.toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -130,7 +132,7 @@ function buildKitchenTicketHtml(data: KitchenTicketData): string {
   <table>
     <tr>
       <td>${data.tableNumber ? `Mesa: ${data.tableNumber}` : data.deliveryAddress ? "Delivery" : "Para viagem"}</td>
-      <td style="text-align:right;">${formatDateTime(data.createdAt)}</td>
+      <td style="text-align:right;">${formatDateTime(data.createdAt, data.timeZone)}</td>
     </tr>
     ${data.customerName ? `<tr><td colspan="2">Cliente: ${data.customerName}</td></tr>` : ""}
     ${addressLine ? `<tr><td colspan="2">End.: ${addressLine}</td></tr>` : ""}
@@ -217,7 +219,7 @@ function buildReceiptTicketHtml(data: ReceiptTicketData): string {
   ${data.address ? `<div class="center" style="font-size:10px;">${data.address}</div>` : ""}
   <div class="divider"></div>
   <div class="center bold">${docTitle}</div>
-  <div class="center" style="font-size:10px;">${formatDateTime(data.createdAt)}</div>
+  <div class="center" style="font-size:10px;">${formatDateTime(data.createdAt, data.timeZone)}</div>
   <div class="center">Pedido: #${data.orderNumber}</div>
   ${docInfoHtml}
   <div class="divider"></div>
