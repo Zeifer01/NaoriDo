@@ -12,6 +12,7 @@ import {
   parsePeriodStart,
   weekdayLabel,
 } from "./period.js";
+import { tzLiteral } from "../../lib/timezone.js";
 
 const COMPLETED = "completed" as const;
 
@@ -56,7 +57,7 @@ async function loadDailySeries(
 ): Promise<TimeSeriesPoint[]> {
   const start = parsePeriodStart(period.start, scope.timezone);
   const end = parsePeriodEnd(period.end, scope.timezone);
-  const tz = scope.timezone ?? "UTC";
+  const tz = tzLiteral(scope.timezone ?? "UTC");
 
   const rows = await db
     .select({
@@ -119,7 +120,7 @@ async function loadPaymentBreakdown(scope: AnalyticsScope, period: AnalyticsPeri
 async function loadByHour(scope: AnalyticsScope, period: AnalyticsPeriod) {
   const start = parsePeriodStart(period.start, scope.timezone);
   const end = parsePeriodEnd(period.end, scope.timezone);
-  const tz = scope.timezone ?? "UTC";
+  const tz = tzLiteral(scope.timezone ?? "UTC");
 
   const rows = await db
     .select({
@@ -142,7 +143,7 @@ async function loadByHour(scope: AnalyticsScope, period: AnalyticsPeriod) {
 async function loadByWeekday(scope: AnalyticsScope, period: AnalyticsPeriod) {
   const start = parsePeriodStart(period.start, scope.timezone);
   const end = parsePeriodEnd(period.end, scope.timezone);
-  const tz = scope.timezone ?? "UTC";
+  const tz = tzLiteral(scope.timezone ?? "UTC");
 
   const rows = await db
     .select({

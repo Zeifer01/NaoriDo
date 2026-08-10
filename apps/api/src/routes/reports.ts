@@ -9,7 +9,7 @@ import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireFeature } from "../middleware/feature.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
-import { startOfDayInTimezone, resolveTenantTimezone } from "../lib/timezone.js";
+import { startOfDayInTimezone, resolveTenantTimezone, tzLiteral } from "../lib/timezone.js";
 
 const reports = new Hono<AppEnv>();
 
@@ -94,7 +94,9 @@ reports.get(
 
     // Legacy default matches the previous unqualified to_char() behavior,
     // which used the Postgres session timezone (UTC in production).
-    const tz = (await resolveTenantTimezone(tenant.organizationId, tenant.branchId)) ?? "UTC";
+    const tz = tzLiteral(
+      (await resolveTenantTimezone(tenant.organizationId, tenant.branchId)) ?? "UTC",
+    );
 
     // Totals for the range
     const [totals] = await db

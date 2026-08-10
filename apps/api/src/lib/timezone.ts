@@ -9,10 +9,30 @@
  * unless it opts in.
  */
 import { db, schema } from "@restai/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { hasBranchTimezone } from "@restai/config";
 
 const LEGACY_TIMEZONE = "America/Lima";
+
+const IANA_TZ_PATTERN = /^[A-Za-z0-9_+\-/]+$/;
+
+/**
+ * Safe SQL literal for a validated IANA timezone name, for use in
+ * `AT TIME ZONE` clauses. Deliberately NOT a bound parameter: Postgres
+ * requires the exact same expression (by parse-tree identity) to appear in
+ * SELECT and GROUP BY/ORDER BY — separate `$n` placeholders for the same
+ * runtime value are treated as potentially-different expressions and fail
+ * with "column must appear in the GROUP BY clause". Inlining a literal
+ * (like the platform's original hardcoded `'UTC'`) sidesteps that entirely.
+ * `branches.timezone` is admin-set (not raw end-user request input), but we
+ * still validate the pattern defensively before inlining.
+ */
+export function tzLiteral(tz: string) {
+  if (!IANA_TZ_PATTERN.test(tz)) {
+    throw new Error(`Invalid IANA timezone: ${tz}`);
+  }
+  return sql.raw(`'${tz}'`);
+}
 
 function offsetMsAt(instant: Date, tz: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
