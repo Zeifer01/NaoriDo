@@ -20,6 +20,12 @@ export function isOrderEditable(status: string): boolean {
   return EDITABLE_ORDER_STATUSES.has(status);
 }
 
+// Loyalty sticker card (Açaí House): cup free + up to 3 complementos free
+// TOTAL across all modifier groups combined — the 4th onward is charged at
+// its normal price regardless of type (recheio, mousse, complemento simples).
+const LOYALTY_FREE_COMPLEMENTOS = 3;
+const LOYALTY_VIRTUAL_GROUP_ID = "__loyalty_complementos__";
+
 // Types for order creation input
 interface OrderItemInput {
   menuItemId: string;
@@ -214,25 +220,44 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       price: m.price,
       outsideCup: m.outsideCup,
     }));
-    const modifierPricePerUnit = calcModifiersChargeCents(priced, groupConfigs);
-    const snapshots = calcModifierSnapshotPrices(priced, groupConfigs);
+
+    const applyLoyaltyDiscount = orgHasLoyaltyStickerCard && item.loyaltyDiscount === true;
+
+    // Loyalty sticker card: cup is free + up to LOYALTY_FREE_COMPLEMENTOS
+    // complementos are free ACROSS all groups combined (not per group like
+    // the menu's normal free_quantity) — from the next one on, charge each
+    // at its own price. Reuses the same "most expensive slots free first"
+    // fairness rule as normal free_quantity pricing, just pooled into one
+    // virtual group instead of the item's real modifier groups.
+    const pricingGroupConfigs = applyLoyaltyDiscount
+      ? [{ id: LOYALTY_VIRTUAL_GROUP_ID, freeQuantity: LOYALTY_FREE_COMPLEMENTOS }]
+      : groupConfigs;
+    const pricingPriced = applyLoyaltyDiscount
+      ? priced.map((m) => ({ ...m, groupId: LOYALTY_VIRTUAL_GROUP_ID }))
+      : priced;
+
+    const modifierPricePerUnit = calcModifiersChargeCents(pricingPriced, pricingGroupConfigs);
+    const snapshots = calcModifierSnapshotPrices(pricingPriced, pricingGroupConfigs);
     // Consume snapshots one-by-one so duplicate modifier ids keep distinct prices
     // (e.g. Nutella ×3 with free_quantity).
     const remainingSnaps = [...snapshots];
 
-    const itemTotal =
-      calcItemTotalCents(
-        {
-          unitPriceCents: menuItem.price,
-          promoQuantity: menuItem.promo_quantity,
-          promoPriceCents: menuItem.promo_price_cents,
-        },
-        item.quantity,
-      ) + modifierPricePerUnit * item.quantity;
-
-    const applyLoyaltyDiscount = orgHasLoyaltyStickerCard && item.loyaltyDiscount === true;
-    const finalTotal = applyLoyaltyDiscount ? 0 : itemTotal;
+    const baseItemTotal = calcItemTotalCents(
+      {
+        unitPriceCents: menuItem.price,
+        promoQuantity: menuItem.promo_quantity,
+        promoPriceCents: menuItem.promo_price_cents,
+      },
+      item.quantity,
+    );
+    const finalTotal =
+      (applyLoyaltyDiscount ? 0 : baseItemTotal) + modifierPricePerUnit * item.quantity;
     subtotal += finalTotal;
+
+    // What this item would have cost at normal (non-loyalty) pricing, for audit/display.
+    const originalTotal = applyLoyaltyDiscount
+      ? baseItemTotal + calcModifiersChargeCents(priced, groupConfigs) * item.quantity
+      : null;
 
     orderItemsData.push({
       menu_item_id: menuItem.id,
@@ -240,7 +265,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       unit_price: menuItem.price,
       quantity: item.quantity,
       total: finalTotal,
-      original_total: applyLoyaltyDiscount ? itemTotal : null,
+      original_total: originalTotal,
       discount_reason: applyLoyaltyDiscount ? "Fidelidade - cartão físico" : null,
       notes: item.notes,
       modifiers: selectedMods.map((m) => {

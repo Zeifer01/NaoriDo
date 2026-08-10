@@ -18,7 +18,24 @@ import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
 import { useFeatures } from "@/hooks/use-features";
-import { appendCityToAddress, getDeliveryFeeCents, calcItemTotalCents } from "@restai/config";
+import { appendCityToAddress, getDeliveryFeeCents, calcItemTotalCents, calcModifiersChargeCents } from "@restai/config";
+
+// Loyalty sticker card (Açaí House): cup free + up to 3 complementos free
+// TOTAL, regardless of type — mirrors apps/api/src/services/order.service.ts.
+const LOYALTY_FREE_COMPLEMENTOS = 3;
+const LOYALTY_VIRTUAL_GROUP_ID = "__loyalty_complementos__";
+
+function loyaltyModifiersChargeCents(modifiers: CartModifier[]): number {
+  const priced = modifiers.map((m) => ({
+    id: m.modifierId,
+    groupId: LOYALTY_VIRTUAL_GROUP_ID,
+    price: m.price,
+    outsideCup: m.outsideCup,
+  }));
+  return calcModifiersChargeCents(priced, [
+    { id: LOYALTY_VIRTUAL_GROUP_ID, freeQuantity: LOYALTY_FREE_COMPLEMENTOS },
+  ]);
+}
 
 export interface PosCartItem {
   lineId: string;
@@ -215,7 +232,9 @@ export default function PosPage() {
       const combinedNotes = [trocoNote, orderNotes.trim()].filter(Boolean).join("\n") || undefined;
 
       const itemsSubtotal = cart.reduce((sum, item) => {
-        if (item.loyaltyDiscount) return sum;
+        if (item.loyaltyDiscount) {
+          return sum + loyaltyModifiersChargeCents(item.modifiers) * item.quantity;
+        }
         const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
         const baseTotal = calcItemTotalCents(
           { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },

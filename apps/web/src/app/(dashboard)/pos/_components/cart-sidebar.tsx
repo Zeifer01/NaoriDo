@@ -30,10 +30,29 @@ import {
   getDeliveryFeeCents,
   appendCityToAddress,
   calcItemTotalCents,
+  calcModifiersChargeCents,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { apiFetch } from "@/lib/fetcher";
 import type { PosCartItem } from "../page";
+
+// Loyalty sticker card (Açaí House): cup free + up to 3 complementos free
+// TOTAL, regardless of type — mirrors apps/api/src/services/order.service.ts.
+const LOYALTY_FREE_COMPLEMENTOS = 3;
+const LOYALTY_VIRTUAL_GROUP_ID = "__loyalty_complementos__";
+
+/** Preview-only: what the modifiers on a loyalty-discounted line will actually cost. */
+function loyaltyModifiersChargeCents(modifiers: PosCartItem["modifiers"]): number {
+  const priced = modifiers.map((m) => ({
+    id: m.modifierId,
+    groupId: LOYALTY_VIRTUAL_GROUP_ID,
+    price: m.price,
+    outsideCup: m.outsideCup,
+  }));
+  return calcModifiersChargeCents(priced, [
+    { id: LOYALTY_VIRTUAL_GROUP_ID, freeQuantity: LOYALTY_FREE_COMPLEMENTOS },
+  ]);
+}
 
 export type PosOrderType = "delivery" | "takeout";
 
@@ -302,7 +321,9 @@ export function CartSidebar({
   }, [orderType, isAutoPricing, pricing.mode, debouncedAddress, deliveryCity]);
 
   const subtotal = cart.reduce((sum, item) => {
-    if (item.loyaltyDiscount) return sum;
+    if (item.loyaltyDiscount) {
+      return sum + loyaltyModifiersChargeCents(item.modifiers) * item.quantity;
+    }
     const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
     const baseTotal = calcItemTotalCents(
       { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
@@ -623,7 +644,10 @@ export function CartSidebar({
                 { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
                 item.quantity,
               ) + modTotal * item.quantity;
-            const lineTotal = item.loyaltyDiscount ? 0 : rawLineTotal;
+            const loyaltyLineTotal = item.loyaltyDiscount
+              ? loyaltyModifiersChargeCents(item.modifiers) * item.quantity
+              : 0;
+            const lineTotal = item.loyaltyDiscount ? loyaltyLineTotal : rawLineTotal;
             return (
               <div
                 key={item.lineId}
@@ -656,7 +680,8 @@ export function CartSidebar({
                     )}
                     {item.loyaltyDiscount && (
                       <p className="text-[11px] font-medium text-pink-600 dark:text-pink-400 flex items-center gap-1">
-                        <Heart className="h-3 w-3 fill-current" /> Grátis — cartão fidelidade
+                        <Heart className="h-3 w-3 fill-current" /> Cartão fidelidade — copo + 3
+                        complementos grátis
                       </p>
                     )}
                   </div>
@@ -739,7 +764,7 @@ export function CartSidebar({
                       <span className="line-through text-muted-foreground font-normal mr-1.5">
                         {formatCurrency(rawLineTotal)}
                       </span>
-                      {formatCurrency(0)}
+                      {formatCurrency(loyaltyLineTotal)}
                     </p>
                   ) : (
                     <p className="text-sm font-bold">{formatCurrency(lineTotal)}</p>
