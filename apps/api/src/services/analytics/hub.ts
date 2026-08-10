@@ -6,7 +6,7 @@ import type {
   ExecutiveHubAnalytics,
 } from "@restai/types";
 import { metric, previousPeriodOfSameLength } from "./period.js";
-import { getSalesAnalytics } from "./sales.js";
+import { getSalesAnalytics, getLoyaltyRedemptionCount } from "./sales.js";
 import { getProductAnalytics } from "./products.js";
 import { getCustomerAnalytics } from "./customers.js";
 import { buildExecutiveInsights } from "./insights.js";
@@ -20,7 +20,7 @@ export async function getExecutiveHub(params: {
   const comparePeriod =
     params.comparePeriod ?? previousPeriodOfSameLength(params.period);
 
-  const [sales, products, customers, projection] = await Promise.all([
+  const [sales, products, customers, projection, loyaltyRedemptions] = await Promise.all([
     getSalesAnalytics({
       scope: params.scope,
       period: params.period,
@@ -39,6 +39,7 @@ export async function getExecutiveHub(params: {
       lookbackDays: 90,
       monthsAhead: 3,
     }),
+    getLoyaltyRedemptionCount(params.scope, params.period),
   ]);
 
   const revenue = sales.metrics.find((m) => m.id === "revenue.total");
@@ -170,6 +171,7 @@ export async function getExecutiveHub(params: {
       completedOrders: (orders?.value as number) ?? 0,
       peakHour,
       peakWeekday,
+      loyaltyRedemptions,
     },
     insights,
     projection: {

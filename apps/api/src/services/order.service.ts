@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus } from "@restai/config";
+import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -26,6 +26,8 @@ interface OrderItemInput {
   quantity: number;
   notes?: string;
   modifiers?: Array<{ modifierId: string; outsideCup?: boolean }>;
+  /** Manual loyalty sticker-card redemption — zeroes this item. Ignored unless the org has the flag enabled. */
+  loyaltyDiscount?: boolean;
 }
 
 interface CreateOrderParams {
@@ -140,6 +142,13 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     );
   }
 
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, organizationId))
+    .limit(1);
+  const orgHasLoyaltyStickerCard = hasLoyaltyStickerCard(org?.settings);
+
   // Validate items and calculate totals
   let subtotal = 0;
   const orderItemsData: Array<{
@@ -148,6 +157,8 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     unit_price: number;
     quantity: number;
     total: number;
+    original_total?: number | null;
+    discount_reason?: string | null;
     notes?: string;
     modifiers: Array<{
       modifierId: string;
@@ -218,14 +229,19 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
         },
         item.quantity,
       ) + modifierPricePerUnit * item.quantity;
-    subtotal += itemTotal;
+
+    const applyLoyaltyDiscount = orgHasLoyaltyStickerCard && item.loyaltyDiscount === true;
+    const finalTotal = applyLoyaltyDiscount ? 0 : itemTotal;
+    subtotal += finalTotal;
 
     orderItemsData.push({
       menu_item_id: menuItem.id,
       name: menuItem.name,
       unit_price: menuItem.price,
       quantity: item.quantity,
-      total: itemTotal,
+      total: finalTotal,
+      original_total: applyLoyaltyDiscount ? itemTotal : null,
+      discount_reason: applyLoyaltyDiscount ? "Fidelidade - cartão físico" : null,
       notes: item.notes,
       modifiers: selectedMods.map((m) => {
         const snapIdx = remainingSnaps.findIndex((s) => s.id === m.id);
@@ -257,11 +273,6 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       ? (deliveryFeeOverrideCents ?? getDeliveryFeeCents(branchSettings))
       : 0;
 
-  const [org] = await db
-    .select({ settings: schema.organizations.settings })
-    .from(schema.organizations)
-    .where(eq(schema.organizations.id, organizationId))
-    .limit(1);
   const initialStatus = hasSimplifiedOrderStatus(org?.settings)
     ? getSimplifiedInitialOrderStatus()
     : "pending";

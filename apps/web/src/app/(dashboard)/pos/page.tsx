@@ -31,6 +31,8 @@ export interface PosCartItem {
   quantity: number;
   notes?: string;
   modifiers: CartModifier[];
+  /** Manual loyalty sticker-card redemption (Açaí House) — zeroes this line. */
+  loyaltyDiscount?: boolean;
 }
 
 let lineCounter = 0;
@@ -79,7 +81,7 @@ export default function PosPage() {
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
   const createOrder = useCreateOrder();
   const currency = useCurrencyStore((s) => s.currency);
-  const { posBarcodes } = useFeatures();
+  const { posBarcodes, loyaltyStickerCard } = useFeatures();
 
   const allItems: any[] = menuItems ?? [];
 
@@ -177,6 +179,14 @@ export default function PosPage() {
     setCart((prev) => prev.filter((c) => c.lineId !== lineId));
   };
 
+  const toggleLoyaltyDiscount = (lineId: string) => {
+    setCart((prev) =>
+      prev.map((c) =>
+        c.lineId === lineId ? { ...c, loyaltyDiscount: !c.loyaltyDiscount } : c,
+      ),
+    );
+  };
+
   const handleCreateOrder = async () => {
     if (cart.length === 0) return;
     const name = customerName.trim();
@@ -205,6 +215,7 @@ export default function PosPage() {
       const combinedNotes = [trocoNote, orderNotes.trim()].filter(Boolean).join("\n") || undefined;
 
       const itemsSubtotal = cart.reduce((sum, item) => {
+        if (item.loyaltyDiscount) return sum;
         const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
         const baseTotal = calcItemTotalCents(
           { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
@@ -281,6 +292,7 @@ export default function PosPage() {
             modifierId: m.modifierId,
             outsideCup: m.outsideCup === true,
           })),
+          loyaltyDiscount: item.loyaltyDiscount === true ? true : undefined,
         })),
         notes: combinedNotes,
       });
@@ -375,6 +387,8 @@ export default function PosPage() {
         onSelectCustomer={handleSelectCustomer}
         onClearSelectedCustomer={() => setSelectedCustomerId(null)}
         onUpdateQty={updateCartQty}
+        onToggleLoyaltyDiscount={toggleLoyaltyDiscount}
+        loyaltyStickerCard={loyaltyStickerCard}
         onRemove={removeFromCart}
         onClearCart={() => setCart([])}
         onCreateOrder={handleCreateOrder}

@@ -33,6 +33,13 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.use_branch_timezone`.
    */
   use_branch_timezone: boolean;
+  /**
+   * Manual "loyalty sticker card" redemption at checkout (Açaí House): staff
+   * picks a cart item and zeroes it out after verifying the customer's
+   * physical sticker card. Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.loyalty_sticker_card`.
+   */
+  loyalty_sticker_card: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -41,6 +48,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   order_status_ux: "v1",
   pos_barcodes: false,
   use_branch_timezone: false,
+  loyalty_sticker_card: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -105,6 +113,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     ),
     pos_barcodes: s.pos_barcodes === true,
     use_branch_timezone: s.use_branch_timezone === true,
+    loyalty_sticker_card: s.loyalty_sticker_card === true,
   };
 }
 
@@ -115,6 +124,11 @@ export function hasPosBarcodes(settings: unknown): boolean {
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */
 export function hasBranchTimezone(settings: unknown): boolean {
   return getOrgUxFlags(settings).use_branch_timezone;
+}
+
+/** True when the org uses the manual sticker-card loyalty redemption at checkout. */
+export function hasLoyaltyStickerCard(settings: unknown): boolean {
+  return getOrgUxFlags(settings).loyalty_sticker_card;
 }
 
 /** Sidebar / page label for the kitchen board (e.g. "Comandas" for açaí ops). */

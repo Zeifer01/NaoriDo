@@ -18,6 +18,7 @@ import {
   Phone,
   Bike,
   ShoppingBag,
+  Heart,
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useLoyaltyCustomers } from "@/hooks/use-loyalty";
@@ -102,6 +103,8 @@ export function CartSidebar({
   onClearSelectedCustomer,
   onUpdateQty,
   onRemove,
+  onToggleLoyaltyDiscount,
+  loyaltyStickerCard = false,
   onClearCart,
   onCreateOrder,
 }: {
@@ -138,6 +141,10 @@ export function CartSidebar({
   onClearSelectedCustomer: () => void;
   onUpdateQty: (lineId: string, qty: number) => void;
   onRemove: (lineId: string) => void;
+  /** Toggle manual loyalty sticker-card redemption for a cart line (Açaí House). */
+  onToggleLoyaltyDiscount?: (lineId: string) => void;
+  /** True when the org has the sticker-card loyalty flag enabled. */
+  loyaltyStickerCard?: boolean;
   onClearCart: () => void;
   onCreateOrder: () => void;
 }) {
@@ -295,6 +302,7 @@ export function CartSidebar({
   }, [orderType, isAutoPricing, pricing.mode, debouncedAddress, deliveryCity]);
 
   const subtotal = cart.reduce((sum, item) => {
+    if (item.loyaltyDiscount) return sum;
     const modTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
     const baseTotal = calcItemTotalCents(
       { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
@@ -610,15 +618,19 @@ export function CartSidebar({
         ) : (
           cart.map((item) => {
             const modTotal = item.modifiers.reduce((s, m) => s + m.price, 0);
-            const lineTotal =
+            const rawLineTotal =
               calcItemTotalCents(
                 { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
                 item.quantity,
               ) + modTotal * item.quantity;
+            const lineTotal = item.loyaltyDiscount ? 0 : rawLineTotal;
             return (
               <div
                 key={item.lineId}
-                className="rounded-lg border p-2.5 space-y-1.5"
+                className={cn(
+                  "rounded-lg border p-2.5 space-y-1.5",
+                  item.loyaltyDiscount && "border-pink-400 bg-pink-50 dark:bg-pink-950/20",
+                )}
               >
                 <div className="flex items-start gap-2">
                   {item.imageUrl ? (
@@ -642,7 +654,26 @@ export function CartSidebar({
                         Promoção aplicada: {item.promoQuantity}un por {formatCurrency(item.promoPriceCents)}
                       </p>
                     )}
+                    {item.loyaltyDiscount && (
+                      <p className="text-[11px] font-medium text-pink-600 dark:text-pink-400 flex items-center gap-1">
+                        <Heart className="h-3 w-3 fill-current" /> Grátis — cartão fidelidade
+                      </p>
+                    )}
                   </div>
+                  {loyaltyStickerCard && (
+                    <button
+                      onClick={() => onToggleLoyaltyDiscount?.(item.lineId)}
+                      title="Aplicar/remover desconto de fidelidade (cartão físico)"
+                      className={cn(
+                        "p-1 transition-colors",
+                        item.loyaltyDiscount
+                          ? "text-pink-600 dark:text-pink-400"
+                          : "text-muted-foreground hover:text-pink-500",
+                      )}
+                    >
+                      <Heart className={cn("h-3.5 w-3.5", item.loyaltyDiscount && "fill-current")} />
+                    </button>
+                  )}
                   <button
                     onClick={() => onRemove(item.lineId)}
                     className="p-1 text-muted-foreground hover:text-destructive transition-colors"
@@ -703,7 +734,16 @@ export function CartSidebar({
                       <Plus className="h-2.5 w-2.5" />
                     </Button>
                   </div>
-                  <p className="text-sm font-bold">{formatCurrency(lineTotal)}</p>
+                  {item.loyaltyDiscount ? (
+                    <p className="text-sm font-bold text-pink-600 dark:text-pink-400">
+                      <span className="line-through text-muted-foreground font-normal mr-1.5">
+                        {formatCurrency(rawLineTotal)}
+                      </span>
+                      {formatCurrency(0)}
+                    </p>
+                  ) : (
+                    <p className="text-sm font-bold">{formatCurrency(lineTotal)}</p>
+                  )}
                 </div>
               </div>
             );

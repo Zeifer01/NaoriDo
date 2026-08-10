@@ -9,6 +9,7 @@
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --order-status=simplified
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --pos-barcodes=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --use-branch-timezone=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --loyalty-sticker-card=true
  */
 import { db, schema } from "./index.ts";
 import { eq } from "drizzle-orm";
@@ -25,6 +26,7 @@ const kitchen = arg("kitchen") as "v1" | "v2" | undefined;
 const orderStatus = arg("order-status") as "v1" | "simplified" | undefined;
 const posBarcodes = arg("pos-barcodes");
 const useBranchTimezone = arg("use-branch-timezone");
+const loyaltyStickerCard = arg("loyalty-sticker-card");
 const label = arg("label");
 const columns = arg("columns");
 
@@ -33,9 +35,9 @@ if (!slug) {
   process.exit(1);
 }
 
-if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone) {
+if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard) {
   console.error(
-    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --label=Comandas e/ou --columns=...",
+    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --label=Comandas e/ou --columns=...",
   );
   process.exit(1);
 }
@@ -52,6 +54,11 @@ if (posBarcodes && posBarcodes !== "true" && posBarcodes !== "false") {
 
 if (useBranchTimezone && useBranchTimezone !== "true" && useBranchTimezone !== "false") {
   console.error("--use-branch-timezone deve ser true ou false");
+  process.exit(1);
+}
+
+if (loyaltyStickerCard && loyaltyStickerCard !== "true" && loyaltyStickerCard !== "false") {
+  console.error("--loyalty-sticker-card deve ser true ou false");
   process.exit(1);
 }
 
@@ -88,6 +95,7 @@ const next = {
   ...(orderStatus ? { order_status_ux: orderStatus } : {}),
   ...(posBarcodes ? { pos_barcodes: posBarcodes === "true" } : {}),
   ...(useBranchTimezone ? { use_branch_timezone: useBranchTimezone === "true" } : {}),
+  ...(loyaltyStickerCard ? { loyalty_sticker_card: loyaltyStickerCard === "true" } : {}),
   ...(label ? { kitchen_label: label } : {}),
   ...(kitchen_column_labels ? { kitchen_column_labels } : {}),
   ...(orderStatus === "simplified" && !kitchen_column_labels

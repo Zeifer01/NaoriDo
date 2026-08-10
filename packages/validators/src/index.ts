@@ -159,6 +159,8 @@ export const createOrderItemSchema = z.object({
       }),
     )
     .default([]),
+  /** Manual loyalty sticker-card redemption — zeroes this item. Org must have the flag enabled (server-validated). */
+  loyaltyDiscount: z.boolean().optional(),
 });
 
 export const createOrderBaseSchema = z.object({

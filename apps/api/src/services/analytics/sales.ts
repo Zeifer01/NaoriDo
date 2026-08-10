@@ -228,4 +228,26 @@ export async function getCompletedOrderIds(
   return rows.map((r) => r.id);
 }
 
+/** Count of orders with at least one manually-comped item (e.g. loyalty sticker card) in the period. */
+export async function getLoyaltyRedemptionCount(
+  scope: AnalyticsScope,
+  period: AnalyticsPeriod,
+): Promise<number> {
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
+
+  const [row] = await db
+    .select({ count: sql<number>`count(distinct ${schema.orders.id})::int` })
+    .from(schema.orders)
+    .innerJoin(schema.orderItems, eq(schema.orderItems.order_id, schema.orders.id))
+    .where(
+      and(
+        orderScopeWhere(scope, start, end),
+        sql`${schema.orderItems.discount_reason} is not null`,
+      ),
+    );
+
+  return row?.count ?? 0;
+}
+
 export { orderScopeWhere, loadOrderTotals, loadDailySeries };

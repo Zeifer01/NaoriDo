@@ -74,9 +74,13 @@ export const orderItems = pgTable("order_items", {
   name: varchar("name", { length: 255 }).notNull(), // snapshot
   unit_price: integer("unit_price").notNull(), // snapshot in cents
   quantity: integer("quantity").notNull().default(1),
-  total: integer("total").notNull(), // in cents
+  total: integer("total").notNull(), // in cents — already reflects any discount below
   notes: text("notes"),
   status: orderItemStatusEnum("status").default("pending").notNull(),
+  /** What `total` would have been before a manual comp (e.g. loyalty sticker card). Null = no discount. */
+  original_total: integer("original_total"),
+  /** Why this item was discounted (e.g. "Fidelidade - cartão físico"). Null = no discount. */
+  discount_reason: varchar("discount_reason", { length: 100 }),
 }, (table) => [
   index("idx_order_items_order").on(table.order_id),
 ]);

@@ -11,7 +11,7 @@
  * Keep this layer free of HTTP/UI concerns.
  */
 
-export { getSalesAnalytics, getCompletedOrderIds } from "./sales.js";
+export { getSalesAnalytics, getCompletedOrderIds, getLoyaltyRedemptionCount } from "./sales.js";
 export { getProductAnalytics } from "./products.js";
 export { getFinanceAnalytics } from "./finance.js";
 export { getCustomerAnalytics } from "./customers.js";

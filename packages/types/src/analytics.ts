@@ -201,6 +201,8 @@ export interface ExecutiveHubAnalytics {
     completedOrders: number;
     peakHour: number | null;
     peakWeekday: string | null;
+    /** Orders with at least one manually-comped item (e.g. loyalty sticker card) in the period. */
+    loyaltyRedemptions: number;
   };
   insights: AnalyticsInsight[];
   projection?: {

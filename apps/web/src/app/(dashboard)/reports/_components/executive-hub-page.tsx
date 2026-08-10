@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useExecutiveHub } from "@/hooks/use-analytics";
+import { useFeatures } from "@/hooks/use-features";
 import {
   AnalyticsDateToolbar,
   useAnalyticsDateState,
@@ -101,6 +102,7 @@ const HUB_KPI_IDS = [
 export function ExecutiveHubPage() {
   const dateState = useAnalyticsDateState();
   const { data, isLoading, isFetching, error, refetch } = useExecutiveHub(dateState.params);
+  const { loyaltyStickerCard } = useFeatures();
 
   const kpis = HUB_KPI_IDS.map((id) => data?.metrics.find((m) => m.id === id)).filter(
     Boolean,
@@ -253,6 +255,14 @@ export function ExecutiveHubPage() {
                       : ""}
                   </span>
                 </li>
+                {loyaltyStickerCard && (
+                  <li>
+                    Pedidos com cartão fidelidade:{" "}
+                    <span className="text-foreground font-medium">
+                      {data.operations.loyaltyRedemptions}
+                    </span>
+                  </li>
+                )}
               </ul>
             )}
           </div>

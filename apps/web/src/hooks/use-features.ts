@@ -38,6 +38,8 @@ interface UseFeaturesResult {
   orderStatusUx: OrderStatusUx;
   /** True when fair/POS barcode scan + label print is enabled for this org. */
   posBarcodes: boolean;
+  /** True when the manual sticker-card loyalty redemption is enabled at checkout. */
+  loyaltyStickerCard: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -121,6 +123,7 @@ export function useFeatures(): UseFeaturesResult {
       kitchenUx: ux.kitchen_ux,
       orderStatusUx: ux.order_status_ux,
       posBarcodes: ux.pos_barcodes,
+      loyaltyStickerCard: ux.loyalty_sticker_card,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),
