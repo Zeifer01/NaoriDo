@@ -28,6 +28,7 @@ import {
   Smartphone,
   ShieldCheck,
   ContactRound,
+  History,
 } from "lucide-react";
 import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
@@ -96,6 +97,7 @@ const navGroups: NavGroup[] = [
       { href: "/loyalty", label: "Fidelidade", icon: Heart, feature: "loyalty" },
       { href: "/reports", label: "Relatórios", icon: BarChart3, feature: "reports" },
       { href: "/customers", label: "Clientes", icon: ContactRound },
+      { href: "/audit/exclusoes", label: "Pedidos excluídos", icon: History },
       { href: "/settings", label: "Configurações", icon: Settings },
     ],
   },
@@ -121,7 +123,8 @@ const roleNavAccess: Record<string, Set<string>> = {
       .filter(
         (href) =>
           href !== "/settings" &&
-          href !== "/super-admin",
+          href !== "/super-admin" &&
+          href !== "/audit/exclusoes",
       ),
   ),
   cashier: new Set(["/", "/pos", "/orders", "/payments", "/customers"]),

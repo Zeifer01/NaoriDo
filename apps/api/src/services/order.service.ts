@@ -704,8 +704,9 @@ export async function deleteOrder(params: {
   orderId: string;
   branchId: string;
   organizationId: string;
+  deletedBy: { id: string; name: string };
 }): Promise<void> {
-  const { orderId, branchId, organizationId } = params;
+  const { orderId, branchId, organizationId, deletedBy } = params;
 
   const [order] = await db
     .select()
@@ -738,7 +739,25 @@ export async function deleteOrder(params: {
     }
   }
 
+  const items = await db
+    .select()
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.order_id, orderId));
+
   await db.transaction(async (tx) => {
+    await tx.insert(schema.orderDeletionLog).values({
+      organization_id: organizationId,
+      branch_id: branchId,
+      order_id: order.id,
+      order_number: order.order_number,
+      order_total: order.total,
+      order_status: order.status,
+      customer_name: order.customer_name,
+      order_created_at: order.created_at,
+      order_snapshot: { order, items },
+      deleted_by: deletedBy.id,
+      deleted_by_name: deletedBy.name,
+    });
     await cleanupOrderReferences(tx, [orderId]);
     await tx.delete(schema.orders).where(eq(schema.orders.id, orderId));
   });

@@ -51,6 +51,8 @@ export const PERMISSIONS = {
     "customers:*",
     "payments:*", "reports:*", "invoices:*",
     "settings:*",
+    /** Deliberately separate from orders:* so branch_manager/cashier can't see it. */
+    "audit:read",
   ],
   branch_manager: [
     "branch:read", "branch:update",

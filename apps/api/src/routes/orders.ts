@@ -870,12 +870,20 @@ orders.delete(
   async (c) => {
     const { id } = c.req.valid("param");
     const tenant = c.get("tenant") as any;
+    const user = c.get("user") as any;
 
     try {
+      const [actor] = await db
+        .select({ name: schema.users.name })
+        .from(schema.users)
+        .where(eq(schema.users.id, user.sub))
+        .limit(1);
+
       await deleteOrder({
         orderId: id,
         branchId: tenant.branchId,
         organizationId: tenant.organizationId,
+        deletedBy: { id: user.sub, name: actor?.name ?? "Desconhecido" },
       });
       return c.json({ success: true, data: { id } });
     } catch (err) {
