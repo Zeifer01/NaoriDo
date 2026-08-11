@@ -157,6 +157,16 @@ export default function DeliveryMenuPage({
     };
 
     if (activeCategory === ALL_PRODUCTS) {
+      if (menuData.branch.menu_default_all_items) {
+        // "Todos" grouped by category order (as configured in the categories list),
+        // items within each category keep their own byOrder ranking.
+        return [...menuData.items].sort((a, b) => {
+          const ca = categoryOrder.get(a.category_id) ?? Number.MAX_SAFE_INTEGER;
+          const cb = categoryOrder.get(b.category_id) ?? Number.MAX_SAFE_INTEGER;
+          if (ca !== cb) return ca - cb;
+          return byOrder(a, b);
+        });
+      }
       return [...menuData.items].sort(byOrder);
     }
 
