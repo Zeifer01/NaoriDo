@@ -21,7 +21,7 @@ import {
   notifyDeliveryOrderCreated,
 } from "../services/whatsapp.service.js";
 import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
-import { isLegacyOutsideCupGroupName, calcItemTotalCents } from "@restai/config";
+import { isLegacyOutsideCupGroupName, calcItemTotalCents, hasMenuDefaultAllItems } from "@restai/config";
 import { wsManager } from "../ws/manager.js";
 import { orgHasFeature } from "../lib/features.js";
 import { resolveHost } from "../lib/tenant-host.js";
@@ -329,6 +329,7 @@ delivery.get("/:branchSlug/menu", async (c) => {
         delivery_label: (settings.delivery_label as string) || null,
         pickup_label: (settings.pickup_label as string) || null,
         branch_address: branch.address || null,
+        menu_default_all_items: hasMenuDefaultAllItems(orgSettings),
       },
       landing: {
         enabled: settings.landing_enabled === true,

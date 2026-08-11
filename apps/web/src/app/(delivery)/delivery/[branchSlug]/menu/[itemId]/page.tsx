@@ -14,6 +14,7 @@ import { useDeliveryBranch } from "@/hooks/use-delivery-branch";
 import { deliveryClasses } from "@/app/(delivery)/_components/delivery-theme";
 import {
   calcModifiersChargeCents,
+  calcItemTotalCents,
   formatModifierDisplayName,
 } from "@restai/config";
 import { Loader2, Leaf, Minus, Plus } from "lucide-react";
@@ -27,6 +28,8 @@ interface MenuItem {
   price: number;
   image_url?: string | null;
   category_id: string;
+  promo_quantity?: number | null;
+  promo_price_cents?: number | null;
 }
 
 interface Modifier {
@@ -306,7 +309,12 @@ export default function DeliveryProductPage({
   };
 
   const modifiersTotalAllCups = cups.reduce((s, cup) => s + cupModifiersCents(cup), 0);
-  const totalPrice = item.price * quantity + modifiersTotalAllCups;
+  const totalPrice = hasModifiers
+    ? item.price * quantity + modifiersTotalAllCups
+    : calcItemTotalCents(
+        { unitPriceCents: item.price, promoQuantity: item.promo_quantity, promoPriceCents: item.promo_price_cents },
+        quantity,
+      );
 
   const handleAdd = () => {
     if (hasModifiers) {
@@ -340,6 +348,8 @@ export default function DeliveryProductPage({
         unitPrice: item.price,
         quantity,
         modifiers: [],
+        promoQuantity: item.promo_quantity,
+        promoPriceCents: item.promo_price_cents,
       });
     }
     router.push(`/delivery/${branchSlug}/menu`);
@@ -380,6 +390,11 @@ export default function DeliveryProductPage({
         <p className="mt-2 text-lg font-semibold text-[var(--d-accent-dark)]">
           {formatCurrency(item.price, currency)}
         </p>
+        {item.promo_quantity && item.promo_price_cents && (
+          <p className="mt-1 text-sm font-semibold text-[var(--d-accent-dark)]">
+            Leve {item.promo_quantity} por {formatCurrency(item.promo_price_cents, currency)}
+          </p>
+        )}
         {item.description && (
           <p className="mt-3 text-sm leading-relaxed text-[var(--d-text-muted)]">{item.description}</p>
         )}

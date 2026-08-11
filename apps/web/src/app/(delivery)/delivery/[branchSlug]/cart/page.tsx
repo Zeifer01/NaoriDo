@@ -19,14 +19,13 @@ import {
   Wallet,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { useDeliveryCartStore } from "@/stores/delivery-cart-store";
+import { useDeliveryCartStore, getDeliveryItemLineTotal } from "@/stores/delivery-cart-store";
 import { useDeliveryStore } from "@/stores/delivery-store";
 import { useDeliveryBranch } from "@/hooks/use-delivery-branch";
 import { deliveryClasses } from "@/app/(delivery)/_components/delivery-theme";
 import {
   DEFAULT_DELIVERY_PAYMENT_METHODS,
   deliveryPaymentLabel,
-  calcModifiersChargeCents,
   formatModifierDisplayName,
   appendCityToAddress,
   type DeliveryPaymentMethodId,
@@ -624,42 +623,20 @@ export default function DeliveryCartPage({
 
       <div className="space-y-3">
         {items.map((item) => {
-          const modsTotal = (() => {
-            if (!item.modifiers.length) return 0;
-            const hasGroups = item.modifiers.every((m) => m.groupId);
-            if (!hasGroups) {
-              return item.modifiers.reduce((s, m) => s + m.price, 0);
-            }
-            const groups = [
-              ...new Map(
-                item.modifiers.map((m) => [
-                  m.groupId!,
-                  {
-                    id: m.groupId!,
-                    freeQuantity: m.freeQuantity ?? 0,
-                    allowOutsideCup: m.allowOutsideCup ?? false,
-                    outsideCupFeeCents: m.outsideCupFeeCents ?? 0,
-                  },
-                ]),
-              ).values(),
-            ];
-            return calcModifiersChargeCents(
-              item.modifiers.map((m) => ({
-                id: m.modifierId,
-                groupId: m.groupId!,
-                price: m.price,
-                outsideCup: m.outsideCup,
-              })),
-              groups,
-            );
-          })();
-          const lineTotal = (item.unitPrice + modsTotal) * item.quantity;
+          const lineTotal = getDeliveryItemLineTotal(item);
+          const promoApplied =
+            item.promoQuantity && item.promoPriceCents && item.quantity >= item.promoQuantity;
           return (
             <div key={item.lineId} className={deliveryClasses.card}>
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-medium text-[var(--d-text-strong)]">{item.name}</p>
+                    {promoApplied && (
+                      <p className="mt-0.5 text-xs font-semibold text-[var(--d-accent-dark)]">
+                        Promoção aplicada: {item.promoQuantity} por {formatCurrency(item.promoPriceCents!, currency)}
+                      </p>
+                    )}
                     {item.modifiers.length > 0 && (
                       <p className="mt-1 text-xs text-[var(--d-text-muted)]">
                         {(() => {

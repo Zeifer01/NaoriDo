@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { calcModifiersChargeCents } from "@restai/config";
+import { calcModifiersChargeCents, calcItemTotalCents } from "@restai/config";
 
 export interface DeliveryCartModifier {
   modifierId: string;
@@ -20,6 +20,9 @@ export interface DeliveryCartItem {
   quantity: number;
   notes?: string;
   modifiers: DeliveryCartModifier[];
+  /** Quantity-break promo ("leve N por R$X") — null/undefined when the item has no promo. */
+  promoQuantity?: number | null;
+  promoPriceCents?: number | null;
 }
 
 let lineCounter = 0;
@@ -55,6 +58,24 @@ function lineModifiersCents(mods: DeliveryCartModifier[]): number {
     })),
     groups,
   );
+}
+
+/**
+ * Line total for a delivery cart line, applying quantity-break promo pricing
+ * (promoQuantity/promoPriceCents) to the base item price. Modifiers have no
+ * promo pricing of their own — they're always charged per unit × quantity.
+ */
+export function getDeliveryItemLineTotal(item: DeliveryCartItem): number {
+  const modsTotal = lineModifiersCents(item.modifiers);
+  const baseTotal = calcItemTotalCents(
+    {
+      unitPriceCents: item.unitPrice,
+      promoQuantity: item.promoQuantity,
+      promoPriceCents: item.promoPriceCents,
+    },
+    item.quantity,
+  );
+  return baseTotal + modsTotal * item.quantity;
 }
 
 interface DeliveryCartState {
@@ -114,6 +135,8 @@ export const useDeliveryCartStore = create<DeliveryCartState>((set, get) => ({
       quantity: 1,
       notes: current.notes,
       modifiers: current.modifiers.map((m) => ({ ...m })),
+      promoQuantity: current.promoQuantity,
+      promoPriceCents: current.promoPriceCents,
     });
   },
   removeItem: (lineId) => {
@@ -121,10 +144,7 @@ export const useDeliveryCartStore = create<DeliveryCartState>((set, get) => ({
   },
   clearCart: () => set({ items: [] }),
   getSubtotal: () =>
-    get().items.reduce((sum, item) => {
-      const mods = lineModifiersCents(item.modifiers);
-      return sum + (item.unitPrice + mods) * item.quantity;
-    }, 0),
+    get().items.reduce((sum, item) => sum + getDeliveryItemLineTotal(item), 0),
   getTax: (taxRate) => Math.round((get().getSubtotal() * taxRate) / 10000),
   getTotal: (taxRate) => get().getSubtotal() + get().getTax(taxRate),
   getItemCount: () => get().items.reduce((sum, item) => sum + item.quantity, 0),

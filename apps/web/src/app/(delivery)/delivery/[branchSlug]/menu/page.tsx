@@ -29,6 +29,8 @@ interface MenuItem {
   total_sold?: number;
   /** True when item has complement / modifier groups — must open product page. */
   has_modifiers?: boolean;
+  promo_quantity?: number | null;
+  promo_price_cents?: number | null;
 }
 
 interface Category {
@@ -57,6 +59,7 @@ interface MenuData {
     pickup_hint?: string | null;
     pickup_unavailable_message?: string | null;
     pickup_label?: string | null;
+    menu_default_all_items?: boolean;
   };
   categories: Category[];
   items: MenuItem[];
@@ -105,7 +108,9 @@ export default function DeliveryMenuPage({
         });
         const cats: Category[] = result.data.categories ?? [];
         const sorted = [...cats].sort((a, b) => a.sort_order - b.sort_order);
-        setActiveCategory(sorted[0]?.id ?? ALL_PRODUCTS);
+        setActiveCategory(
+          result.data.branch.menu_default_all_items ? ALL_PRODUCTS : (sorted[0]?.id ?? ALL_PRODUCTS),
+        );
         setLoading(false);
       })
       .catch(() => {
@@ -193,6 +198,8 @@ export default function DeliveryMenuPage({
         unitPrice: item.price,
         quantity: 1,
         modifiers: [],
+        promoQuantity: item.promo_quantity,
+        promoPriceCents: item.promo_price_cents,
       });
     }
   };
@@ -400,6 +407,11 @@ export default function DeliveryMenuPage({
                       <p className="font-medium leading-snug text-[var(--d-text-strong)]">
                         {item.name}
                       </p>
+                      {item.promo_quantity && item.promo_price_cents && (
+                        <p className="mt-0.5 text-xs font-semibold text-[var(--d-accent-dark)]">
+                          Leve {item.promo_quantity} por {formatCurrency(item.promo_price_cents, currency)}
+                        </p>
+                      )}
                       {item.description && (
                         <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--d-text-muted)]">
                           {item.description}
