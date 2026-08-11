@@ -120,6 +120,9 @@ export interface CartItem {
   quantity: number;
   notes?: string;
   modifiers: CartModifier[];
+  /** Quantity-break promo ("leve N por R$X") — null/undefined when the item has no promo. */
+  promoQuantity?: number | null;
+  promoPriceCents?: number | null;
 }
 
 export interface CartModifier {

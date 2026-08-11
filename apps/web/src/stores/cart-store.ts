@@ -1,5 +1,24 @@
 import { create } from "zustand";
 import type { CartItem } from "@restai/types";
+import { calcItemTotalCents } from "@restai/config";
+
+/**
+ * Line total for a cart item, applying quantity-break promo pricing
+ * (promoQuantity/promoPriceCents) to the base item price. Modifiers have no
+ * promo pricing of their own — they're always charged per unit × quantity.
+ */
+export function getItemLineTotal(item: CartItem): number {
+  const modifiersTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
+  const baseTotal = calcItemTotalCents(
+    {
+      unitPriceCents: item.unitPrice,
+      promoQuantity: item.promoQuantity,
+      promoPriceCents: item.promoPriceCents,
+    },
+    item.quantity,
+  );
+  return baseTotal + modifiersTotal * item.quantity;
+}
 
 interface CartState {
   items: CartItem[];
@@ -46,10 +65,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
   clearCart: () => set({ items: [] }),
   getSubtotal: () => {
-    return get().items.reduce((sum, item) => {
-      const modifiersTotal = item.modifiers.reduce((ms, m) => ms + m.price, 0);
-      return sum + (item.unitPrice + modifiersTotal) * item.quantity;
-    }, 0);
+    return get().items.reduce((sum, item) => sum + getItemLineTotal(item), 0);
   },
   getTax: (taxRate) => {
     return Math.round((get().getSubtotal() * taxRate) / 10000);

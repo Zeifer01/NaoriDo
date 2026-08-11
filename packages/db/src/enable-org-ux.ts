@@ -10,6 +10,7 @@
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --pos-barcodes=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --use-branch-timezone=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --loyalty-sticker-card=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --menu-default-all-items=true
  */
 import { db, schema } from "./index.ts";
 import { eq } from "drizzle-orm";
@@ -27,6 +28,7 @@ const orderStatus = arg("order-status") as "v1" | "simplified" | undefined;
 const posBarcodes = arg("pos-barcodes");
 const useBranchTimezone = arg("use-branch-timezone");
 const loyaltyStickerCard = arg("loyalty-sticker-card");
+const menuDefaultAllItems = arg("menu-default-all-items");
 const label = arg("label");
 const columns = arg("columns");
 
@@ -35,9 +37,9 @@ if (!slug) {
   process.exit(1);
 }
 
-if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard) {
+if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems) {
   console.error(
-    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --label=Comandas e/ou --columns=...",
+    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --label=Comandas e/ou --columns=...",
   );
   process.exit(1);
 }
@@ -59,6 +61,11 @@ if (useBranchTimezone && useBranchTimezone !== "true" && useBranchTimezone !== "
 
 if (loyaltyStickerCard && loyaltyStickerCard !== "true" && loyaltyStickerCard !== "false") {
   console.error("--loyalty-sticker-card deve ser true ou false");
+  process.exit(1);
+}
+
+if (menuDefaultAllItems && menuDefaultAllItems !== "true" && menuDefaultAllItems !== "false") {
+  console.error("--menu-default-all-items deve ser true ou false");
   process.exit(1);
 }
 
@@ -96,6 +103,7 @@ const next = {
   ...(posBarcodes ? { pos_barcodes: posBarcodes === "true" } : {}),
   ...(useBranchTimezone ? { use_branch_timezone: useBranchTimezone === "true" } : {}),
   ...(loyaltyStickerCard ? { loyalty_sticker_card: loyaltyStickerCard === "true" } : {}),
+  ...(menuDefaultAllItems ? { menu_default_all_items: menuDefaultAllItems === "true" } : {}),
   ...(label ? { kitchen_label: label } : {}),
   ...(kitchen_column_labels ? { kitchen_column_labels } : {}),
   ...(orderStatus === "simplified" && !kitchen_column_labels

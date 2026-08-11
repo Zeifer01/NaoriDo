@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Button } from "@restai/ui/components/button";
 import { useCartStore } from "@/stores/cart-store";
+import { calcItemTotalCents } from "@restai/config";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -27,6 +28,8 @@ interface MenuItem {
   image_url?: string | null;
   is_available: boolean;
   category_id: string;
+  promo_quantity?: number | null;
+  promo_price_cents?: number | null;
 }
 
 interface MenuData {
@@ -438,6 +441,8 @@ export default function ProductDetailPage({
         unitPrice: item.price,
         quantity,
         modifiers: cartModifiers,
+        promoQuantity: item.promo_quantity,
+        promoPriceCents: item.promo_price_cents,
       });
     }
     router.push(`/${branchSlug}/${tableCode}/menu`);
@@ -445,7 +450,11 @@ export default function ProductDetailPage({
 
   const modifiersTotal = calculateModifiersTotal(selectedModifiers, modifierGroups);
 
-  const totalPrice = (item.price + modifiersTotal) * quantity;
+  const totalPrice =
+    calcItemTotalCents(
+      { unitPriceCents: item.price, promoQuantity: item.promo_quantity, promoPriceCents: item.promo_price_cents },
+      quantity,
+    ) + modifiersTotal * quantity;
 
   return (
     <div className="relative min-h-dvh pb-28">

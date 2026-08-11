@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@restai/ui/components/button";
 import { Card, CardContent } from "@restai/ui/components/card";
 import { Input } from "@restai/ui/components/input";
-import { useCartStore } from "@/stores/cart-store";
+import { useCartStore, getItemLineTotal } from "@/stores/cart-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { formatCurrency } from "@/lib/utils";
 import { Minus, Plus, Trash2, ArrowLeft, ShoppingBag, Ticket, Check, X, ChevronDown, Gift, ChevronRight } from "lucide-react";
@@ -588,6 +588,11 @@ export default function CartPage({
                   <p className="text-sm text-muted-foreground">
                     {formatCurrency(item.unitPrice)} cada
                   </p>
+                  {item.promoQuantity && item.promoPriceCents && item.quantity >= item.promoQuantity && (
+                    <p className="text-xs font-medium text-green-600 dark:text-green-400 mt-0.5">
+                      Promoção aplicada: {item.promoQuantity} por {formatCurrency(item.promoPriceCents)}
+                    </p>
+                  )}
                   {item.modifiers.length > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                       {item.modifiers.map((m) => m.name).join(", ")}
@@ -622,7 +627,7 @@ export default function CartPage({
                 </div>
                 <div className="text-right shrink-0">
                   <p className="font-bold text-sm">
-                    {formatCurrency(item.unitPrice * item.quantity)}
+                    {formatCurrency(getItemLineTotal(item))}
                   </p>
                   <button
                     onClick={() => removeItem(item.menuItemId)}

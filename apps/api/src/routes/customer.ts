@@ -21,6 +21,7 @@ import {
 } from "../services/order.service.js";
 import { redeemReward } from "../services/loyalty.service.js";
 import * as sessionService from "../services/session.service.js";
+import { hasMenuDefaultAllItems } from "@restai/config";
 
 const customer = new Hono<AppEnv>();
 const TABLE_ACTION_COOLDOWN_MS = 30_000;
@@ -101,6 +102,12 @@ customer.get("/:branchSlug/:tableCode/menu", async (c) => {
     has_modifiers: itemsWithModifiers.has(item.id),
   }));
 
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, branch.organization_id))
+    .limit(1);
+
   return c.json({
     success: true,
     data: {
@@ -108,6 +115,7 @@ customer.get("/:branchSlug/:tableCode/menu", async (c) => {
       table: { id: table.id, number: table.number },
       categories,
       items: itemsWithFlags,
+      menuDefaultAllItems: hasMenuDefaultAllItems(org?.settings),
     },
   });
 });

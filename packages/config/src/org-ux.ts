@@ -40,6 +40,13 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.loyalty_sticker_card`.
    */
   loyalty_sticker_card: boolean;
+  /**
+   * Customer-facing online menu (cardápio) opens with a "Todos" (all items)
+   * tab selected by default, instead of defaulting to the first category.
+   * Default `false` keeps every existing organization's behavior unchanged.
+   * Enable per org via `organizations.settings.menu_default_all_items`.
+   */
+  menu_default_all_items: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -49,6 +56,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   pos_barcodes: false,
   use_branch_timezone: false,
   loyalty_sticker_card: false,
+  menu_default_all_items: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -114,6 +122,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     pos_barcodes: s.pos_barcodes === true,
     use_branch_timezone: s.use_branch_timezone === true,
     loyalty_sticker_card: s.loyalty_sticker_card === true,
+    menu_default_all_items: s.menu_default_all_items === true,
   };
 }
 
@@ -129,6 +138,11 @@ export function hasBranchTimezone(settings: unknown): boolean {
 /** True when the org uses the manual sticker-card loyalty redemption at checkout. */
 export function hasLoyaltyStickerCard(settings: unknown): boolean {
   return getOrgUxFlags(settings).loyalty_sticker_card;
+}
+
+/** True when the customer-facing online menu should default to the "Todos" (all items) tab. */
+export function hasMenuDefaultAllItems(settings: unknown): boolean {
+  return getOrgUxFlags(settings).menu_default_all_items;
 }
 
 /** Sidebar / page label for the kitchen board (e.g. "Comandas" for açaí ops). */

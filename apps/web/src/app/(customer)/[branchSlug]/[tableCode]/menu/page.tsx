@@ -6,7 +6,7 @@ import Image from "next/image";
 import { redirect, useRouter } from "next/navigation";
 import { Button } from "@restai/ui/components/button";
 import { Badge } from "@restai/ui/components/badge";
-import { useCartStore } from "@/stores/cart-store";
+import { useCartStore, getItemLineTotal } from "@/stores/cart-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { formatCurrency, cn } from "@/lib/utils";
 import { ShoppingCart, Plus, Minus, Loader2, UtensilsCrossed, Receipt, Bell, CheckCircle2 } from "lucide-react";
@@ -23,6 +23,8 @@ interface MenuItem {
   is_available: boolean;
   category_id: string;
   has_modifiers?: boolean;
+  promo_quantity?: number | null;
+  promo_price_cents?: number | null;
 }
 
 interface Category {
@@ -36,7 +38,10 @@ interface MenuData {
   table: { id: string; number: number };
   categories: Category[];
   items: MenuItem[];
+  menuDefaultAllItems?: boolean;
 }
+
+const ALL_ITEMS_TAB = "__all__";
 
 function useCustomerMenuLocalState() {
   const [menuData, setMenuData] = useState<MenuData | null>(null);
@@ -147,7 +152,9 @@ export default function CustomerMenuPage({
           return;
         }
         setMenuData(result.data);
-        if (result.data.categories.length > 0) {
+        if (result.data.menuDefaultAllItems) {
+          setActiveCategory(ALL_ITEMS_TAB);
+        } else if (result.data.categories.length > 0) {
           setActiveCategory(result.data.categories[0].id);
         }
         if (result.data.branch?.name) {
@@ -223,7 +230,7 @@ export default function CustomerMenuPage({
   }
 
   const itemCount = getItemCount();
-  const cartTotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+  const cartTotal = items.reduce((sum, i) => sum + getItemLineTotal(i), 0);
 
   const handleAddItem = (item: MenuItem) => {
     if (item.has_modifiers) {
@@ -236,6 +243,8 @@ export default function CustomerMenuPage({
       unitPrice: item.price,
       quantity: 1,
       modifiers: [],
+      promoQuantity: item.promo_quantity,
+      promoPriceCents: item.promo_price_cents,
     });
   };
 
@@ -277,6 +286,20 @@ export default function CustomerMenuPage({
       {/* Category tabs — sticky underline style */}
       <div className="sticky top-[49px] z-30 bg-background/95 backdrop-blur border-b border-border">
         <div className="flex overflow-x-auto no-scrollbar">
+          {menuData.menuDefaultAllItems && (
+            <button
+              key={ALL_ITEMS_TAB}
+              onClick={() => setActiveCategory(ALL_ITEMS_TAB)}
+              className={cn(
+                "flex-1 min-w-0 px-3 py-3 text-xs font-medium uppercase tracking-wider whitespace-nowrap text-center transition-colors border-b-2",
+                activeCategory === ALL_ITEMS_TAB
+                  ? "text-foreground border-foreground"
+                  : "text-muted-foreground border-transparent hover:text-foreground/70",
+              )}
+            >
+              Todos
+            </button>
+          )}
           {categories.map((cat) => (
             <button
               key={cat.id}
@@ -296,12 +319,24 @@ export default function CustomerMenuPage({
 
       {/* Product grid */}
       <div className="p-4">
-        {categories.map((category) => (
+        {categories.map((category) => {
+          const categoryItems = itemsByCategory(category.id);
+          if (activeCategory === ALL_ITEMS_TAB && categoryItems.length === 0) {
+            return null;
+          }
+          return (
           <div
             key={category.id}
-            className={cn(activeCategory !== category.id && "hidden")}
+            className={cn(
+              activeCategory !== category.id && activeCategory !== ALL_ITEMS_TAB && "hidden",
+            )}
           >
-            {itemsByCategory(category.id).length === 0 ? (
+            {activeCategory === ALL_ITEMS_TAB && (
+              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 mt-2 first:mt-0">
+                {category.name}
+              </h2>
+            )}
+            {categoryItems.length === 0 ? (
               <p className="text-sm text-muted-foreground py-12 text-center">
                 Nenhum produto disponível nesta categoria
               </p>
@@ -396,6 +431,11 @@ export default function CustomerMenuPage({
                         <h3 className="text-sm font-bold text-foreground leading-tight line-clamp-2">
                           {item.name}
                         </h3>
+                        {item.promo_quantity && item.promo_price_cents && (
+                          <Badge variant="secondary" className="w-fit mt-1 text-[10px] font-bold text-primary bg-primary/10">
+                            Leve {item.promo_quantity} por {formatCurrency(item.promo_price_cents)}
+                          </Badge>
+                        )}
                         {item.description && (
                           <p className="text-xs text-muted-foreground leading-snug line-clamp-2 mt-1 mb-3">
                             {item.description}
@@ -411,7 +451,8 @@ export default function CustomerMenuPage({
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Floating action bar + cart */}
