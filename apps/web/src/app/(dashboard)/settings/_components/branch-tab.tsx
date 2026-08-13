@@ -6,7 +6,7 @@ import { Input } from "@restai/ui/components/input";
 import { Label } from "@restai/ui/components/label";
 import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
-import { CURRENCIES, BRAZIL, getDeliveryFeeCents } from "@restai/config";
+import { CURRENCIES, BRAZIL, getDeliveryFeeCents, DELIVERY_PAYMENT_METHOD_META } from "@restai/config";
 import { cn } from "@/lib/utils";
 import { DeliveryMenuLink } from "@/components/delivery-menu-link";
 import { DeliveryZonesPanel } from "./delivery-zones-panel";
@@ -28,6 +28,23 @@ const TIMEZONES = [
   "America/Santiago",
   "America/New_York",
 ];
+
+/** BRL orgs only see payment methods that actually exist in Brazil — no Zelle/Venmo/Cash App. */
+const PAYMENT_OPTIONS_BRL = (["cash", "card", "pix", "transfer"] as const).map((id) => ({
+  id,
+  label: DELIVERY_PAYMENT_METHOD_META[id].label,
+}));
+
+/** Everyone else (Açaí House / USD) keeps exactly what they've always seen — unchanged. */
+const PAYMENT_OPTIONS_DEFAULT = [
+  { id: "cash", label: "Dinheiro / Cash" },
+  { id: "card", label: "Cartão pelo link / Card link" },
+  { id: "pix", label: "PIX" },
+  { id: "zelle", label: "Zelle" },
+  { id: "venmo", label: "Venmo" },
+  { id: "cashapp", label: "Cash App" },
+  { id: "transfer", label: "Transferência" },
+] as const;
 
 export function BranchTab() {
   const { data: branchData, isLoading: branchLoading } = useBranchSettings();
@@ -568,20 +585,16 @@ export function BranchTab() {
                   <div>
                     <p className="text-sm font-medium">Formas de pagamento no cardápio</p>
                     <p className="text-xs text-muted-foreground">
-                      Escolha o que o cliente vê no checkout (ex.: EUA = Card link, Zelle, Venmo, Cash).
+                      {branchForm.currency === "BRL"
+                        ? "Escolha o que o cliente vê no checkout."
+                        : "Escolha o que o cliente vê no checkout (ex.: EUA = Card link, Zelle, Venmo, Cash)."}
                     </p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {(
-                      [
-                        { id: "cash", label: "Dinheiro / Cash" },
-                        { id: "card", label: "Cartão pelo link / Card link" },
-                        { id: "pix", label: "PIX" },
-                        { id: "zelle", label: "Zelle" },
-                        { id: "venmo", label: "Venmo" },
-                        { id: "cashapp", label: "Cash App" },
-                        { id: "transfer", label: "Transferência" },
-                      ] as const
+                      branchForm.currency === "BRL"
+                        ? PAYMENT_OPTIONS_BRL
+                        : PAYMENT_OPTIONS_DEFAULT
                     ).map((opt) => {
                       const checked = branchForm.paymentMethods.includes(opt.id);
                       return (
