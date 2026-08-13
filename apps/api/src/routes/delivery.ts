@@ -7,6 +7,8 @@ import { db, schema } from "@restai/db";
 import {
   appendCityToAddress,
   getDeliveryFeeCents,
+  getPickupFeeCents,
+  getPickupFeeReason,
   parseDeliveryPaymentMethods,
   parseDeliveryPricing,
 } from "@restai/config";
@@ -127,6 +129,8 @@ delivery.get("/:branchSlug/zones", async (c) => {
     meta: {
       pickup_enabled: settings.pickup_enabled !== false,
       delivery_fulfillment_enabled: settings.delivery_fulfillment_enabled !== false,
+      pickup_fee_cents: getPickupFeeCents(settings),
+      pickup_fee_reason: getPickupFeeReason(settings),
       pickup_address:
         (settings.pickup_address as string) || branch.address || null,
       pickup_hint: (settings.pickup_hint as string) || null,
@@ -332,6 +336,10 @@ delivery.get("/:branchSlug/menu", async (c) => {
         pickup_label: (settings.pickup_label as string) || null,
         branch_address: branch.address || null,
         menu_default_all_items: hasMenuDefaultAllItems(orgSettings),
+        /** Per-branch — "Todos" groups items by category order. Distinct from
+         *  menu_default_all_items (org-wide), so it never leaks to a branch
+         *  that wasn't explicitly opted in. */
+        menu_group_by_category: settings.menu_group_by_category === true,
       },
       landing: {
         enabled: settings.landing_enabled === true,

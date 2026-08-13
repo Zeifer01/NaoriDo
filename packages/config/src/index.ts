@@ -144,6 +144,21 @@ export function getDeliveryFeeCents(settings?: Record<string, unknown> | null): 
   return DELIVERY_FEE_CENTS;
 }
 
+/** Optional fee charged on pickup/retirada orders (e.g. packaging). Default 0 — free unless configured. */
+export function getPickupFeeCents(settings?: Record<string, unknown> | null): number {
+  const fee = settings?.pickup_fee_cents;
+  if (typeof fee === "number" && Number.isFinite(fee) && fee >= 0) {
+    return Math.round(fee);
+  }
+  return 0;
+}
+
+/** Reason shown to the customer for the pickup fee (e.g. "Taxa de embalagem"). */
+export function getPickupFeeReason(settings?: Record<string, unknown> | null): string | null {
+  const reason = settings?.pickup_fee_reason;
+  return typeof reason === "string" && reason.trim() ? reason.trim() : null;
+}
+
 // JWT config
 export const JWT_CONFIG = {
   ACCESS_TOKEN_TTL: "15m",

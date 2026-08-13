@@ -108,6 +108,8 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.deliveryEnabled !== undefined ||
     body.deliveryFulfillmentEnabled !== undefined ||
     body.deliveryFeeCents !== undefined ||
+    body.pickupFeeCents !== undefined ||
+    body.pickupFeeReason !== undefined ||
     body.tablesEnabled !== undefined ||
     body.landingEnabled !== undefined ||
     body.landingTitle !== undefined ||
@@ -146,6 +148,8 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
       merged.delivery_fulfillment_enabled = body.deliveryFulfillmentEnabled;
     }
     if (body.deliveryFeeCents !== undefined) merged.delivery_fee_cents = body.deliveryFeeCents;
+    if (body.pickupFeeCents !== undefined) merged.pickup_fee_cents = body.pickupFeeCents;
+    if (body.pickupFeeReason !== undefined) merged.pickup_fee_reason = body.pickupFeeReason;
     if (body.tablesEnabled !== undefined) merged.tables_enabled = body.tablesEnabled;
     if (body.landingEnabled !== undefined) merged.landing_enabled = body.landingEnabled;
     if (body.landingTitle !== undefined) merged.landing_title = body.landingTitle;

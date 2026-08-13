@@ -61,6 +61,7 @@ interface MenuData {
     pickup_unavailable_message?: string | null;
     pickup_label?: string | null;
     menu_default_all_items?: boolean;
+    menu_group_by_category?: boolean;
   };
   categories: Category[];
   items: MenuItem[];
@@ -158,7 +159,7 @@ export default function DeliveryMenuPage({
     };
 
     if (activeCategory === ALL_PRODUCTS) {
-      if (menuData.branch.menu_default_all_items) {
+      if (menuData.branch.menu_group_by_category) {
         // "Todos" grouped by category order (as configured in the categories list),
         // items within each category keep their own byOrder ranking.
         return [...menuData.items].sort((a, b) => {

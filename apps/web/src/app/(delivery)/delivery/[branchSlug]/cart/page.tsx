@@ -107,6 +107,8 @@ export default function DeliveryCartPage({
   const [quoting, setQuoting] = useState(false);
   const [pickupEnabled, setPickupEnabled] = useState(true);
   const [deliveryFulfillmentEnabled, setDeliveryFulfillmentEnabled] = useState(true);
+  const [pickupFeeCents, setPickupFeeCents] = useState(0);
+  const [pickupFeeReason, setPickupFeeReason] = useState<string | null>(null);
   const [pickupAddress, setPickupAddress] = useState<string | null>(null);
   const [pickupHint, setPickupHint] = useState<string | null>(null);
   const [pickupUnavailableMessage, setPickupUnavailableMessage] = useState<string | null>(null);
@@ -147,6 +149,8 @@ export default function DeliveryCartPage({
         setPickupEnabled(enabled);
         const deliveryEnabled = meta.delivery_fulfillment_enabled !== false;
         setDeliveryFulfillmentEnabled(deliveryEnabled);
+        setPickupFeeCents(typeof meta.pickup_fee_cents === "number" ? meta.pickup_fee_cents : 0);
+        setPickupFeeReason(meta.pickup_fee_reason ?? null);
         setPickupAddress(meta.pickup_address ?? null);
         setPickupHint(meta.pickup_hint ?? null);
         setPickupUnavailableMessage(meta.pickup_unavailable_message ?? null);
@@ -300,7 +304,7 @@ export default function DeliveryCartPage({
   const zoneBasedFee = zones.length > 0 ? (selectedZone?.fee_cents ?? zones[0]!.fee_cents) : null;
   const autoFee = feeQuote?.fee_cents ?? null;
   const effectiveDeliveryFee = isPickup
-    ? 0
+    ? pickupFeeCents
     : isAutoPricing
       ? (autoFee ?? 0)
       : (zoneBasedFee ?? deliveryFee);
@@ -728,11 +732,13 @@ export default function DeliveryCartPage({
         </div>
         <div className="flex justify-between">
           <span className="text-[var(--d-text-muted)]">{feeLineLabel}</span>
-          <span className={isPickup ? "font-semibold text-[var(--d-accent-dark)]" : ""}>
+          <span className={isPickup && pickupFeeCents === 0 ? "font-semibold text-[var(--d-accent-dark)]" : ""}>
             {isPickup
-              ? preferEnglish
-                ? "Free"
-                : "Grátis"
+              ? pickupFeeCents === 0
+                ? preferEnglish
+                  ? "Free"
+                  : "Grátis"
+                : formatCurrency(pickupFeeCents, currency)
               : isAutoPricing && !feeQuote
                 ? quoting
                   ? "…"
@@ -740,6 +746,9 @@ export default function DeliveryCartPage({
                 : formatCurrency(effectiveDeliveryFee, currency)}
           </span>
         </div>
+        {isPickup && pickupFeeCents > 0 && pickupFeeReason && (
+          <p className="text-xs text-[var(--d-text-muted)]">{pickupFeeReason}</p>
+        )}
         {!isPickup && isAutoPricing && feeQuoteError && pricingMode === "radius" && (
           <p className="text-xs text-red-600">{feeQuoteError}</p>
         )}

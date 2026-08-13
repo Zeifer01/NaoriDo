@@ -65,6 +65,12 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.delivery_fulfillment_toggle`.
    */
   delivery_fulfillment_toggle: boolean;
+  /**
+   * Shows the "taxa de retirada" (pickup fee amount + reason) control on the
+   * branch settings page. Default `false` — no other org sees this control.
+   * Enable per org via `organizations.settings.pickup_fee_toggle`.
+   */
+  pickup_fee_toggle: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -78,6 +84,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   order_source_filter: false,
   order_channel_report: false,
   delivery_fulfillment_toggle: false,
+  pickup_fee_toggle: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -147,6 +154,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     order_source_filter: s.order_source_filter === true,
     order_channel_report: s.order_channel_report === true,
     delivery_fulfillment_toggle: s.delivery_fulfillment_toggle === true,
+    pickup_fee_toggle: s.pickup_fee_toggle === true,
   };
 }
 
@@ -167,6 +175,11 @@ export function hasOrderChannelReport(settings: unknown): boolean {
 /** True when the org's branch settings show the "desligar entrega, só retirada" control. */
 export function hasDeliveryFulfillmentToggle(settings: unknown): boolean {
   return getOrgUxFlags(settings).delivery_fulfillment_toggle;
+}
+
+/** True when the org's branch settings show the "taxa de retirada" (pickup fee) control. */
+export function hasPickupFeeToggle(settings: unknown): boolean {
+  return getOrgUxFlags(settings).pickup_fee_toggle;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

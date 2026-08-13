@@ -33,7 +33,7 @@ export function BranchTab() {
   const { data: branchData, isLoading: branchLoading } = useBranchSettings();
   const updateBranch = useUpdateBranch();
   const initializedRef = useRef(false);
-  const { deliveryFulfillmentToggle } = useFeatures();
+  const { deliveryFulfillmentToggle, pickupFeeToggle } = useFeatures();
 
   const [branchForm, setBranchForm] = useState<{
     name: string;
@@ -61,6 +61,8 @@ export function BranchTab() {
     menuDeliveryText: string;
     deliveryOfflineMessage: string;
     pickupEnabled: boolean;
+    pickupFee: string;
+    pickupFeeReason: string;
     pickupAddress: string;
     pickupHint: string;
     pickupUnavailableMessage: string;
@@ -93,6 +95,8 @@ export function BranchTab() {
     menuDeliveryText: "",
     deliveryOfflineMessage: "",
     pickupEnabled: true,
+    pickupFee: "0.00",
+    pickupFeeReason: "",
     pickupAddress: "",
     pickupHint: "",
     pickupUnavailableMessage: "",
@@ -132,6 +136,8 @@ export function BranchTab() {
         menuDeliveryText: (branchData.settings?.menu_delivery_text as string) || "",
         deliveryOfflineMessage: (branchData.settings?.delivery_offline_message as string) || "",
         pickupEnabled: branchData.settings?.pickup_enabled !== false,
+        pickupFee: (((branchData.settings?.pickup_fee_cents as number) || 0) / 100).toFixed(2),
+        pickupFeeReason: (branchData.settings?.pickup_fee_reason as string) || "",
         pickupAddress: (branchData.settings?.pickup_address as string) || "",
         pickupHint: (branchData.settings?.pickup_hint as string) || "",
         pickupUnavailableMessage:
@@ -149,6 +155,7 @@ export function BranchTab() {
     try {
       const taxRateNum = Math.round(parseFloat(branchForm.taxRate) * 100);
       const deliveryFeeCents = Math.round(parseFloat(branchForm.deliveryFee) * 100);
+      const pickupFeeCents = Math.round((parseFloat(branchForm.pickupFee) || 0) * 100);
       await updateBranch.mutateAsync({
         name: branchForm.name,
         address: branchForm.address,
@@ -175,6 +182,8 @@ export function BranchTab() {
         menuDeliveryText: branchForm.menuDeliveryText,
         deliveryOfflineMessage: branchForm.deliveryOfflineMessage,
         pickupEnabled: branchForm.pickupEnabled,
+        pickupFeeCents,
+        pickupFeeReason: branchForm.pickupFeeReason,
         pickupAddress: branchForm.pickupAddress,
         pickupHint: branchForm.pickupHint,
         pickupUnavailableMessage: branchForm.pickupUnavailableMessage,
@@ -497,6 +506,41 @@ export function BranchTab() {
                           Se vazio, usa o endereço de retirada ou “Retire no local · Grátis”.
                         </p>
                       </div>
+                      {pickupFeeToggle && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label htmlFor="pickupFee">Taxa de retirada (opcional)</Label>
+                            <Input
+                              id="pickupFee"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0,00"
+                              value={branchForm.pickupFee}
+                              onChange={(e) =>
+                                setBranchForm({ ...branchForm, pickupFee: e.target.value })
+                              }
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Deixe 0,00 para retirada gratuita.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="pickupFeeReason">Motivo da taxa</Label>
+                            <Input
+                              id="pickupFeeReason"
+                              placeholder="Ex: Taxa de embalagem"
+                              value={branchForm.pickupFeeReason}
+                              onChange={(e) =>
+                                setBranchForm({ ...branchForm, pickupFeeReason: e.target.value })
+                              }
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Exibido pro cliente junto do valor no carrinho.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="space-y-2">

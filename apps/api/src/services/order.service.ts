@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcSequentialFreeChargeCents, calcSequentialFreeSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
+import { getDeliveryFeeCents, getPickupFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcSequentialFreeChargeCents, calcSequentialFreeSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -295,7 +295,9 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
   const deliveryFee =
     type === "delivery"
       ? (deliveryFeeOverrideCents ?? getDeliveryFeeCents(branchSettings))
-      : 0;
+      : type === "takeout"
+        ? (deliveryFeeOverrideCents ?? getPickupFeeCents(branchSettings))
+        : 0;
 
   const initialStatus = hasSimplifiedOrderStatus(org?.settings)
     ? getSimplifiedInitialOrderStatus()

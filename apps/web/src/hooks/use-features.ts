@@ -46,6 +46,8 @@ interface UseFeaturesResult {
   orderChannelReport: boolean;
   /** True when branch settings show the "desligar entrega, só retirada" control. */
   deliveryFulfillmentToggle: boolean;
+  /** True when branch settings show the "taxa de retirada" (pickup fee) control. */
+  pickupFeeToggle: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -133,6 +135,7 @@ export function useFeatures(): UseFeaturesResult {
       orderSourceFilter: ux.order_source_filter,
       orderChannelReport: ux.order_channel_report,
       deliveryFulfillmentToggle: ux.delivery_fulfillment_toggle,
+      pickupFeeToggle: ux.pickup_fee_toggle,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

@@ -564,6 +564,10 @@ export const updateBranchSettingsSchema = z.object({
    * which turns the whole online cardápio off.
    */
   deliveryFulfillmentEnabled: z.boolean().optional(),
+  /** Optional fee charged on pickup orders (e.g. packaging). 0/omitted = free. */
+  pickupFeeCents: z.number().int().min(0).optional(),
+  /** Reason shown to the customer for the pickup fee (e.g. "Taxa de embalagem"). */
+  pickupFeeReason: z.string().max(255).optional(),
   pickupAddress: z.string().max(500).optional(),
   pickupHint: z.string().max(255).optional(),
   pickupUnavailableMessage: z.string().max(500).optional(),
