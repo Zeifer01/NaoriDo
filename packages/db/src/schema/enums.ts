@@ -36,6 +36,15 @@ export const orderTypeEnum = pgEnum("order_type", [
   "delivery",
 ]);
 
+/**
+ * Channel that created the order. Nullable — orders created before this
+ * column existed have no reliable way to be reclassified retroactively.
+ */
+export const orderSourceEnum = pgEnum("order_source", [
+  "pos",
+  "online",
+]);
+
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "confirmed",

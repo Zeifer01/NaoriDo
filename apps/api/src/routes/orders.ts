@@ -166,7 +166,7 @@ function dateRangeConditions(
 // GET / - List orders
 orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuerySchema), async (c) => {
   const tenant = c.get("tenant") as any;
-  const { status, page, limit, startDate, endDate } = c.req.valid("query");
+  const { status, page, limit, startDate, endDate, source } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
   const conditions = [
@@ -176,6 +176,8 @@ orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuery
 
   const statusCond = orderStatusFilterCondition(status);
   if (statusCond) conditions.push(statusCond);
+
+  if (source) conditions.push(eq(schema.orders.source, source));
 
   const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
   conditions.push(...dateRangeConditions(startDate, endDate, tz));
@@ -226,12 +228,16 @@ orders.get("/", requirePermission("orders:read"), zValidator("query", orderQuery
 // GET /export - All orders with items for CSV/Excel export
 orders.get("/export", requirePermission("orders:read"), async (c) => {
   const tenant = c.get("tenant") as any;
-  const { status, startDate, endDate } = c.req.query();
+  const { status, startDate, endDate, source } = c.req.query();
 
   const conditions = [
     eq(schema.orders.branch_id, tenant.branchId),
     eq(schema.orders.organization_id, tenant.organizationId),
   ];
+
+  if (source === "pos" || source === "online") {
+    conditions.push(eq(schema.orders.source, source));
+  }
 
   if (status && status !== "all") {
     const statusCond = orderStatusFilterCondition(status);
@@ -332,6 +338,7 @@ orders.post(
         branchId: tenant.branchId,
         items: body.items,
         type: body.type,
+        source: "pos",
         customerName,
         customerId,
         notes: body.notes,

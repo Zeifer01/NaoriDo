@@ -55,6 +55,7 @@ interface MenuData {
     all_products_tab_sort_order?: number | null;
     menu_theme?: string | null;
     pickup_enabled?: boolean;
+    delivery_fulfillment_enabled?: boolean;
     pickup_address?: string | null;
     pickup_hint?: string | null;
     pickup_unavailable_message?: string | null;
@@ -258,6 +259,7 @@ export default function DeliveryMenuPage({
   const displayName = menuData.branch.menu_display_name || menuData.branch.org_name || menuData.branch.name;
   const menuSubtitle = menuData.branch.menu_subtitle || "Peça online e receba onde estiver";
   const deliveryText = menuData.branch.menu_delivery_text || `Entrega · ${formatCurrency(menuData.branch.delivery_fee || 1200, currency)}`;
+  const deliveryFulfillmentEnabled = menuData.branch.delivery_fulfillment_enabled !== false;
   const pickupEnabled = menuData.branch.pickup_enabled !== false;
   const pickupLabel = menuData.branch.pickup_label || "Retirada";
   const pickupStatusText = pickupEnabled
@@ -291,9 +293,11 @@ export default function DeliveryMenuPage({
             <p className="mt-1 text-sm leading-relaxed text-[var(--d-text-muted)]">
               {menuSubtitle}
             </p>
-            <p className="mt-2 inline-flex items-center rounded-full bg-[var(--d-card)] px-3 py-1 text-xs text-[var(--d-text-soft)] ring-1 ring-[var(--d-border-soft)] whitespace-pre-line">
-              {deliveryText}
-            </p>
+            {deliveryFulfillmentEnabled && (
+              <p className="mt-2 inline-flex items-center rounded-full bg-[var(--d-card)] px-3 py-1 text-xs text-[var(--d-text-soft)] ring-1 ring-[var(--d-border-soft)] whitespace-pre-line">
+                {deliveryText}
+              </p>
+            )}
             <p
               className={`mt-2 inline-flex max-w-full items-center rounded-full px-3 py-1 text-xs ring-1 whitespace-pre-line ${
                 pickupEnabled

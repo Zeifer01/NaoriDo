@@ -47,6 +47,24 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.menu_default_all_items`.
    */
   menu_default_all_items: boolean;
+  /**
+   * Shows the "canal do pedido" (online vs PDV) filter on the dashboard
+   * Orders tab. Default `false` — no other org sees this filter.
+   * Enable per org via `organizations.settings.order_source_filter`.
+   */
+  order_source_filter: boolean;
+  /**
+   * Shows an online-vs-PDV order count breakdown on the Reports "Pedidos"
+   * tab (executive hub). Açaí House only. Default `false`.
+   * Enable per org via `organizations.settings.order_channel_report`.
+   */
+  order_channel_report: boolean;
+  /**
+   * Shows the "desligar entrega, manter só retirada" control on the branch
+   * settings page. Default `false` — no other org sees this control.
+   * Enable per org via `organizations.settings.delivery_fulfillment_toggle`.
+   */
+  delivery_fulfillment_toggle: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -57,6 +75,9 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   use_branch_timezone: false,
   loyalty_sticker_card: false,
   menu_default_all_items: false,
+  order_source_filter: false,
+  order_channel_report: false,
+  delivery_fulfillment_toggle: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -123,11 +144,29 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     use_branch_timezone: s.use_branch_timezone === true,
     loyalty_sticker_card: s.loyalty_sticker_card === true,
     menu_default_all_items: s.menu_default_all_items === true,
+    order_source_filter: s.order_source_filter === true,
+    order_channel_report: s.order_channel_report === true,
+    delivery_fulfillment_toggle: s.delivery_fulfillment_toggle === true,
   };
 }
 
 export function hasPosBarcodes(settings: unknown): boolean {
   return getOrgUxFlags(settings).pos_barcodes;
+}
+
+/** True when the org's dashboard Orders tab shows the online-vs-PDV channel filter. */
+export function hasOrderSourceFilter(settings: unknown): boolean {
+  return getOrgUxFlags(settings).order_source_filter;
+}
+
+/** True when the org's Reports "Pedidos" tab shows the online-vs-PDV breakdown. */
+export function hasOrderChannelReport(settings: unknown): boolean {
+  return getOrgUxFlags(settings).order_channel_report;
+}
+
+/** True when the org's branch settings show the "desligar entrega, só retirada" control. */
+export function hasDeliveryFulfillmentToggle(settings: unknown): boolean {
+  return getOrgUxFlags(settings).delivery_fulfillment_toggle;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

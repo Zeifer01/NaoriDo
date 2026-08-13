@@ -123,6 +123,16 @@ export interface ProductAnalytics {
   }[];
   /** Top complementos / modifiers escolhidos nos pedidos concluídos. */
   topModifiers: ModifierAnalyticsRow[];
+  /**
+   * Pedidos por canal (PDV vs. online). Omitido quando a org não tem o
+   * relatório de canal habilitado (`order_channel_report`).
+   */
+  channelBreakdown?: {
+    source: "pos" | "online" | "unknown";
+    orders: number;
+    revenueCents: number;
+    share: number;
+  }[];
 }
 
 export interface FinanceAnalytics {

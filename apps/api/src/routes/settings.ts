@@ -106,6 +106,7 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.inventoryEnabled !== undefined ||
     body.waiterTableAssignmentEnabled !== undefined ||
     body.deliveryEnabled !== undefined ||
+    body.deliveryFulfillmentEnabled !== undefined ||
     body.deliveryFeeCents !== undefined ||
     body.tablesEnabled !== undefined ||
     body.landingEnabled !== undefined ||
@@ -141,6 +142,9 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
       merged.waiter_table_assignment_enabled = body.waiterTableAssignmentEnabled;
     }
     if (body.deliveryEnabled !== undefined) merged.delivery_enabled = body.deliveryEnabled;
+    if (body.deliveryFulfillmentEnabled !== undefined) {
+      merged.delivery_fulfillment_enabled = body.deliveryFulfillmentEnabled;
+    }
     if (body.deliveryFeeCents !== undefined) merged.delivery_fee_cents = body.deliveryFeeCents;
     if (body.tablesEnabled !== undefined) merged.tables_enabled = body.tablesEnabled;
     if (body.landingEnabled !== undefined) merged.landing_enabled = body.landingEnabled;

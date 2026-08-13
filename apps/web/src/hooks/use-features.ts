@@ -40,6 +40,12 @@ interface UseFeaturesResult {
   posBarcodes: boolean;
   /** True when the manual sticker-card loyalty redemption is enabled at checkout. */
   loyaltyStickerCard: boolean;
+  /** True when the Orders tab shows the online-vs-PDV channel filter. */
+  orderSourceFilter: boolean;
+  /** True when the Reports "Pedidos" tab shows the online-vs-PDV breakdown. */
+  orderChannelReport: boolean;
+  /** True when branch settings show the "desligar entrega, só retirada" control. */
+  deliveryFulfillmentToggle: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -124,6 +130,9 @@ export function useFeatures(): UseFeaturesResult {
       orderStatusUx: ux.order_status_ux,
       posBarcodes: ux.pos_barcodes,
       loyaltyStickerCard: ux.loyalty_sticker_card,
+      orderSourceFilter: ux.order_source_filter,
+      orderChannelReport: ux.order_channel_report,
+      deliveryFulfillmentToggle: ux.delivery_fulfillment_toggle,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

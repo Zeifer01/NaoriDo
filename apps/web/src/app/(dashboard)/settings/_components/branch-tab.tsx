@@ -12,6 +12,7 @@ import { DeliveryMenuLink } from "@/components/delivery-menu-link";
 import { DeliveryZonesPanel } from "./delivery-zones-panel";
 import { DeliveryRadiusPanel } from "./delivery-radius-panel";
 import { useBranchSettings, useUpdateBranch } from "@/hooks/use-settings";
+import { useFeatures } from "@/hooks/use-features";
 import { toast } from "sonner";
 
 function Skeleton({ className }: { className?: string }) {
@@ -32,6 +33,7 @@ export function BranchTab() {
   const { data: branchData, isLoading: branchLoading } = useBranchSettings();
   const updateBranch = useUpdateBranch();
   const initializedRef = useRef(false);
+  const { deliveryFulfillmentToggle } = useFeatures();
 
   const [branchForm, setBranchForm] = useState<{
     name: string;
@@ -43,6 +45,7 @@ export function BranchTab() {
     inventoryEnabled: boolean;
     waiterTableAssignmentEnabled: boolean;
     deliveryEnabled: boolean;
+    deliveryFulfillmentEnabled: boolean;
     deliveryFee: string;
     tablesEnabled: boolean;
     landingEnabled: boolean;
@@ -74,6 +77,7 @@ export function BranchTab() {
     inventoryEnabled: false,
     waiterTableAssignmentEnabled: false,
     deliveryEnabled: true,
+    deliveryFulfillmentEnabled: true,
     deliveryFee: "12.00",
     tablesEnabled: true,
     landingEnabled: false,
@@ -111,6 +115,8 @@ export function BranchTab() {
         waiterTableAssignmentEnabled:
           branchData.settings?.waiter_table_assignment_enabled ?? false,
         deliveryEnabled: branchData.settings?.delivery_enabled !== false,
+        deliveryFulfillmentEnabled:
+          branchData.settings?.delivery_fulfillment_enabled !== false,
         deliveryFee: (getDeliveryFeeCents(branchData.settings) / 100).toFixed(2),
         tablesEnabled: branchData.settings?.tables_enabled !== false,
         landingEnabled: branchData.settings?.landing_enabled === true,
@@ -153,6 +159,7 @@ export function BranchTab() {
         inventoryEnabled: branchForm.inventoryEnabled,
         waiterTableAssignmentEnabled: branchForm.waiterTableAssignmentEnabled,
         deliveryEnabled: branchForm.deliveryEnabled,
+        deliveryFulfillmentEnabled: branchForm.deliveryFulfillmentEnabled,
         deliveryFeeCents,
         tablesEnabled: branchForm.tablesEnabled,
         landingEnabled: branchForm.landingEnabled,
@@ -369,6 +376,41 @@ export function BranchTab() {
                   </div>
                 </div>
 
+                {deliveryFulfillmentToggle && (
+                  <div className="rounded-lg border p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium">Entrega (delivery)</p>
+                        <p className="text-xs text-muted-foreground">
+                          Quando inativo, a opção "Entrega" some do checkout — o cardápio continua aberto e o cliente só pode escolher retirada. Diferente do interruptor acima, que desliga o cardápio inteiro.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={branchForm.deliveryFulfillmentEnabled}
+                        onClick={() =>
+                          setBranchForm({
+                            ...branchForm,
+                            deliveryFulfillmentEnabled: !branchForm.deliveryFulfillmentEnabled,
+                          })
+                        }
+                        className={cn(
+                          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                          branchForm.deliveryFulfillmentEnabled ? "bg-primary" : "bg-muted",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                            branchForm.deliveryFulfillmentEnabled ? "translate-x-5" : "translate-x-0",
+                          )}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-lg border p-4 space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -441,7 +483,11 @@ export function BranchTab() {
                         <Label htmlFor="pickupHint">Texto quando retirada está disponível</Label>
                         <Input
                           id="pickupHint"
-                          placeholder="Ex: Retire em Worcester · Grátis"
+                          placeholder={
+                            branchForm.currency === "BRL"
+                              ? "Ex: Retire na loja · Grátis"
+                              : "Ex: Retire em Worcester · Grátis"
+                          }
                           value={branchForm.pickupHint}
                           onChange={(e) =>
                             setBranchForm({ ...branchForm, pickupHint: e.target.value })
@@ -575,7 +621,11 @@ export function BranchTab() {
                       <Label htmlFor="landingTitle">Título da página de marca</Label>
                       <Input
                         id="landingTitle"
-                        placeholder="Ex: Açaí fresco, feito na hora"
+                        placeholder={
+                          branchForm.currency === "BRL"
+                            ? "Ex: Produtos fresquinhos, direto pra sua casa"
+                            : "Ex: Açaí fresco, feito na hora"
+                        }
                         value={branchForm.landingTitle}
                         onChange={(e) =>
                           setBranchForm({ ...branchForm, landingTitle: e.target.value })
@@ -632,7 +682,11 @@ export function BranchTab() {
                       <Label htmlFor="socialInstagram">Instagram</Label>
                       <Input
                         id="socialInstagram"
-                        placeholder="@worcesteracai ou URL"
+                        placeholder={
+                          branchForm.currency === "BRL"
+                            ? "@seurestaurante ou URL"
+                            : "@worcesteracai ou URL"
+                        }
                         value={branchForm.socialInstagram}
                         onChange={(e) =>
                           setBranchForm({ ...branchForm, socialInstagram: e.target.value })
@@ -643,7 +697,11 @@ export function BranchTab() {
                       <Label htmlFor="socialTiktok">TikTok</Label>
                       <Input
                         id="socialTiktok"
-                        placeholder="@worcesteracai ou URL"
+                        placeholder={
+                          branchForm.currency === "BRL"
+                            ? "@seurestaurante ou URL"
+                            : "@worcesteracai ou URL"
+                        }
                         value={branchForm.socialTiktok}
                         onChange={(e) =>
                           setBranchForm({ ...branchForm, socialTiktok: e.target.value })
@@ -654,7 +712,11 @@ export function BranchTab() {
                       <Label htmlFor="socialWhatsapp">WhatsApp (site / pedidos)</Label>
                       <Input
                         id="socialWhatsapp"
-                        placeholder="Ex: 15085551234 ou wa.me/..."
+                        placeholder={
+                          branchForm.currency === "BRL"
+                            ? "Ex: 5511999999999 ou wa.me/..."
+                            : "Ex: 15085551234 ou wa.me/..."
+                        }
                         value={branchForm.socialWhatsapp}
                         onChange={(e) =>
                           setBranchForm({ ...branchForm, socialWhatsapp: e.target.value })

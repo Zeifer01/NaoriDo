@@ -228,6 +228,34 @@ export async function getCompletedOrderIds(
   return rows.map((r) => r.id);
 }
 
+/**
+ * Order count/revenue grouped by channel (`orders.source`: 'pos' | 'online').
+ * Orders created before the `source` column existed have `source = null` and
+ * are reported as 'unknown' — there's no reliable way to reclassify them.
+ */
+export async function getOrderChannelBreakdown(
+  scope: AnalyticsScope,
+  period: AnalyticsPeriod,
+): Promise<{ source: "pos" | "online" | "unknown"; orders: number; revenueCents: number }[]> {
+  const start = parsePeriodStart(period.start, scope.timezone);
+  const end = parsePeriodEnd(period.end, scope.timezone);
+  const rows = await db
+    .select({
+      source: schema.orders.source,
+      orders: count(),
+      revenueCents: sum(schema.orders.total),
+    })
+    .from(schema.orders)
+    .where(orderScopeWhere(scope, start, end))
+    .groupBy(schema.orders.source);
+
+  return rows.map((r) => ({
+    source: r.source ?? "unknown",
+    orders: Number(r.orders ?? 0),
+    revenueCents: Number(r.revenueCents ?? 0),
+  }));
+}
+
 /** Count of orders with at least one manually-comped item (e.g. loyalty sticker card) in the period. */
 export async function getLoyaltyRedemptionCount(
   scope: AnalyticsScope,

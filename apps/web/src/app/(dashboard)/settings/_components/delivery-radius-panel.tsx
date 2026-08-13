@@ -35,8 +35,16 @@ function tiersToForm(tiers: Array<{ maxMiles: number; feeCents: number }>): Tier
   }));
 }
 
-function citiesToForm(cities: Array<{ name: string; feeCents: number }>): CityForm[] {
+function citiesToForm(
+  cities: Array<{ name: string; feeCents: number }>,
+  currency: string,
+): CityForm[] {
   if (cities.length === 0) {
+    // BRL orgs get an empty starting row — pre-filling with a real US city name
+    // (Worcester/Millbury only make sense for Açaí House) risks being saved as-is.
+    if (currency === "BRL") {
+      return [{ name: "", fee: "5.00" }];
+    }
     return [
       { name: "Worcester", fee: "3.00" },
       { name: "Millbury", fee: "5.00" },
@@ -53,7 +61,7 @@ export function DeliveryRadiusPanel({ currency }: { currency: string }) {
   const [mode, setMode] = useState<PricingMode>("zones");
   const [store, setStore] = useState<PricingData["store"]>(null);
   const [tiers, setTiers] = useState<TierForm[]>(tiersToForm([]));
-  const [cities, setCities] = useState<CityForm[]>(citiesToForm([]));
+  const [cities, setCities] = useState<CityForm[]>(citiesToForm([], currency));
   const [previewAddress, setPreviewAddress] = useState("");
   const [previewResult, setPreviewResult] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
@@ -69,7 +77,7 @@ export function DeliveryRadiusPanel({ currency }: { currency: string }) {
     setMode(data.mode);
     setStore(data.store);
     setTiers(tiersToForm(data.tiers));
-    setCities(citiesToForm(data.cities || []));
+    setCities(citiesToForm(data.cities || [], currency));
   }, [data]);
 
   const saveMutation = useMutation({
@@ -215,7 +223,11 @@ export function DeliveryRadiusPanel({ currency }: { currency: string }) {
           {(
             [
               { id: "zones" as const, label: "Zonas manuais", hint: "Cliente escolhe" },
-              { id: "cities" as const, label: "Por cidade", hint: "Worcester, Millbury…" },
+              {
+                id: "cities" as const,
+                label: "Por cidade",
+                hint: currency === "BRL" ? "Sua cidade, cidade vizinha…" : "Worcester, Millbury…",
+              },
               { id: "radius" as const, label: "Por raio (mi)", hint: "Distância até a loja" },
             ] as const
           ).map((opt) => (
@@ -250,7 +262,9 @@ export function DeliveryRadiusPanel({ currency }: { currency: string }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Ex.: Worcester → $3,00 · Millbury → $5,00. Cidades fora da lista = não entrega.
+            {currency === "BRL"
+              ? "Ex.: Sua cidade → R$3,00 · Cidade vizinha → R$5,00. Cidades fora da lista = não entrega."
+              : "Ex.: Worcester → $3,00 · Millbury → $5,00. Cidades fora da lista = não entrega."}
           </p>
           <div className="space-y-2">
             {cities.map((row, idx) => (
@@ -389,7 +403,11 @@ export function DeliveryRadiusPanel({ currency }: { currency: string }) {
               id="preview-address"
               value={previewAddress}
               onChange={(e) => setPreviewAddress(e.target.value)}
-              placeholder="Ex: 123 Main St, Millbury, MA 01527"
+              placeholder={
+                currency === "BRL"
+                  ? "Ex: Rua das Flores, 123, Centro, Santos - SP"
+                  : "Ex: 123 Main St, Millbury, MA 01527"
+              }
             />
             <Button
               type="button"

@@ -99,6 +99,8 @@ interface OrdersTableProps {
   deletePending?: boolean;
   deletingOrderId?: string | null;
   simplifiedOrderStatus?: boolean;
+  /** Mostra um badge Online/PDV junto do status — só quando a org tem a flag habilitada. */
+  showSourceBadge?: boolean;
 }
 
 const NON_EDITABLE = new Set(["completed", "cancelled"]);
@@ -123,6 +125,7 @@ export function OrdersTable({
   deletePending,
   deletingOrderId,
   simplifiedOrderStatus = false,
+  showSourceBadge = false,
 }: OrdersTableProps) {
   const displayTimezone = useDisplayTimezone();
   const filteredOrders = orders.filter((order: any) => {
@@ -242,6 +245,11 @@ export function OrdersTable({
                         <td className="p-3">
                           <div className="flex flex-col items-start gap-1">
                             <Badge variant={config.variant}>{statusLabel}</Badge>
+                            {showSourceBadge && order.source && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {order.source === "online" ? "Online" : "PDV"}
+                              </Badge>
+                            )}
                             {order.type === "delivery" &&
                               order.delivery_fee_status === "pending" && (
                                 <Badge

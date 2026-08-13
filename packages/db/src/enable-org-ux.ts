@@ -11,6 +11,9 @@
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --use-branch-timezone=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --loyalty-sticker-card=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --menu-default-all-items=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --order-source-filter=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=acai-house --order-channel-report=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --delivery-fulfillment-toggle=true
  */
 import { db, schema } from "./index.ts";
 import { eq } from "drizzle-orm";
@@ -29,6 +32,9 @@ const posBarcodes = arg("pos-barcodes");
 const useBranchTimezone = arg("use-branch-timezone");
 const loyaltyStickerCard = arg("loyalty-sticker-card");
 const menuDefaultAllItems = arg("menu-default-all-items");
+const orderSourceFilter = arg("order-source-filter");
+const orderChannelReport = arg("order-channel-report");
+const deliveryFulfillmentToggle = arg("delivery-fulfillment-toggle");
 const label = arg("label");
 const columns = arg("columns");
 
@@ -37,9 +43,9 @@ if (!slug) {
   process.exit(1);
 }
 
-if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems) {
+if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems && !orderSourceFilter && !orderChannelReport && !deliveryFulfillmentToggle) {
   console.error(
-    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --label=Comandas e/ou --columns=...",
+    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --order-source-filter=true, --order-channel-report=true, --delivery-fulfillment-toggle=true, --label=Comandas e/ou --columns=...",
   );
   process.exit(1);
 }
@@ -66,6 +72,21 @@ if (loyaltyStickerCard && loyaltyStickerCard !== "true" && loyaltyStickerCard !=
 
 if (menuDefaultAllItems && menuDefaultAllItems !== "true" && menuDefaultAllItems !== "false") {
   console.error("--menu-default-all-items deve ser true ou false");
+  process.exit(1);
+}
+
+if (orderSourceFilter && orderSourceFilter !== "true" && orderSourceFilter !== "false") {
+  console.error("--order-source-filter deve ser true ou false");
+  process.exit(1);
+}
+
+if (orderChannelReport && orderChannelReport !== "true" && orderChannelReport !== "false") {
+  console.error("--order-channel-report deve ser true ou false");
+  process.exit(1);
+}
+
+if (deliveryFulfillmentToggle && deliveryFulfillmentToggle !== "true" && deliveryFulfillmentToggle !== "false") {
+  console.error("--delivery-fulfillment-toggle deve ser true ou false");
   process.exit(1);
 }
 
@@ -104,6 +125,9 @@ const next = {
   ...(useBranchTimezone ? { use_branch_timezone: useBranchTimezone === "true" } : {}),
   ...(loyaltyStickerCard ? { loyalty_sticker_card: loyaltyStickerCard === "true" } : {}),
   ...(menuDefaultAllItems ? { menu_default_all_items: menuDefaultAllItems === "true" } : {}),
+  ...(orderSourceFilter ? { order_source_filter: orderSourceFilter === "true" } : {}),
+  ...(orderChannelReport ? { order_channel_report: orderChannelReport === "true" } : {}),
+  ...(deliveryFulfillmentToggle ? { delivery_fulfillment_toggle: deliveryFulfillmentToggle === "true" } : {}),
   ...(label ? { kitchen_label: label } : {}),
   ...(kitchen_column_labels ? { kitchen_column_labels } : {}),
   ...(orderStatus === "simplified" && !kitchen_column_labels

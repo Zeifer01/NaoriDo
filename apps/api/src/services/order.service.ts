@@ -40,6 +40,8 @@ interface CreateOrderParams {
   branchId: string;
   items: OrderItemInput[];
   type: string;
+  /** Channel that created the order — 'online' (customer link) or 'pos' (staff). */
+  source: "pos" | "online";
   customerName?: string | null;
   notes?: string | null;
   tableSessionId?: string | null;
@@ -72,6 +74,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     branchId,
     items,
     type,
+    source,
     customerName,
     notes,
     tableSessionId,
@@ -348,6 +351,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
         customer_id: customerId || null,
         order_number: orderNumber,
         type: type as any,
+        source,
         status: initialStatus,
         customer_name: customerName || null,
         delivery_phone: deliveryPhone || null,

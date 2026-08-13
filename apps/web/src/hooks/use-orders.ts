@@ -9,6 +9,7 @@ interface OrderFilters {
   limit?: number;
   startDate?: string;
   endDate?: string;
+  source?: string;
 }
 
 interface Pagination {
@@ -49,6 +50,7 @@ export function useOrders(filters?: OrderFilters) {
   if (filters?.limit) params.set("limit", String(filters.limit));
   if (filters?.startDate) params.set("startDate", filters.startDate);
   if (filters?.endDate) params.set("endDate", filters.endDate);
+  if (filters?.source && filters.source !== "all") params.set("source", filters.source);
   const qs = params.toString();
 
   return useQuery<OrdersResponse>({

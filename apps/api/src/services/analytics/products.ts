@@ -1,5 +1,6 @@
 import { and, eq, sum, count, notInArray, inArray } from "drizzle-orm";
 import { db, schema } from "@restai/db";
+import { hasOrderChannelReport } from "@restai/config";
 import type {
   AnalyticsPeriod,
   AnalyticsScope,
@@ -8,7 +9,7 @@ import type {
   ProductAnalyticsRow,
 } from "@restai/types";
 import { metric } from "./period.js";
-import { getCompletedOrderIds } from "./sales.js";
+import { getCompletedOrderIds, getOrderChannelBreakdown } from "./sales.js";
 
 async function loadSoldRows(scope: AnalyticsScope, period: AnalyticsPeriod) {
   const orderIds = await getCompletedOrderIds(scope, period);
@@ -125,11 +126,26 @@ export async function getProductAnalytics(params: {
   limit?: number;
 }): Promise<ProductAnalytics> {
   const { scope, period, limit = 20 } = params;
-  const [soldRaw, topModifiers] = await Promise.all([
+  const [soldRaw, topModifiers, org] = await Promise.all([
     loadSoldRows(scope, period),
     loadTopModifiers(scope, period, limit),
+    db
+      .select({ settings: schema.organizations.settings })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, scope.organizationId))
+      .limit(1)
+      .then((r) => r[0]),
   ]);
   const rows = toRows(soldRaw);
+
+  let channelBreakdown: ProductAnalytics["channelBreakdown"];
+  if (hasOrderChannelReport(org?.settings)) {
+    const channelRows = await getOrderChannelBreakdown(scope, period);
+    const channelTotal = channelRows.reduce((a, r) => a + r.orders, 0);
+    channelBreakdown = channelRows
+      .map((r) => ({ ...r, share: channelTotal > 0 ? r.orders / channelTotal : 0 }))
+      .sort((a, b) => b.orders - a.orders);
+  }
 
   const byRevenue = [...rows].sort((a, b) => b.revenueCents - a.revenueCents);
   const byQty = [...rows].sort((a, b) => b.quantity - a.quantity);
@@ -224,5 +240,6 @@ export async function getProductAnalytics(params: {
     })),
     byCategory,
     topModifiers,
+    channelBreakdown,
   };
 }

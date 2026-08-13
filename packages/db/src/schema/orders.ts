@@ -12,6 +12,7 @@ import {
   orderTypeEnum,
   orderStatusEnum,
   orderItemStatusEnum,
+  orderSourceEnum,
 } from "./enums";
 import { organizations, branches } from "./tenants";
 import { tableSessions } from "./tables";
@@ -36,6 +37,8 @@ export const orders = pgTable("orders", {
   }),
   order_number: varchar("order_number", { length: 20 }).notNull(),
   type: orderTypeEnum("type").default("dine_in").notNull(),
+  /** Channel that created the order. Null = created before this column existed (unknown). */
+  source: orderSourceEnum("source"),
   status: orderStatusEnum("status").default("pending").notNull(),
   customer_name: varchar("customer_name", { length: 255 }),
   delivery_phone: varchar("delivery_phone", { length: 20 }),

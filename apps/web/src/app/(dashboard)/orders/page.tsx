@@ -25,6 +25,7 @@ const PAGE_SIZE = 20;
 export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [page, setPage] = useState(1);
@@ -34,14 +35,14 @@ export default function OrdersPage() {
   const [deleteOrderTarget, setDeleteOrderTarget] = useState<any | null>(null);
   const [resetSequenceOpen, setResetSequenceOpen] = useState(false);
 
-  const { data, isLoading, error, refetch } = useOrders({ status: statusFilter, page, limit: PAGE_SIZE, startDate: startDate || undefined, endDate: endDate || undefined });
+  const { data, isLoading, error, refetch } = useOrders({ status: statusFilter, source: sourceFilter, page, limit: PAGE_SIZE, startDate: startDate || undefined, endDate: endDate || undefined });
   const updateStatus = useUpdateOrderStatus();
   const deleteOrder = useDeleteOrder();
   const resetSequence = useResetOrderSequence();
   const { data: orgSettings } = useOrgSettings();
   const { data: branchSettings } = useBranchSettings();
   const printReceipt = usePrintReceipt();
-  const { kitchenLabel, simplifiedOrderStatus } = useFeatures();
+  const { kitchenLabel, simplifiedOrderStatus, orderSourceFilter } = useFeatures();
   const branchLabel = useOrderTicketBranchLabel();
   const displayTimezone = useDisplayTimezone();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
@@ -112,6 +113,11 @@ export default function OrdersPage() {
     setPage(1);
   };
 
+  const handleSourceFilter = (source: string) => {
+    setSourceFilter(source);
+    setPage(1);
+  };
+
   const handleStartDateChange = (date: string) => {
     setStartDate(date);
     setPage(1);
@@ -153,6 +159,7 @@ export default function OrdersPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (sourceFilter && sourceFilter !== "all") params.set("source", sourceFilter);
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
 
@@ -281,6 +288,9 @@ export default function OrdersPage() {
         onStartDateChange={handleStartDateChange}
         onEndDateChange={handleEndDateChange}
         simplifiedOrderStatus={simplifiedOrderStatus}
+        showSourceFilter={orderSourceFilter}
+        sourceFilter={sourceFilter}
+        onSourceFilterChange={handleSourceFilter}
       />
 
       <OrdersTable
@@ -303,6 +313,7 @@ export default function OrdersPage() {
         deletePending={deleteOrder.isPending}
         deletingOrderId={deleteOrder.isPending ? deleteOrder.variables ?? null : null}
         simplifiedOrderStatus={simplifiedOrderStatus}
+        showSourceBadge={orderSourceFilter}
       />
 
       <EditOrderSheet

@@ -106,6 +106,7 @@ export default function DeliveryCartPage({
   const [feeQuoteError, setFeeQuoteError] = useState<string | null>(null);
   const [quoting, setQuoting] = useState(false);
   const [pickupEnabled, setPickupEnabled] = useState(true);
+  const [deliveryFulfillmentEnabled, setDeliveryFulfillmentEnabled] = useState(true);
   const [pickupAddress, setPickupAddress] = useState<string | null>(null);
   const [pickupHint, setPickupHint] = useState<string | null>(null);
   const [pickupUnavailableMessage, setPickupUnavailableMessage] = useState<string | null>(null);
@@ -144,6 +145,8 @@ export default function DeliveryCartPage({
         }
         const enabled = meta.pickup_enabled !== false;
         setPickupEnabled(enabled);
+        const deliveryEnabled = meta.delivery_fulfillment_enabled !== false;
+        setDeliveryFulfillmentEnabled(deliveryEnabled);
         setPickupAddress(meta.pickup_address ?? null);
         setPickupHint(meta.pickup_hint ?? null);
         setPickupUnavailableMessage(meta.pickup_unavailable_message ?? null);
@@ -160,6 +163,7 @@ export default function DeliveryCartPage({
           setPaymentMethods(meta.payment_methods as DeliveryPaymentMethodId[]);
         }
         if (!enabled) setFulfillment("delivery");
+        if (!deliveryEnabled) setFulfillment("pickup");
       })
       .catch(() => {});
   }, [branchSlug, setFulfillment]);
@@ -507,20 +511,26 @@ export default function DeliveryCartPage({
 
       <div className={`${deliveryClasses.cardInner} space-y-2`}>
         <p className="text-sm font-semibold text-[var(--d-text-strong)]">Como deseja receber?</p>
-        <div className={`grid gap-2 ${pickupEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
-          <button
-            type="button"
-            onClick={() => setFulfillment("delivery")}
-            className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 text-sm transition ${
-              !isPickup
-                ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
-                : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
-            }`}
-          >
-            <Bike className="h-5 w-5" />
-            <span className="font-medium">{deliveryLabel}</span>
-            <span className="text-[11px]">{deliveryFeeHint}</span>
-          </button>
+        <div
+          className={`grid gap-2 ${
+            deliveryFulfillmentEnabled && pickupEnabled ? "grid-cols-2" : "grid-cols-1"
+          }`}
+        >
+          {deliveryFulfillmentEnabled && (
+            <button
+              type="button"
+              onClick={() => setFulfillment("delivery")}
+              className={`flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 text-sm transition ${
+                !isPickup
+                  ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
+                  : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
+              }`}
+            >
+              <Bike className="h-5 w-5" />
+              <span className="font-medium">{deliveryLabel}</span>
+              <span className="text-[11px]">{deliveryFeeHint}</span>
+            </button>
+          )}
           {pickupEnabled ? (
             <button
               type="button"

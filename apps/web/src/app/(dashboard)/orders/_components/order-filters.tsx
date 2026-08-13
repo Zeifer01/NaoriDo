@@ -34,6 +34,12 @@ const statusConfigV1: Record<string, { label: string }> = {
   cancelled: { label: "Cancelado" },
 };
 
+const SOURCE_FILTERS = [
+  { value: "all", label: "Todos" },
+  { value: "online", label: "Online" },
+  { value: "pos", label: "PDV" },
+] as const;
+
 interface OrderFiltersProps {
   search: string;
   onSearchChange: (value: string) => void;
@@ -44,6 +50,10 @@ interface OrderFiltersProps {
   onStartDateChange: (date: string) => void;
   onEndDateChange: (date: string) => void;
   simplifiedOrderStatus?: boolean;
+  /** Canal do pedido (online vs PDV) — só exibido quando a org tem a flag habilitada. */
+  showSourceFilter?: boolean;
+  sourceFilter?: string;
+  onSourceFilterChange?: (source: string) => void;
 }
 
 export function OrderFilters({
@@ -56,6 +66,9 @@ export function OrderFilters({
   onStartDateChange,
   onEndDateChange,
   simplifiedOrderStatus = false,
+  showSourceFilter = false,
+  sourceFilter = "all",
+  onSourceFilterChange,
 }: OrderFiltersProps) {
   return (
     <div className="flex flex-col gap-3">
@@ -115,6 +128,21 @@ export function OrderFilters({
               </Button>
             ))}
       </div>
+      {showSourceFilter && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground shrink-0">Canal:</span>
+          {SOURCE_FILTERS.map((item) => (
+            <Button
+              key={item.value}
+              variant={sourceFilter === item.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => onSourceFilterChange?.(item.value)}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

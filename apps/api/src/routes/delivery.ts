@@ -126,6 +126,7 @@ delivery.get("/:branchSlug/zones", async (c) => {
     data: pricing.mode === "zones" ? zones : [],
     meta: {
       pickup_enabled: settings.pickup_enabled !== false,
+      delivery_fulfillment_enabled: settings.delivery_fulfillment_enabled !== false,
       pickup_address:
         (settings.pickup_address as string) || branch.address || null,
       pickup_hint: (settings.pickup_hint as string) || null,
@@ -322,6 +323,7 @@ delivery.get("/:branchSlug/menu", async (c) => {
         all_products_tab_sort_order: typeof settings.all_products_tab_sort_order === "number" ? settings.all_products_tab_sort_order : null,
         menu_theme: menuTheme,
         pickup_enabled: settings.pickup_enabled !== false,
+        delivery_fulfillment_enabled: settings.delivery_fulfillment_enabled !== false,
         pickup_address: (settings.pickup_address as string) || null,
         pickup_hint: (settings.pickup_hint as string) || null,
         pickup_unavailable_message:
@@ -442,6 +444,19 @@ delivery.post(
             message:
               (branchSettings.pickup_unavailable_message as string) ||
               "No momento não estamos aceitando retirada",
+          },
+        },
+        403,
+      );
+    }
+
+    if (body.fulfillment === "delivery" && branchSettings.delivery_fulfillment_enabled === false) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "DELIVERY_FULFILLMENT_DISABLED",
+            message: "No momento não estamos aceitando entrega — só retirada",
           },
         },
         403,
@@ -594,6 +609,7 @@ delivery.post(
         branchId: branch.id,
         items: body.items,
         type: orderType,
+        source: "online",
         customerName: body.customerName,
         customerId,
         notes: body.notes,

@@ -558,6 +558,12 @@ export const updateBranchSettingsSchema = z.object({
   deliveryOfflineMessage: z.string().max(1000).optional(),
   /** When true, customers can choose pickup/retirada at checkout. */
   pickupEnabled: z.boolean().optional(),
+  /**
+   * When false, the "Entrega" (delivery) fulfillment option is hidden at
+   * checkout and only pickup is offered — distinct from `deliveryEnabled`,
+   * which turns the whole online cardápio off.
+   */
+  deliveryFulfillmentEnabled: z.boolean().optional(),
   pickupAddress: z.string().max(500).optional(),
   pickupHint: z.string().max(255).optional(),
   pickupUnavailableMessage: z.string().max(500).optional(),
@@ -594,6 +600,8 @@ export const orderQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  /** Channel filter — 'pos' or 'online'. Omitted = no filtering by channel. */
+  source: z.enum(["pos", "online"]).optional(),
 });
 
 export const inventoryQuerySchema = z.object({

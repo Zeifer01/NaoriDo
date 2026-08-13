@@ -2,6 +2,7 @@
 
 import { formatCurrency } from "@/lib/utils";
 import { useProductAnalytics } from "@/hooks/use-analytics";
+import { useFeatures } from "@/hooks/use-features";
 import {
   AnalyticsDateToolbar,
   ReportsV2Nav,
@@ -24,9 +25,16 @@ export default function ReportsProdutosPage() {
   );
 }
 
+const CHANNEL_LABEL: Record<string, string> = {
+  online: "Online (cardápio)",
+  pos: "PDV (caixa)",
+  unknown: "Desconhecido",
+};
+
 function ReportsProdutosContent() {
   const dateState = useAnalyticsDateState();
   const { data, isLoading, isFetching, error, refetch } = useProductAnalytics(dateState.params);
+  const { orderChannelReport } = useFeatures();
 
   return (
     <div className="space-y-4">
@@ -85,6 +93,30 @@ function ReportsProdutosContent() {
               <div key={i} className="h-20 rounded-xl border bg-muted animate-pulse" />
             ))}
         </div>
+
+        {orderChannelReport && data?.channelBreakdown && data.channelBreakdown.length > 0 && (
+          <div className="rounded-xl border bg-card p-4">
+            <h2 className="text-sm font-semibold mb-1">Pedidos por canal</h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Online (link do cardápio) vs. PDV (aberto pelo caixa) no período
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {data.channelBreakdown.map((c) => (
+                <div key={c.source} className="rounded-lg border p-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    {CHANNEL_LABEL[c.source] ?? c.source}
+                  </p>
+                  <p className="text-xl font-bold tabular-nums mt-1">
+                    {c.orders} {c.orders === 1 ? "pedido" : "pedidos"}
+                  </p>
+                  <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                    {formatCurrency(c.revenueCents)} · {(c.share * 100).toFixed(1)}%
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-2">
           <div className="rounded-xl border bg-card overflow-hidden">
