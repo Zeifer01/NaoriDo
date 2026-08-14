@@ -71,6 +71,13 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.pickup_fee_toggle`.
    */
   pickup_fee_toggle: boolean;
+  /**
+   * Shows a "Pedidos pagos / Todos os pedidos realizados" scope toggle on
+   * the legacy Reports tab, letting staff see all non-cancelled orders
+   * (not just status=completed). Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.reports_placed_orders_toggle`.
+   */
+  reports_placed_orders_toggle: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -85,6 +92,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   order_channel_report: false,
   delivery_fulfillment_toggle: false,
   pickup_fee_toggle: false,
+  reports_placed_orders_toggle: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -155,6 +163,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     order_channel_report: s.order_channel_report === true,
     delivery_fulfillment_toggle: s.delivery_fulfillment_toggle === true,
     pickup_fee_toggle: s.pickup_fee_toggle === true,
+    reports_placed_orders_toggle: s.reports_placed_orders_toggle === true,
   };
 }
 
@@ -180,6 +189,11 @@ export function hasDeliveryFulfillmentToggle(settings: unknown): boolean {
 /** True when the org's branch settings show the "taxa de retirada" (pickup fee) control. */
 export function hasPickupFeeToggle(settings: unknown): boolean {
   return getOrgUxFlags(settings).pickup_fee_toggle;
+}
+
+/** True when the org's Reports tab shows the "pedidos pagos / todos realizados" scope toggle. */
+export function hasReportsPlacedOrdersToggle(settings: unknown): boolean {
+  return getOrgUxFlags(settings).reports_placed_orders_toggle;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

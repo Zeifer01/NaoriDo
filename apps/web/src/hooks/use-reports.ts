@@ -28,14 +28,17 @@ export interface TopItemReport {
   totalRevenue: number;
 }
 
-export function useSalesReport(startDate?: string, endDate?: string) {
+export type ReportScope = "completed" | "placed";
+
+export function useSalesReport(startDate?: string, endDate?: string, scope?: ReportScope) {
   const params = new URLSearchParams();
   if (startDate) params.set("startDate", startDate);
   if (endDate) params.set("endDate", endDate);
+  if (scope) params.set("scope", scope);
   const qs = params.toString();
 
   return useQuery<SalesReportData>({
-    queryKey: ["reports", "sales", startDate, endDate],
+    queryKey: ["reports", "sales", startDate, endDate, scope],
     queryFn: () => apiFetch<SalesReportData>(`/api/reports/sales${qs ? `?${qs}` : ""}`),
     enabled: !!startDate && !!endDate,
   });
@@ -71,15 +74,16 @@ export function useInventoryConsumption(startDate?: string, endDate?: string) {
   });
 }
 
-export function useTopItems(startDate?: string, endDate?: string, limit?: number) {
+export function useTopItems(startDate?: string, endDate?: string, limit?: number, scope?: ReportScope) {
   const params = new URLSearchParams();
   if (startDate) params.set("startDate", startDate);
   if (endDate) params.set("endDate", endDate);
   if (limit) params.set("limit", String(limit));
+  if (scope) params.set("scope", scope);
   const qs = params.toString();
 
   return useQuery<TopItemReport[]>({
-    queryKey: ["reports", "top-items", startDate, endDate, limit],
+    queryKey: ["reports", "top-items", startDate, endDate, limit, scope],
     queryFn: () =>
       apiFetch<TopItemReport[]>(`/api/reports/top-items${qs ? `?${qs}` : ""}`),
     enabled: !!startDate && !!endDate,

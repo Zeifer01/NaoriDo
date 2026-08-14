@@ -406,6 +406,13 @@ export const reportQuerySchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   branchId: z.string().uuid().optional(),
+  /**
+   * 'completed' (default) = only fully completed orders, matching legacy
+   * behavior. 'placed' = every order that isn't cancelled, regardless of
+   * payment/completion status. Only honored for orgs with the
+   * reports_placed_orders_toggle flag — ignored otherwise.
+   */
+  scope: z.enum(["completed", "placed"]).optional(),
 });
 
 // Analytics / BI query (reports v2)

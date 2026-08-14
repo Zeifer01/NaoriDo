@@ -12,7 +12,9 @@ import {
   type SalesReportDay,
   type PaymentMethodShare,
   type TopItemReport,
+  type ReportScope,
 } from "@/hooks/use-reports";
+import { useFeatures } from "@/hooks/use-features";
 import { ReportStats } from "./report-stats";
 import { SalesChart } from "./sales-chart";
 import { PaymentMethodsChart } from "./payment-methods-chart";
@@ -99,6 +101,8 @@ export default function LegacyReportsPage() {
   const [endDate, setEndDate] = useState<string>(defaults.end);
   const [draftStartDate, setDraftStartDate] = useState<string>(defaults.start);
   const [draftEndDate, setDraftEndDate] = useState<string>(defaults.end);
+  const [scope, setScope] = useState<ReportScope>("completed");
+  const { reportsPlacedOrdersToggle } = useFeatures();
 
   const {
     data: salesData,
@@ -106,7 +110,7 @@ export default function LegacyReportsPage() {
     isFetching: salesFetching,
     error: salesError,
     refetch: refetchSales,
-  } = useSalesReport(startDate, endDate);
+  } = useSalesReport(startDate, endDate, scope);
 
   const {
     data: topItemsData,
@@ -114,7 +118,7 @@ export default function LegacyReportsPage() {
     isFetching: topItemsFetching,
     error: topItemsError,
     refetch: refetchTopItems,
-  } = useTopItems(startDate, endDate, 10);
+  } = useTopItems(startDate, endDate, 10, scope);
 
   const {
     data: inventoryConsumptionData,
@@ -188,6 +192,33 @@ export default function LegacyReportsPage() {
         <div>
           <h1 className="text-2xl font-bold">Relatórios</h1>
           <p className="text-muted-foreground">Análise de vendas e produtos</p>
+          {reportsPlacedOrdersToggle && (
+            <div className="flex gap-1 mt-3 rounded-lg border p-1 w-fit">
+              <Button
+                type="button"
+                size="sm"
+                variant={scope === "completed" ? "default" : "ghost"}
+                className="h-7 px-3 text-xs"
+                onClick={() => setScope("completed")}
+              >
+                Pedidos pagos
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={scope === "placed" ? "default" : "ghost"}
+                className="h-7 px-3 text-xs"
+                onClick={() => setScope("placed")}
+              >
+                Todos os pedidos realizados
+              </Button>
+            </div>
+          )}
+          {reportsPlacedOrdersToggle && scope === "placed" && (
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Inclui pedidos pendentes, em preparo e a caminho — não só os já concluídos.
+            </p>
+          )}
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
           <div className="space-y-2 min-w-[220px]">

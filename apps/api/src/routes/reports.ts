@@ -1,8 +1,9 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, gte, lte, sql, desc, inArray, count, sum } from "drizzle-orm";
+import { eq, and, ne, gte, lte, sql, desc, inArray, count, sum } from "drizzle-orm";
 import { db, schema } from "@restai/db";
+import { hasReportsPlacedOrdersToggle } from "@restai/config";
 import { reportQuerySchema } from "@restai/validators";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
@@ -18,6 +19,26 @@ reports.use("*", tenantMiddleware);
 reports.use("*", requireBranch);
 reports.use("*", requireActivePlan);
 reports.use("*", requireFeature("reports"));
+
+/**
+ * Resolves the order-status condition for /sales and /top-items.
+ * 'placed' scope (every non-cancelled order) is only honored when the org
+ * has reports_placed_orders_toggle — otherwise always falls back to the
+ * legacy 'completed'-only behavior, unchanged for every other org.
+ */
+async function resolveReportStatusCondition(organizationId: string, scope: "completed" | "placed" | undefined) {
+  if (scope === "placed") {
+    const [org] = await db
+      .select({ settings: schema.organizations.settings })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .limit(1);
+    if (hasReportsPlacedOrdersToggle(org?.settings)) {
+      return ne(schema.orders.status, "cancelled");
+    }
+  }
+  return eq(schema.orders.status, "completed");
+}
 
 // GET /dashboard - Dashboard stats
 reports.get("/dashboard", requirePermission("reports:read"), async (c) => {
@@ -84,7 +105,7 @@ reports.get(
   requirePermission("reports:read"),
   zValidator("query", reportQuerySchema),
   async (c) => {
-    const { startDate, endDate } = c.req.valid("query");
+    const { startDate, endDate, scope } = c.req.valid("query");
     const tenant = c.get("tenant") as any;
 
     const start = new Date(startDate);
@@ -97,6 +118,8 @@ reports.get(
     const tz = tzLiteral(
       (await resolveTenantTimezone(tenant.organizationId, tenant.branchId)) ?? "UTC",
     );
+
+    const statusCondition = await resolveReportStatusCondition(tenant.organizationId, scope);
 
     // Totals for the range
     const [totals] = await db
@@ -112,7 +135,7 @@ reports.get(
           eq(schema.orders.branch_id, tenant.branchId),
           gte(schema.orders.created_at, start),
           lte(schema.orders.created_at, end),
-          eq(schema.orders.status, "completed"),
+          statusCondition,
         ),
       );
 
@@ -129,13 +152,13 @@ reports.get(
           eq(schema.orders.branch_id, tenant.branchId),
           gte(schema.orders.created_at, start),
           lte(schema.orders.created_at, end),
-          eq(schema.orders.status, "completed"),
+          statusCondition,
         ),
       )
       .groupBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`)
       .orderBy(sql`to_char(${schema.orders.created_at} AT TIME ZONE ${tz}, 'YYYY-MM-DD')`);
 
-    // Payment method breakdown - join completed orders with payments
+    // Payment method breakdown - join in-scope orders with payments
     const completedOrders = await db
       .select({ id: schema.orders.id })
       .from(schema.orders)
@@ -144,7 +167,7 @@ reports.get(
           eq(schema.orders.branch_id, tenant.branchId),
           gte(schema.orders.created_at, start),
           lte(schema.orders.created_at, end),
-          eq(schema.orders.status, "completed"),
+          statusCondition,
         ),
       );
 
@@ -196,7 +219,7 @@ reports.get(
   requirePermission("reports:read"),
   zValidator("query", reportQuerySchema),
   async (c) => {
-    const { startDate, endDate } = c.req.valid("query");
+    const { startDate, endDate, scope } = c.req.valid("query");
     const tenant = c.get("tenant") as any;
 
     const start = new Date(startDate);
@@ -206,7 +229,9 @@ reports.get(
     const limitParam = c.req.query("limit");
     const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 10, 50) : 10;
 
-    // Get completed orders in range
+    const statusCondition = await resolveReportStatusCondition(tenant.organizationId, scope);
+
+    // Get in-scope orders in range
     const completedOrders = await db
       .select({ id: schema.orders.id })
       .from(schema.orders)
@@ -215,7 +240,7 @@ reports.get(
           eq(schema.orders.branch_id, tenant.branchId),
           gte(schema.orders.created_at, start),
           lte(schema.orders.created_at, end),
-          eq(schema.orders.status, "completed"),
+          statusCondition,
         ),
       );
 
