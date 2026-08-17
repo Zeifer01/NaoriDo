@@ -52,4 +52,28 @@ describe("formatOrderTicketText", () => {
     expect(text).toContain("1x Copo 24oz");
     expect(text).toContain("Pagamento: Zelle");
   });
+
+  test("mostra nota de fidelidade no item resgatado", () => {
+    const text = formatOrderTicketText({
+      orderNumber: 50,
+      items: [
+        {
+          name: "Copo 16oz",
+          quantity: 1,
+          discount_reason: "Fidelidade - cartão físico",
+          modifiers: [{ name: "Nutella" }],
+        },
+        {
+          name: "Copo 16oz",
+          quantity: 1,
+          modifiers: [{ name: "Morango" }],
+        },
+      ],
+    });
+
+    const loyaltyLineIdx = text.indexOf("♥ Fidelidade - cartão físico");
+    expect(loyaltyLineIdx).toBeGreaterThan(-1);
+    // Only the first item carries the note, not the second.
+    expect(text.split("♥").length - 1).toBe(1);
+  });
 });
