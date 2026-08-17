@@ -10,6 +10,7 @@ interface OrderItem {
   unit_price: number;
   total: number;
   notes?: string;
+  discount_reason?: string | null;
   modifiers?: Array<{ name: string; is_outside_cup?: boolean; outsideCup?: boolean }>;
 }
 
@@ -104,6 +105,7 @@ function buildKitchenTicketHtml(data: KitchenTicketData): string {
           <td style="text-align:left;padding:2px 0;">
             ${item.quantity}x ${item.name}
             ${formatModifierHtml(item.modifiers)}
+            ${item.discount_reason ? `<br><span style="font-size:10px;font-weight:bold;">&#9829; ${item.discount_reason}</span>` : ""}
             ${item.notes ? `<br><span style="font-size:10px;color:#666;">* ${item.notes}</span>` : ""}
           </td>
         </tr>`,
@@ -171,7 +173,10 @@ function buildReceiptTicketHtml(data: ReceiptTicketData): string {
     .map(
       (item) =>
         `<tr>
-          <td style="text-align:left;padding:1px 0;">${item.quantity}x ${item.name}</td>
+          <td style="text-align:left;padding:1px 0;">
+            ${item.quantity}x ${item.name}
+            ${item.discount_reason ? `<br><span style="font-size:10px;">&#9829; ${item.discount_reason}</span>` : ""}
+          </td>
           <td style="text-align:right;padding:1px 0;white-space:nowrap;">${formatMoney(item.total)}</td>
         </tr>`
     )

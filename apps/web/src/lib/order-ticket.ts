@@ -7,6 +7,7 @@ export type TicketItem = {
   name: string;
   quantity: number;
   notes?: string | null;
+  discount_reason?: string | null;
   modifiers?: Array<{
     name: string;
     is_outside_cup?: boolean;
@@ -194,6 +195,7 @@ export function formatOrderTicketText(data: OrderTicketInput): string {
     if (idx > 0) lines.push("");
     lines.push(`${item.quantity}x ${item.name}`);
     lines.push(...formatModifiers(item.modifiers, item.quantity));
+    if (item.discount_reason) lines.push(`  ♥ ${item.discount_reason}`);
     if (item.notes) lines.push(`  Obs item: ${item.notes}`);
   });
 
@@ -250,6 +252,7 @@ export function orderToTicketInput(
       name: i.name,
       quantity: i.quantity,
       notes: i.notes,
+      discount_reason: i.discount_reason,
       modifiers: i.modifiers || [],
     })),
   };

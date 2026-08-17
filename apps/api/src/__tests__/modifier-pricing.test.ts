@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   calcModifiersChargeCents,
   calcModifierSnapshotPrices,
+  calcSequentialFreeChargeCents,
+  calcSequentialFreeSnapshotPrices,
   formatModifierDisplayName,
   isLegacyOutsideCupGroupName,
 } from "@restai/config";
@@ -79,6 +81,58 @@ describe("calcModifiersChargeCents", () => {
       [{ id: "g2", freeQuantity: 0, allowOutsideCup: true, outsideCupFeeCents: 0 }],
     );
     expect(charge).toBe(300);
+  });
+});
+
+describe("calcSequentialFreeChargeCents (loyalty sticker card)", () => {
+  test("charges nothing when within free count, regardless of price", () => {
+    const charge = calcSequentialFreeChargeCents(
+      [
+        { id: "a", groupId: "g1", price: 100 },
+        { id: "b", groupId: "g1", price: 200 },
+        { id: "c", groupId: "g1", price: 300 },
+      ],
+      3,
+    );
+    expect(charge).toBe(0);
+  });
+
+  test("does NOT free the most expensive item first — only the first N added stay free", () => {
+    // Regression test for ff259db: a pricier item added 4th must be charged in
+    // full, even though it is more expensive than the free ones before it.
+    const snapshots = calcSequentialFreeSnapshotPrices(
+      [
+        { id: "cheap1", groupId: "g1", price: 100 },
+        { id: "cheap2", groupId: "g1", price: 100 },
+        { id: "cheap3", groupId: "g1", price: 100 },
+        { id: "pricey", groupId: "g1", price: 300 },
+      ],
+      3,
+    );
+    const byId = Object.fromEntries(snapshots.map((s) => [s.id, s.effectivePrice]));
+    expect(byId.cheap1).toBe(0);
+    expect(byId.cheap2).toBe(0);
+    expect(byId.cheap3).toBe(0);
+    expect(byId.pricey).toBe(300);
+  });
+
+  test("charges the real price of everything past the free count, in add order", () => {
+    const charge = calcSequentialFreeChargeCents(
+      [
+        { id: "a", groupId: "g1", price: 100 },
+        { id: "b", groupId: "g2", price: 100 },
+        { id: "c", groupId: "g1", price: 100 },
+        { id: "d", groupId: "g2", price: 300 },
+        { id: "e", groupId: "g1", price: 150 },
+      ],
+      3,
+    );
+    // First 3 (a, b, c) free; d (300) + e (150) charged in full.
+    expect(charge).toBe(450);
+  });
+
+  test("empty selection charges nothing", () => {
+    expect(calcSequentialFreeChargeCents([], 3)).toBe(0);
   });
 });
 

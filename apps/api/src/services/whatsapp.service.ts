@@ -267,6 +267,7 @@ async function loadOrderItemsForTicket(orderId: string) {
     name: item.name,
     quantity: item.quantity,
     notes: item.notes,
+    discount_reason: item.discount_reason,
     modifiers: (modsByItem.get(item.id) || []).map((m) => ({
       name: m.name,
       is_outside_cup: m.is_outside_cup,

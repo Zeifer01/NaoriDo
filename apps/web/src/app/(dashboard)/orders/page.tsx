@@ -67,6 +67,7 @@ export default function OrdersPage() {
           quantity: i.quantity,
           unit_price: i.unit_price,
           total: i.total,
+          discount_reason: i.discount_reason,
         })),
         subtotal: order.subtotal ?? 0,
         tax: order.tax ?? 0,

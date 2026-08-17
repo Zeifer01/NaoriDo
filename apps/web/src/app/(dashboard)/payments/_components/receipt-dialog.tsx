@@ -68,6 +68,7 @@ export function ReceiptDialog({ open, onOpenChange, payment }: ReceiptDialogProp
           quantity: i.quantity,
           unit_price: i.unit_price,
           total: i.total,
+          discount_reason: i.discount_reason,
         })),
         subtotal: orderData?.subtotal ?? 0,
         tax: orderData?.tax ?? 0,

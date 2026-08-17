@@ -275,6 +275,7 @@ export default function PosPage() {
           name: item.name,
           quantity: item.quantity,
           notes: item.notes,
+          discount_reason: item.loyaltyDiscount ? "Fidelidade - cartão físico" : undefined,
           modifiers: item.modifiers.map((m) => ({
             name: m.name,
             outsideCup: m.outsideCup,
