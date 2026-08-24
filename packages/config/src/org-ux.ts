@@ -78,6 +78,15 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.reports_placed_orders_toggle`.
    */
   reports_placed_orders_toggle: boolean;
+  /**
+   * Lets staff create a PDV (in-person/fair) order without filling the
+   * customer name/phone fields — for high-volume single-cashier scenarios
+   * where stopping to collect contact info creates a line (Naori Do fairs).
+   * The online customer-facing menu keeps these fields required regardless.
+   * Default `false` — no other org sees this relaxation.
+   * Enable per org via `organizations.settings.pos_customer_info_optional`.
+   */
+  pos_customer_info_optional: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -93,6 +102,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   delivery_fulfillment_toggle: false,
   pickup_fee_toggle: false,
   reports_placed_orders_toggle: false,
+  pos_customer_info_optional: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -164,6 +174,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     delivery_fulfillment_toggle: s.delivery_fulfillment_toggle === true,
     pickup_fee_toggle: s.pickup_fee_toggle === true,
     reports_placed_orders_toggle: s.reports_placed_orders_toggle === true,
+    pos_customer_info_optional: s.pos_customer_info_optional === true,
   };
 }
 
@@ -194,6 +205,11 @@ export function hasPickupFeeToggle(settings: unknown): boolean {
 /** True when the org's Reports tab shows the "pedidos pagos / todos realizados" scope toggle. */
 export function hasReportsPlacedOrdersToggle(settings: unknown): boolean {
   return getOrgUxFlags(settings).reports_placed_orders_toggle;
+}
+
+/** True when the org's PDV can create orders without customer name/phone (fair/high-volume checkout). */
+export function hasPosCustomerInfoOptional(settings: unknown): boolean {
+  return getOrgUxFlags(settings).pos_customer_info_optional;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

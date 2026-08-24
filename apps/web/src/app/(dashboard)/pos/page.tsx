@@ -96,7 +96,7 @@ export default function PosPage() {
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
   const createOrder = useCreateOrder();
   const currency = useCurrencyStore((s) => s.currency);
-  const { posBarcodes, loyaltyStickerCard } = useFeatures();
+  const { posBarcodes, loyaltyStickerCard, posCustomerInfoOptional } = useFeatures();
 
   const allItems: any[] = menuItems ?? [];
 
@@ -205,7 +205,7 @@ export default function PosPage() {
   const handleCreateOrder = async () => {
     if (cart.length === 0) return;
     const name = customerName.trim();
-    if (!name) {
+    if (!name && !posCustomerInfoOptional) {
       toast.error("Informe o nome do cliente");
       return;
     }
@@ -372,6 +372,7 @@ export default function PosPage() {
         selectedCustomerId={selectedCustomerId}
         manualDiscount={manualDiscount}
         isPending={createOrder.isPending}
+        customerInfoOptional={posCustomerInfoOptional}
         onOrderTypeChange={(type) => {
           setOrderType(type);
           if (type !== "delivery") {

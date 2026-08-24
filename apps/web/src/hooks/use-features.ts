@@ -50,6 +50,8 @@ interface UseFeaturesResult {
   pickupFeeToggle: boolean;
   /** True when the Reports tab shows the "pedidos pagos / todos realizados" scope toggle. */
   reportsPlacedOrdersToggle: boolean;
+  /** True when the PDV can create an order without customer name/phone (fair/high-volume checkout). */
+  posCustomerInfoOptional: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -139,6 +141,7 @@ export function useFeatures(): UseFeaturesResult {
       deliveryFulfillmentToggle: ux.delivery_fulfillment_toggle,
       pickupFeeToggle: ux.pickup_fee_toggle,
       reportsPlacedOrdersToggle: ux.reports_placed_orders_toggle,
+      posCustomerInfoOptional: ux.pos_customer_info_optional,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

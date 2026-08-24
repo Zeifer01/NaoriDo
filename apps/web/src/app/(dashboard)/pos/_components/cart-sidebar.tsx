@@ -122,6 +122,7 @@ export function CartSidebar({
   onRemove,
   onToggleLoyaltyDiscount,
   loyaltyStickerCard = false,
+  customerInfoOptional = false,
   onClearCart,
   onCreateOrder,
 }: {
@@ -162,6 +163,8 @@ export function CartSidebar({
   onToggleLoyaltyDiscount?: (lineId: string) => void;
   /** True when the org has the sticker-card loyalty flag enabled. */
   loyaltyStickerCard?: boolean;
+  /** True when the org lets PDV orders skip customer name/phone (fair checkout). */
+  customerInfoOptional?: boolean;
   onClearCart: () => void;
   onCreateOrder: () => void;
 }) {
@@ -356,7 +359,7 @@ export function CartSidebar({
   const canCreate =
     cart.length > 0 &&
     !isPending &&
-    customerName.trim().length > 0 &&
+    (customerInfoOptional || customerName.trim().length > 0) &&
     !deliveryNeedsAddress &&
     !deliveryNeedsCity &&
     !deliveryNeedsFee &&
@@ -416,7 +419,7 @@ export function CartSidebar({
         <div className="relative">
           <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Nome do cliente *"
+            placeholder={customerInfoOptional ? "Nome do cliente" : "Nome do cliente *"}
             value={customerName}
             onChange={(e) => {
               onClearSelectedCustomer();
@@ -832,7 +835,7 @@ export function CartSidebar({
               Aguarde a cotação do frete ou ajuste o endereço
             </p>
           )}
-          {!customerName.trim() && (
+          {!customerInfoOptional && !customerName.trim() && (
             <p className="text-[11px] text-destructive">Informe o nome do cliente</p>
           )}
           {needsPayment && (
