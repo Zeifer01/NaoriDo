@@ -166,6 +166,15 @@ export default function DeliveryCartPage({
         if (Array.isArray(meta.payment_methods) && meta.payment_methods.length > 0) {
           setPaymentMethods(meta.payment_methods as DeliveryPaymentMethodId[]);
         }
+        // Branch-configured default (e.g. Naori Do opens the cart on "Retirada").
+        // Only when the customer hasn't explicitly picked a fulfillment this session.
+        if (
+          meta.cart_default_fulfillment === "pickup" &&
+          enabled &&
+          !sessionStorage.getItem("delivery_fulfillment")
+        ) {
+          setFulfillment("pickup");
+        }
         if (!enabled) setFulfillment("delivery");
         if (!deliveryEnabled) setFulfillment("pickup");
       })

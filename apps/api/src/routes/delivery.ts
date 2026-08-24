@@ -129,6 +129,8 @@ delivery.get("/:branchSlug/zones", async (c) => {
     meta: {
       pickup_enabled: settings.pickup_enabled !== false,
       delivery_fulfillment_enabled: settings.delivery_fulfillment_enabled !== false,
+      cart_default_fulfillment:
+        settings.cart_default_fulfillment === "pickup" ? "pickup" : null,
       pickup_fee_cents: getPickupFeeCents(settings),
       pickup_fee_reason: getPickupFeeReason(settings),
       pickup_address:
