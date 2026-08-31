@@ -30,6 +30,7 @@ const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   status_completed: "Pedido entregue",
   status_cancelled: "Pedido cancelado",
   auto_reply: "Resposta automática",
+  closed_hours: "Fora do horário de atendimento",
 };
 
 const MESSAGE_KEYS: WhatsAppMessageKey[] = [
@@ -42,6 +43,7 @@ const MESSAGE_KEYS: WhatsAppMessageKey[] = [
   "status_completed",
   "status_cancelled",
   "auto_reply",
+  "closed_hours",
 ];
 
 export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
@@ -122,6 +124,14 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
     "{link_cardapio}",
     "",
     "Em breve um atendente irá te responder. 🙏",
+  ].join("\n"),
+  closed_hours: [
+    "Olá! 👋 Obrigado por entrar em contato com *{estabelecimento}*.",
+    "",
+    "O atendimento de hoje já foi encerrado.",
+    "Horário de hoje: {horario_hoje}",
+    "",
+    "Assim que reabrirmos, te respondemos por aqui. Até breve! 🙏",
   ].join("\n"),
 };
 
@@ -234,6 +244,12 @@ export function WhatsAppMessagesDialog({
                 <p>
                   <code className="bg-muted px-1 rounded">{"{estabelecimento}"}</code> nome da filial ·{" "}
                   <code className="bg-muted px-1 rounded">{"{link_cardapio}"}</code> link do cardápio online
+                </p>
+              ) : activeKey === "closed_hours" ? (
+                <p>
+                  <code className="bg-muted px-1 rounded">{"{estabelecimento}"}</code> nome da filial ·{" "}
+                  <code className="bg-muted px-1 rounded">{"{horario_hoje}"}</code> horário de hoje (ex:
+                  15:00–21:00, ou "Fechado")
                 </p>
               ) : activeKey === "order_edited" ? (
                 <p>

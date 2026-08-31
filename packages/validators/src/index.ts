@@ -586,6 +586,25 @@ export const updateBranchSettingsSchema = z.object({
     .min(1)
     .max(10)
     .optional(),
+  /**
+   * Business hours: `enabled: false` (or omitted) = no restriction (menu
+   * always available). `days` has one entry per day of week (index
+   * 0=Sunday..6=Saturday). See packages/config/src/business-hours.ts.
+   */
+  businessHours: z
+    .object({
+      enabled: z.boolean(),
+      days: z
+        .array(
+          z.object({
+            closed: z.boolean(),
+            open: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+            close: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+          }),
+        )
+        .length(7),
+    })
+    .optional(),
 });
 
 // Query validators for GET endpoints

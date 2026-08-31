@@ -8,6 +8,7 @@ export const WHATSAPP_MESSAGE_KEYS = [
   "status_completed",
   "status_cancelled",
   "auto_reply",
+  "closed_hours",
 ] as const;
 
 export type WhatsAppMessageKey = (typeof WHATSAPP_MESSAGE_KEYS)[number];
@@ -23,6 +24,7 @@ export const WHATSAPP_MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
   status_completed: "Pedido entregue",
   status_cancelled: "Pedido cancelado",
   auto_reply: "Resposta automática",
+  closed_hours: "Fora do horário de atendimento",
 };
 
 export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
@@ -105,6 +107,14 @@ export const DEFAULT_WHATSAPP_MESSAGE_TEMPLATES: WhatsAppMessageTemplates = {
     "",
     "Em breve um atendente irá te responder. 🙏",
   ].join("\n"),
+  closed_hours: [
+    "Olá! 👋 Obrigado por entrar em contato com *{estabelecimento}*.",
+    "",
+    "O atendimento de hoje já foi encerrado.",
+    "Horário de hoje: {horario_hoje}",
+    "",
+    "Assim que reabrirmos, te respondemos por aqui. Até breve! 🙏",
+  ].join("\n"),
 };
 
 export const WHATSAPP_TEMPLATE_VARIABLES = [
@@ -121,6 +131,7 @@ export const WHATSAPP_TEMPLATE_VARIABLES = [
   "{estabelecimento}",
   "{link_cardapio}",
   "{nome}",
+  "{horario_hoje}",
 ] as const;
 
 export function getWhatsAppPhoneCountryCode(settings?: unknown): string {

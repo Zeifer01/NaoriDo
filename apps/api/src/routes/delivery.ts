@@ -27,6 +27,7 @@ import { isLegacyOutsideCupGroupName, calcItemTotalCents, hasMenuDefaultAllItems
 import { wsManager } from "../ws/manager.js";
 import { orgHasFeature } from "../lib/features.js";
 import { resolveHost } from "../lib/tenant-host.js";
+import { isBranchOpenNow } from "../lib/business-hours.js";
 import type { Context } from "hono";
 
 const delivery = new Hono<AppEnv>();
@@ -71,6 +72,7 @@ async function getActiveBranch(branchSlug: string, organizationId: string | null
   const settings = (branch.settings || {}) as Record<string, unknown>;
   const deliveryEnabled = settings.delivery_enabled !== false;
   if (!deliveryEnabled) return null;
+  if (!isBranchOpenNow(branch).open) return null;
 
   // Plan must include the delivery feature.
   const planAllows = await orgHasFeature(branch.organization_id, "delivery");
@@ -93,12 +95,26 @@ async function getBranchForMenu(
 
   const settings = (branch.settings || {}) as Record<string, unknown>;
   const deliveryEnabled = settings.delivery_enabled !== false;
+  const customOfflineMessage = settings.delivery_offline_message as string | undefined;
 
   if (!deliveryEnabled) {
-    const offlineMessage =
-      (settings.delivery_offline_message as string | undefined) ||
-      "No momento não estamos aceitando pedidos. Em breve voltamos!";
-    return { branch, disabled: true, offlineMessage };
+    return {
+      branch,
+      disabled: true,
+      offlineMessage:
+        customOfflineMessage || "No momento não estamos aceitando pedidos. Em breve voltamos!",
+    };
+  }
+
+  const { open, todayLabel } = isBranchOpenNow(branch);
+  if (!open) {
+    return {
+      branch,
+      disabled: true,
+      offlineMessage:
+        customOfflineMessage ||
+        `O atendimento de hoje já foi encerrado. Horário de hoje: ${todayLabel}`,
+    };
   }
 
   const planAllows = await orgHasFeature(branch.organization_id, "delivery");

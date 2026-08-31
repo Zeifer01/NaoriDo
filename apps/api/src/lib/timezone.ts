@@ -94,6 +94,37 @@ export function localDateStringToUtc(dateStr: string, tz: string): Date {
   return new Date(guess.getTime() - offsetMsAt(guess, tz));
 }
 
+/**
+ * Current weekday (0=Sunday..6=Saturday, matching JS `Date#getDay()`) and
+ * "HH:MM" wall-clock time in the given IANA timezone. Used for business-hours
+ * checks (DST-correct: reads the real local time, not a fixed UTC offset).
+ */
+export function nowPartsInTimezone(
+  tz: string,
+  date: Date = new Date(),
+): { weekday: number; hhmm: string } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((acc, p) => {
+      if (p.type !== "literal") acc[p.type] = p.value;
+      return acc;
+    }, {});
+
+  const weekday = new Date(
+    Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)),
+  ).getUTCDay();
+
+  return { weekday, hhmm: `${parts.hour}:${parts.minute}` };
+}
+
 async function orgHasBranchTimezoneFlag(organizationId: string): Promise<boolean> {
   const [org] = await db
     .select({ settings: schema.organizations.settings })

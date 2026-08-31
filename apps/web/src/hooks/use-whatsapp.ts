@@ -12,7 +12,8 @@ export type WhatsAppMessageKey =
   | "status_ready"
   | "status_completed"
   | "status_cancelled"
-  | "auto_reply";
+  | "auto_reply"
+  | "closed_hours";
 
 export type WhatsAppMessageTemplates = Record<WhatsAppMessageKey, string>;
 

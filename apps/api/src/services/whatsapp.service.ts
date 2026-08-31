@@ -15,6 +15,7 @@ import {
   formatOrderTicketText,
   resolveOrderTicketBranchLabel,
 } from "../lib/order-ticket.js";
+import { isBranchOpenNow } from "../lib/business-hours.js";
 import {
   fetchConnectionState,
   formatPhoneForWhatsApp,
@@ -496,16 +497,21 @@ export async function handleIncomingWebhook(
   await redis.setex(dedupeKey, 300, "1");
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
-  const menuUrl = await menuUrlForBranch(branch);
+  const { open, todayLabel } = isBranchOpenNow(branch);
 
-  const message = renderWhatsAppTemplate(templates.auto_reply, {
-    estabelecimento: branch.name,
-    link_cardapio: menuUrl,
-  });
+  const message = open
+    ? renderWhatsAppTemplate(templates.auto_reply, {
+        estabelecimento: branch.name,
+        link_cardapio: await menuUrlForBranch(branch),
+      })
+    : renderWhatsAppTemplate(templates.closed_hours, {
+        estabelecimento: branch.name,
+        horario_hoje: todayLabel,
+      });
 
   try {
     await sendWhatsAppText(instanceName, phone, message);
-    logger.info({ instanceName, phone }, "Auto-reply sent");
+    logger.info({ instanceName, phone, open }, "Auto-reply sent");
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err), instanceName, phone }, "Auto-reply failed");
   }

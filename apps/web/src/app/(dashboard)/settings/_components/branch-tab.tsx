@@ -6,7 +6,15 @@ import { Input } from "@restai/ui/components/input";
 import { Label } from "@restai/ui/components/label";
 import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
-import { CURRENCIES, BRAZIL, getDeliveryFeeCents, DELIVERY_PAYMENT_METHOD_META } from "@restai/config";
+import {
+  CURRENCIES,
+  BRAZIL,
+  getDeliveryFeeCents,
+  DELIVERY_PAYMENT_METHOD_META,
+  parseBusinessHoursConfig,
+  WEEKDAY_LABELS_PT,
+  type BusinessHoursConfig,
+} from "@restai/config";
 import { cn } from "@/lib/utils";
 import { DeliveryMenuLink } from "@/components/delivery-menu-link";
 import { DeliveryZonesPanel } from "./delivery-zones-panel";
@@ -86,6 +94,7 @@ export function BranchTab() {
     deliveryLabel: string;
     pickupLabel: string;
     paymentMethods: string[];
+    businessHours: BusinessHoursConfig;
   }>({
     name: "",
     address: "",
@@ -120,6 +129,7 @@ export function BranchTab() {
     deliveryLabel: "",
     pickupLabel: "",
     paymentMethods: ["cash", "card", "pix"],
+    businessHours: parseBusinessHoursConfig(undefined),
   });
 
   useEffect(() => {
@@ -164,6 +174,7 @@ export function BranchTab() {
         paymentMethods: Array.isArray(branchData.settings?.payment_methods)
           ? (branchData.settings.payment_methods as string[])
           : ["cash", "card", "pix"],
+        businessHours: parseBusinessHoursConfig(branchData.settings),
       });
     }
   }, [branchData]);
@@ -207,6 +218,7 @@ export function BranchTab() {
         deliveryLabel: branchForm.deliveryLabel,
         pickupLabel: branchForm.pickupLabel,
         paymentMethods: branchForm.paymentMethods,
+        businessHours: branchForm.businessHours,
       });
       toast.success("Filial atualizada com sucesso");
     } catch (err: any) {
@@ -352,6 +364,109 @@ export function BranchTab() {
               <p className="text-xs text-muted-foreground">
                 Exibida no link do cardápio quando os pedidos online estiverem desativados. Se vazio, usa uma mensagem padrão.
               </p>
+            </div>
+            <div className="rounded-lg border p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Horário de funcionamento</p>
+                  <p className="text-xs text-muted-foreground">
+                    Fora do horário, o cardápio digital fica indisponível e o WhatsApp responde
+                    automaticamente que o atendimento foi encerrado.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={branchForm.businessHours.enabled}
+                  onClick={() =>
+                    setBranchForm({
+                      ...branchForm,
+                      businessHours: {
+                        ...branchForm.businessHours,
+                        enabled: !branchForm.businessHours.enabled,
+                      },
+                    })
+                  }
+                  className={cn(
+                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                    branchForm.businessHours.enabled ? "bg-primary" : "bg-muted",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none block h-5 w-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                      branchForm.businessHours.enabled ? "translate-x-5" : "translate-x-0",
+                    )}
+                  />
+                </button>
+              </div>
+
+              {branchForm.businessHours.enabled && (
+                <div className="space-y-2">
+                  {branchForm.businessHours.days.map((day, idx) => (
+                    <div key={idx} className="flex items-center gap-3 text-sm">
+                      <span className="w-20 shrink-0">{WEEKDAY_LABELS_PT[idx]}</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={!day.closed}
+                        onClick={() => {
+                          const days = [...branchForm.businessHours.days];
+                          days[idx] = { ...days[idx]!, closed: !days[idx]!.closed };
+                          setBranchForm({
+                            ...branchForm,
+                            businessHours: { ...branchForm.businessHours, days },
+                          });
+                        }}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                          !day.closed ? "bg-primary" : "bg-muted",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform",
+                            !day.closed ? "translate-x-4" : "translate-x-0",
+                          )}
+                        />
+                      </button>
+                      {day.closed ? (
+                        <span className="text-muted-foreground">Fechado</span>
+                      ) : (
+                        <>
+                          <Input
+                            type="time"
+                            value={day.open}
+                            onChange={(e) => {
+                              const days = [...branchForm.businessHours.days];
+                              days[idx] = { ...days[idx]!, open: e.target.value };
+                              setBranchForm({
+                                ...branchForm,
+                                businessHours: { ...branchForm.businessHours, days },
+                              });
+                            }}
+                            className="w-28"
+                          />
+                          <span className="text-muted-foreground">até</span>
+                          <Input
+                            type="time"
+                            value={day.close}
+                            onChange={(e) => {
+                              const days = [...branchForm.businessHours.days];
+                              days[idx] = { ...days[idx]!, close: e.target.value };
+                              setBranchForm({
+                                ...branchForm,
+                                businessHours: { ...branchForm.businessHours, days },
+                              });
+                            }}
+                            className="w-28"
+                          />
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             {branchForm.deliveryEnabled && (
               <>
