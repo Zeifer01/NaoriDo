@@ -634,6 +634,15 @@ export const orderQuerySchema = z.object({
   source: z.enum(["pos", "online"]).optional(),
 });
 
+/**
+ * Admin-only bulk action: mark every open order as completed and register
+ * payment for the remaining balance. Optional beforeDate limits it to
+ * orders created on or before that day — omitted means every open order.
+ */
+export const bulkCompleteOrdersSchema = z.object({
+  beforeDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 export const inventoryQuerySchema = z.object({
   categoryId: z.string().uuid().optional(),
 });
@@ -689,3 +698,4 @@ export type UpdateModifierInput = z.infer<typeof updateModifierSchema>;
 export type UpdateOrgSettingsInput = z.infer<typeof updateOrgSettingsSchema>;
 export type UpdateBranchSettingsInput = z.infer<typeof updateBranchSettingsSchema>;
 export type OrderQueryInput = z.infer<typeof orderQuerySchema>;
+export type BulkCompleteOrdersInput = z.infer<typeof bulkCompleteOrdersSchema>;

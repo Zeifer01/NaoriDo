@@ -17,8 +17,10 @@ import { PaymentDialog } from "../payments/_components/payment-dialog";
 import { toast } from "sonner";
 import { copyOrderTicket, orderToTicketInput } from "@/lib/order-ticket";
 import { useFeatures } from "@/hooks/use-features";
+import { useAuthStore } from "@/stores/auth-store";
 import { CURRENCIES, type CurrencyCode, deliveryPaymentLabel, getSimplifiedOrderStatusLabel, getOrderSessionConfig } from "@restai/config";
 import { getActiveCurrency } from "@/stores/currency-store";
+import { BulkCompleteButton } from "./_components/bulk-complete-dialog";
 
 const PAGE_SIZE = 20;
 
@@ -42,7 +44,9 @@ export default function OrdersPage() {
   const { data: orgSettings } = useOrgSettings();
   const { data: branchSettings } = useBranchSettings();
   const printReceipt = usePrintReceipt();
-  const { kitchenLabel, simplifiedOrderStatus, orderSourceFilter } = useFeatures();
+  const { kitchenLabel, simplifiedOrderStatus, orderSourceFilter, bulkOrderActionsToggle } = useFeatures();
+  const role = useAuthStore((s) => s.user?.role);
+  const canBulkComplete = bulkOrderActionsToggle && role === "org_admin";
   const branchLabel = useOrderTicketBranchLabel();
   const displayTimezone = useDisplayTimezone();
   const updatingOrderId = updateStatus.isPending ? updateStatus.variables?.id ?? null : null;
@@ -267,6 +271,7 @@ export default function OrdersPage() {
         description="Gerencie e acompanhe todos os pedidos"
         actions={
           <div className="flex gap-2">
+            {canBulkComplete && <BulkCompleteButton />}
             <Button variant="outline" disabled={exportLoading} onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               {exportLoading ? "Exportando..." : "Exportar Excel"}

@@ -17,6 +17,7 @@
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --pickup-fee-toggle=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --reports-placed-orders-toggle=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --pos-customer-info-optional=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --bulk-order-actions-toggle=true
  */
 import { db, schema } from "./index.ts";
 import { eq } from "drizzle-orm";
@@ -41,6 +42,7 @@ const deliveryFulfillmentToggle = arg("delivery-fulfillment-toggle");
 const pickupFeeToggle = arg("pickup-fee-toggle");
 const reportsPlacedOrdersToggle = arg("reports-placed-orders-toggle");
 const posCustomerInfoOptional = arg("pos-customer-info-optional");
+const bulkOrderActionsToggle = arg("bulk-order-actions-toggle");
 const label = arg("label");
 const columns = arg("columns");
 
@@ -49,9 +51,9 @@ if (!slug) {
   process.exit(1);
 }
 
-if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems && !orderSourceFilter && !orderChannelReport && !deliveryFulfillmentToggle && !pickupFeeToggle && !reportsPlacedOrdersToggle && !posCustomerInfoOptional) {
+if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems && !orderSourceFilter && !orderChannelReport && !deliveryFulfillmentToggle && !pickupFeeToggle && !reportsPlacedOrdersToggle && !posCustomerInfoOptional && !bulkOrderActionsToggle) {
   console.error(
-    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --order-source-filter=true, --order-channel-report=true, --delivery-fulfillment-toggle=true, --pickup-fee-toggle=true, --reports-placed-orders-toggle=true, --pos-customer-info-optional=true, --label=Comandas e/ou --columns=...",
+    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --order-source-filter=true, --order-channel-report=true, --delivery-fulfillment-toggle=true, --pickup-fee-toggle=true, --reports-placed-orders-toggle=true, --pos-customer-info-optional=true, --bulk-order-actions-toggle=true, --label=Comandas e/ou --columns=...",
   );
   process.exit(1);
 }
@@ -111,6 +113,11 @@ if (posCustomerInfoOptional && posCustomerInfoOptional !== "true" && posCustomer
   process.exit(1);
 }
 
+if (bulkOrderActionsToggle && bulkOrderActionsToggle !== "true" && bulkOrderActionsToggle !== "false") {
+  console.error("--bulk-order-actions-toggle deve ser true ou false");
+  process.exit(1);
+}
+
 const [org] = await db
   .select()
   .from(schema.organizations)
@@ -152,6 +159,7 @@ const next = {
   ...(pickupFeeToggle ? { pickup_fee_toggle: pickupFeeToggle === "true" } : {}),
   ...(reportsPlacedOrdersToggle ? { reports_placed_orders_toggle: reportsPlacedOrdersToggle === "true" } : {}),
   ...(posCustomerInfoOptional ? { pos_customer_info_optional: posCustomerInfoOptional === "true" } : {}),
+  ...(bulkOrderActionsToggle ? { bulk_order_actions_toggle: bulkOrderActionsToggle === "true" } : {}),
   ...(label ? { kitchen_label: label } : {}),
   ...(kitchen_column_labels ? { kitchen_column_labels } : {}),
   ...(orderStatus === "simplified" && !kitchen_column_labels

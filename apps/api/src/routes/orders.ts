@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, sql, getTableColumns, gte, lt, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, getTableColumns, gte, lt, inArray, notInArray, sum } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   createOrderSchema,
@@ -13,8 +13,9 @@ import {
   idParamSchema,
   orderQuerySchema,
   quoteDeliveryFeeSchema,
+  bulkCompleteOrdersSchema,
 } from "@restai/validators";
-import { ORDER_STATUS_TRANSITIONS, ORDER_ITEM_STATUS_TRANSITIONS, appendCityToAddress } from "@restai/config";
+import { ORDER_STATUS_TRANSITIONS, ORDER_ITEM_STATUS_TRANSITIONS, appendCityToAddress, hasBulkOrderActionsToggle } from "@restai/config";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -902,6 +903,168 @@ orders.delete(
       }
       throw err;
     }
+  },
+);
+
+// ── Admin-only bulk complete + charge ──────────────────────────────────────
+// Marks every open order (not completed/cancelled) as completed and
+// registers payment for its remaining balance, using each order's own
+// recorded payment method. Deliberately skips the normal single-order
+// pipeline: no customer WhatsApp notification, no loyalty points, no
+// inventory deduction — this is a data-cleanup tool, not a fulfillment
+// event. Gated to org_admin (via settings:*) and to orgs with
+// bulk_order_actions_toggle enabled.
+
+const VALID_PAYMENT_METHODS = new Set<(typeof schema.payments.$inferInsert)["method"]>([
+  "cash", "card", "yape", "plin", "pix", "zelle", "venmo", "cashapp", "transfer", "other",
+]);
+
+function coercePaymentMethod(value: string | null): (typeof schema.payments.$inferInsert)["method"] {
+  return VALID_PAYMENT_METHODS.has(value as any) ? (value as any) : "cash";
+}
+
+async function resolveBulkCompleteEligibleOrders(
+  branchId: string,
+  beforeDate: string | undefined,
+  tz: string | undefined,
+) {
+  const conditions = [
+    eq(schema.orders.branch_id, branchId),
+    notInArray(schema.orders.status, ["completed", "cancelled"]),
+    ...dateRangeConditions(undefined, beforeDate, tz),
+  ];
+
+  const openOrders = await db
+    .select({
+      id: schema.orders.id,
+      total: schema.orders.total,
+      payment_method: schema.orders.payment_method,
+    })
+    .from(schema.orders)
+    .where(and(...conditions));
+
+  if (openOrders.length === 0) {
+    return { openOrders, paidMap: new Map<string, number>() };
+  }
+
+  const orderIds = openOrders.map((o) => o.id);
+  const paidRows = await db
+    .select({ order_id: schema.payments.order_id, paid: sum(schema.payments.amount) })
+    .from(schema.payments)
+    .where(
+      and(
+        inArray(schema.payments.order_id, orderIds),
+        eq(schema.payments.status, "completed"),
+      ),
+    )
+    .groupBy(schema.payments.order_id);
+
+  const paidMap = new Map(paidRows.map((r) => [r.order_id, Number(r.paid || 0)]));
+  return { openOrders, paidMap };
+}
+
+// GET /bulk-complete/preview - Count + total for the admin bulk action, before committing
+orders.get("/bulk-complete/preview", requirePermission("settings:*"), async (c) => {
+  const tenant = c.get("tenant") as any;
+  const beforeDate = c.req.query("beforeDate");
+
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, tenant.organizationId))
+    .limit(1);
+  if (!hasBulkOrderActionsToggle(org?.settings)) {
+    return c.json({ success: false, error: { code: "FORBIDDEN", message: "Recurso não disponível" } }, 403);
+  }
+
+  const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
+  const { openOrders } = await resolveBulkCompleteEligibleOrders(tenant.branchId, beforeDate, tz);
+  const totalAmountCents = openOrders.reduce((s, o) => s + o.total, 0);
+
+  return c.json({ success: true, data: { orderCount: openOrders.length, totalAmountCents } });
+});
+
+// POST /bulk-complete - Execute the admin bulk complete + charge action
+orders.post(
+  "/bulk-complete",
+  requirePermission("settings:*"),
+  zValidator("json", bulkCompleteOrdersSchema),
+  async (c) => {
+    const { beforeDate } = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    const [org] = await db
+      .select({ settings: schema.organizations.settings })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, tenant.organizationId))
+      .limit(1);
+    if (!hasBulkOrderActionsToggle(org?.settings)) {
+      return c.json({ success: false, error: { code: "FORBIDDEN", message: "Recurso não disponível" } }, 403);
+    }
+
+    const tz = await resolveTenantTimezone(tenant.organizationId, tenant.branchId);
+    const { openOrders, paidMap } = await resolveBulkCompleteEligibleOrders(
+      tenant.branchId,
+      beforeDate,
+      tz,
+    );
+
+    if (openOrders.length === 0) {
+      return c.json({ success: true, data: { completedCount: 0, paymentsCreated: 0, totalAmountCents: 0 } });
+    }
+
+    const orderIds = openOrders.map((o) => o.id);
+    const paymentsToInsert = openOrders.reduce<
+      Array<{
+        order_id: string;
+        organization_id: string;
+        branch_id: string;
+        method: (typeof schema.payments.$inferInsert)["method"];
+        amount: number;
+        status: "completed";
+      }>
+    >((acc, o) => {
+      const remaining = o.total - (paidMap.get(o.id) ?? 0);
+      if (remaining > 0) {
+        acc.push({
+          order_id: o.id,
+          organization_id: tenant.organizationId,
+          branch_id: tenant.branchId,
+          method: coercePaymentMethod(o.payment_method),
+          amount: remaining,
+          status: "completed",
+        });
+      }
+      return acc;
+    }, []);
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.orders)
+        .set({ status: "completed", updated_at: new Date() })
+        .where(inArray(schema.orders.id, orderIds));
+
+      if (paymentsToInsert.length > 0) {
+        await tx.insert(schema.payments).values(paymentsToInsert);
+      }
+    });
+
+    const totalAmountCents = paymentsToInsert.reduce((s, p) => s + p.amount, 0);
+
+    logger.info("Admin bulk order completion + payment registration", {
+      branchId: tenant.branchId,
+      completedCount: orderIds.length,
+      paymentsCreated: paymentsToInsert.length,
+    });
+
+    return c.json({
+      success: true,
+      data: {
+        completedCount: orderIds.length,
+        paymentsCreated: paymentsToInsert.length,
+        totalAmountCents,
+      },
+    });
   },
 );
 

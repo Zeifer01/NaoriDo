@@ -52,6 +52,8 @@ interface UseFeaturesResult {
   reportsPlacedOrdersToggle: boolean;
   /** True when the PDV can create an order without customer name/phone (fair/high-volume checkout). */
   posCustomerInfoOptional: boolean;
+  /** True when the Orders tab shows the admin-only bulk complete-and-charge button. */
+  bulkOrderActionsToggle: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -142,6 +144,7 @@ export function useFeatures(): UseFeaturesResult {
       pickupFeeToggle: ux.pickup_fee_toggle,
       reportsPlacedOrdersToggle: ux.reports_placed_orders_toggle,
       posCustomerInfoOptional: ux.pos_customer_info_optional,
+      bulkOrderActionsToggle: ux.bulk_order_actions_toggle,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

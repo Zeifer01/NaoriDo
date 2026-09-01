@@ -87,6 +87,15 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.pos_customer_info_optional`.
    */
   pos_customer_info_optional: boolean;
+  /**
+   * Shows the "Concluir e cobrar em massa" admin-only button on the Orders
+   * tab — bulk-marks every open order as completed and registers payment
+   * for the remaining balance (using each order's own recorded payment
+   * method), with no customer notification, loyalty points, or inventory
+   * deduction. Default `false` — no other org sees this control.
+   * Enable per org via `organizations.settings.bulk_order_actions_toggle`.
+   */
+  bulk_order_actions_toggle: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -103,6 +112,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   pickup_fee_toggle: false,
   reports_placed_orders_toggle: false,
   pos_customer_info_optional: false,
+  bulk_order_actions_toggle: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -175,6 +185,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     pickup_fee_toggle: s.pickup_fee_toggle === true,
     reports_placed_orders_toggle: s.reports_placed_orders_toggle === true,
     pos_customer_info_optional: s.pos_customer_info_optional === true,
+    bulk_order_actions_toggle: s.bulk_order_actions_toggle === true,
   };
 }
 
@@ -210,6 +221,11 @@ export function hasReportsPlacedOrdersToggle(settings: unknown): boolean {
 /** True when the org's PDV can create orders without customer name/phone (fair/high-volume checkout). */
 export function hasPosCustomerInfoOptional(settings: unknown): boolean {
   return getOrgUxFlags(settings).pos_customer_info_optional;
+}
+
+/** True when the org's Orders tab shows the admin-only bulk complete-and-charge button. */
+export function hasBulkOrderActionsToggle(settings: unknown): boolean {
+  return getOrgUxFlags(settings).bulk_order_actions_toggle;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */
