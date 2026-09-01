@@ -63,6 +63,18 @@ export function useCreateCustomer() {
   });
 }
 
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Record<string, any>) =>
+      apiFetch(`/api/loyalty/customers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["loyalty", "customers"] }),
+  });
+}
+
 export function useImportCustomers() {
   const qc = useQueryClient();
   return useMutation({

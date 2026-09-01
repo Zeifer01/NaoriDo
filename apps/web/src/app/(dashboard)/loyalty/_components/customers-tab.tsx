@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  Pencil,
   ChevronLeft,
   ChevronRight,
   Upload,
@@ -25,7 +26,7 @@ import { SearchInput } from "@/components/search-input";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { downloadCsv } from "@/lib/export-csv";
 import { toast } from "sonner";
-import { CreateCustomerDialog } from "./customer-dialog";
+import { CreateCustomerDialog, type EditableCustomer } from "./customer-dialog";
 import { ImportCustomersDialog } from "./import-customers-dialog";
 
 const tierConfig: Record<string, { label: string; color: string }> = {
@@ -56,6 +57,7 @@ export function CustomersTab() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<EditableCustomer | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [timer, setTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -165,7 +167,7 @@ export function CustomersTab() {
                   <th className="text-left p-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">Telefone</th>
                   <th className="text-center p-3 text-sm font-medium text-muted-foreground">Tier</th>
                   <th className="text-right p-3 text-sm font-medium text-muted-foreground">Puntos</th>
-                  <th className="w-10 p-3" />
+                  <th className="w-20 p-3" />
                 </tr>
               </thead>
               <tbody>
@@ -203,14 +205,24 @@ export function CustomersTab() {
                         </td>
                         <td className="p-3 text-sm font-medium text-right text-foreground">{(customer.points_balance || 0).toLocaleString()}</td>
                         <td className="p-3">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => setDeleteConfirm({ id: customer.id, name: customer.name })}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => setEditingCustomer(customer)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeleteConfirm({ id: customer.id, name: customer.name })}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -253,7 +265,16 @@ export function CustomersTab() {
         </div>
       )}
 
-      <CreateCustomerDialog open={showCreate} onOpenChange={setShowCreate} />
+      <CreateCustomerDialog
+        open={showCreate || !!editingCustomer}
+        onOpenChange={(v) => {
+          if (!v) {
+            setShowCreate(false);
+            setEditingCustomer(null);
+          }
+        }}
+        customer={editingCustomer}
+      />
       <ImportCustomersDialog open={showImport} onOpenChange={setShowImport} />
 
       <ConfirmDialog

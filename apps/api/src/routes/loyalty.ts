@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, desc, sql, like, or } from "drizzle-orm";
+import { eq, and, desc, sql, ilike, like, or } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   createLoyaltyProgramSchema,
   createCustomerSchema,
+  updateCustomerSchema,
   importCustomersSchema,
   idParamSchema,
   customerSearchSchema,
@@ -21,6 +22,8 @@ import {
   importCustomers,
   exportCustomersForOrg,
   listCustomerAddresses,
+  updateCustomer,
+  CustomerNotFoundError,
 } from "../services/customer.service.js";
 import { redeemReward } from "../services/loyalty.service.js";
 
@@ -105,8 +108,8 @@ loyalty.get("/customers", requirePermission("customers:read"), zValidator("query
         : like(schema.customers.phone, pattern);
     conditions.push(
       or(
-        like(schema.customers.name, pattern),
-        like(schema.customers.email, pattern),
+        ilike(schema.customers.name, pattern),
+        ilike(schema.customers.email, pattern),
         phoneMatch,
       )!,
     );
@@ -282,6 +285,36 @@ loyalty.post(
         errors: result.errors.slice(0, 50),
       },
     });
+  },
+);
+
+// PATCH /customers/:id - Edit customer info (name, phone, address, etc.)
+loyalty.patch(
+  "/customers/:id",
+  requirePermission("customers:update"),
+  zValidator("param", idParamSchema),
+  zValidator("json", updateCustomerSchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+
+    try {
+      const updated = await updateCustomer({
+        customerId: id,
+        organizationId: tenant.organizationId,
+        ...body,
+      });
+      return c.json({ success: true, data: updated });
+    } catch (err) {
+      if (err instanceof CustomerNotFoundError) {
+        return c.json(
+          { success: false, error: { code: "NOT_FOUND", message: err.message } },
+          404,
+        );
+      }
+      throw err;
+    }
   },
 );
 

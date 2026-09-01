@@ -312,6 +312,61 @@ export async function createCustomer(params: {
   return db.transaction((tx) => insertAndEnroll(tx, params));
 }
 
+export class CustomerNotFoundError extends Error {
+  constructor(message = "Cliente não encontrado") {
+    super(message);
+    this.name = "CustomerNotFoundError";
+  }
+}
+
+/** Partial update — only provided fields are changed. Scoped to organizationId. */
+export async function updateCustomer(params: {
+  customerId: string;
+  organizationId: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  birthDate?: string;
+  address?: string;
+  city?: string;
+  neighborhood?: string;
+  zipCode?: string;
+  state?: string;
+  country?: string;
+  notes?: string;
+}): Promise<CustomerRow> {
+  const { customerId, organizationId, ...fields } = params;
+
+  const updateData: Partial<CustomerRow> = {};
+  if (fields.name !== undefined) updateData.name = fields.name;
+  if (fields.email !== undefined) updateData.email = fields.email || null;
+  if (fields.phone !== undefined) updateData.phone = fields.phone || null;
+  if (fields.birthDate !== undefined) updateData.birth_date = fields.birthDate || null;
+  if (fields.address !== undefined) updateData.address = fields.address || null;
+  if (fields.city !== undefined) updateData.city = fields.city || null;
+  if (fields.neighborhood !== undefined) updateData.neighborhood = fields.neighborhood || null;
+  if (fields.zipCode !== undefined) updateData.zip_code = fields.zipCode || null;
+  if (fields.state !== undefined) updateData.state = fields.state || null;
+  if (fields.country !== undefined) updateData.country = fields.country || null;
+  if (fields.notes !== undefined) updateData.notes = fields.notes || null;
+
+  const [updated] = await db
+    .update(schema.customers)
+    .set(updateData)
+    .where(
+      and(
+        eq(schema.customers.id, customerId),
+        eq(schema.customers.organization_id, organizationId),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new CustomerNotFoundError();
+  }
+  return updated;
+}
+
 // ---------------------------------------------------------------------------
 // findOrCreate — dedup by email (preferred) then phone, else create new
 // ---------------------------------------------------------------------------
