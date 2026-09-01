@@ -9,6 +9,8 @@ import {
   getDeliveryFeeCents,
   getPickupFeeCents,
   getPickupFeeReason,
+  otherCityFeeCents,
+  OTHER_CITY_VALUE,
   parseDeliveryPaymentMethods,
   parseDeliveryPricing,
 } from "@restai/config";
@@ -34,6 +36,11 @@ const delivery = new Hono<AppEnv>();
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
+}
+
+/** USD branches (currently Açaí House) get English delivery-fee messages; everyone else keeps Portuguese. */
+function deliveryFeeLang(branch: { currency: string | null }): "en" | "pt" {
+  return branch.currency === "USD" ? "en" : "pt";
 }
 
 /** Resolve organization from Host / X-Organization-Id when present (multi-tenant isolation). */
@@ -174,6 +181,7 @@ delivery.get("/:branchSlug/zones", async (c) => {
         pricing.mode === "cities"
           ? pricing.cities.map((c) => ({ name: c.name, fee_cents: c.fee_cents }))
           : [],
+      other_city_fee_cents: pricing.mode === "cities" ? otherCityFeeCents(pricing) : null,
     },
   });
 });
@@ -197,6 +205,7 @@ delivery.post(
       branch.settings,
       body.address,
       body.city,
+      deliveryFeeLang(branch),
     );
 
     if (!quote.ok) {
@@ -521,7 +530,10 @@ delivery.post(
               success: false,
               error: {
                 code: "BAD_REQUEST",
-                message: "Selecione sua cidade de entrega",
+                message:
+                  deliveryFeeLang(branch) === "en"
+                    ? "Select your delivery city"
+                    : "Selecione sua cidade de entrega",
               },
             },
             400,
@@ -541,6 +553,7 @@ delivery.post(
           branchSettings,
           address,
           deliveryCity,
+          deliveryFeeLang(branch),
         );
         if (!quote.ok) {
           return c.json(
@@ -556,7 +569,16 @@ delivery.post(
         }
         deliveryFeeOverrideCents = quote.fee_cents;
         deliveryFeeStatus = quote.fee_status;
-        deliveryCity = quote.city || deliveryCity;
+        // Never persist the OTHER_CITY_VALUE sentinel as the order's city —
+        // use whatever the quote resolved (geocoded city), or a readable
+        // placeholder if that's unknown too.
+        deliveryCity =
+          quote.city ||
+          (deliveryCity === OTHER_CITY_VALUE
+            ? deliveryFeeLang(branch) === "en"
+              ? "To confirm"
+              : "A confirmar"
+            : deliveryCity);
       } else if (pricing.mode === "radius") {
         const address = body.deliveryAddress?.trim();
         if (!address) {
@@ -568,7 +590,12 @@ delivery.post(
             400,
           );
         }
-        const quote = await quoteDeliveryFeeForAddress(branchSettings, address);
+        const quote = await quoteDeliveryFeeForAddress(
+          branchSettings,
+          address,
+          undefined,
+          deliveryFeeLang(branch),
+        );
         if (!quote.ok) {
           const status = quote.code === "geocode_unavailable" ? 503 : 422;
           return c.json(

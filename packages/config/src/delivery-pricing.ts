@@ -29,6 +29,8 @@ export type DeliveryPricingConfig = {
   store?: DeliveryStoreLocation | null;
   tiers: DeliveryRadiusTier[];
   cities: DeliveryCityFee[];
+  /** Fallback fee (cents) for "cities" mode when the address is outside the listed cities. */
+  other_city_fee_cents?: number | null;
 };
 
 export const DEFAULT_DELIVERY_PRICING: DeliveryPricingConfig = {
@@ -36,7 +38,16 @@ export const DEFAULT_DELIVERY_PRICING: DeliveryPricingConfig = {
   store: null,
   tiers: [],
   cities: [],
+  other_city_fee_cents: null,
 };
+
+/**
+ * Sentinel `city` value sent by the storefront when the customer's town
+ * isn't in the configured list ("cities" mode). The checkout must still go
+ * through — staff verifies the real address afterward and corrects the fee
+ * (existing "Frete corrigido" WhatsApp flow) instead of blocking checkout.
+ */
+export const OTHER_CITY_VALUE = "__other__";
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -105,7 +116,17 @@ export function parseDeliveryPricing(settings?: unknown): DeliveryPricingConfig 
   }
   cities.sort((a, b) => a.name.localeCompare(b.name));
 
-  return { mode, store, tiers, cities };
+  const otherFeeRaw = Number(raw.other_city_fee_cents);
+  const other_city_fee_cents =
+    Number.isFinite(otherFeeRaw) && otherFeeRaw >= 0 ? Math.round(otherFeeRaw) : null;
+
+  return { mode, store, tiers, cities, other_city_fee_cents };
+}
+
+/** Fallback fee (cents) for a "cities"-mode address outside the listed cities. */
+export function otherCityFeeCents(pricing: DeliveryPricingConfig): number {
+  if (typeof pricing.other_city_fee_cents === "number") return pricing.other_city_fee_cents;
+  return pricing.cities.reduce((max, c) => Math.max(max, c.fee_cents), 0);
 }
 
 /** True when checkout must not show zone picker (fee decided server-side). */

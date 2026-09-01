@@ -28,6 +28,7 @@ import {
   deliveryPaymentLabel,
   formatModifierDisplayName,
   appendCityToAddress,
+  OTHER_CITY_VALUE,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
@@ -101,6 +102,7 @@ export default function DeliveryCartPage({
   const isAutoPricing = pricingMode === "radius" || pricingMode === "cities";
   const [cities, setCities] = useState<DeliveryCityOption[]>([]);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [otherCityFeeCents, setOtherCityFeeCents] = useState<number | null>(null);
   const [feeFromCents, setFeeFromCents] = useState<number | null>(null);
   const [feeQuote, setFeeQuote] = useState<FeeQuote | null>(null);
   const [feeQuoteError, setFeeQuoteError] = useState<string | null>(null);
@@ -145,6 +147,9 @@ export default function DeliveryCartPage({
           setCities([]);
           setSelectedCity(null);
         }
+        setOtherCityFeeCents(
+          typeof meta.other_city_fee_cents === "number" ? meta.other_city_fee_cents : null,
+        );
         const enabled = meta.pickup_enabled !== false;
         setPickupEnabled(enabled);
         const deliveryEnabled = meta.delivery_fulfillment_enabled !== false;
@@ -229,6 +234,21 @@ export default function DeliveryCartPage({
     setFeeQuoteError(null);
   };
 
+  /** Customer's city isn't in our list — still let checkout through with an estimated fee. */
+  const applyOtherCityFee = () => {
+    setSelectedCity(OTHER_CITY_VALUE);
+    setFeeQuote({
+      fee_cents: otherCityFeeCents ?? 0,
+      fee_status: "pending",
+      tier_label: preferEnglish ? "Outside listed cities" : "Fora da lista de cidades",
+      city: null,
+      message: preferEnglish
+        ? "Address outside our listed cities — estimated fee, our team will confirm the final amount on WhatsApp."
+        : "Endereço fora da nossa lista de cidades — frete estimado, nossa equipe confirma o valor final no WhatsApp.",
+    });
+    setFeeQuoteError(null);
+  };
+
   const requestFeeQuote = (address: string, city?: string | null) => {
     if (!isAutoPricing || isPickup) return;
     const trimmed = address.trim();
@@ -241,7 +261,11 @@ export default function DeliveryCartPage({
         return;
       }
       if (trimmed.length < 5) {
-        applyCityFee(cityName);
+        if (cityName === OTHER_CITY_VALUE) {
+          applyOtherCityFee();
+        } else {
+          applyCityFee(cityName);
+        }
         return;
       }
     } else if (trimmed.length < 5) {
@@ -264,6 +288,10 @@ export default function DeliveryCartPage({
       .then((res) => {
         if (!res.success) {
           // Cities + selected city: keep provisional fee; only surface soft note
+          if (pricingMode === "cities" && cityName === OTHER_CITY_VALUE) {
+            applyOtherCityFee();
+            return;
+          }
           if (pricingMode === "cities" && cityName) {
             applyCityFee(cityName);
             return;
@@ -279,6 +307,10 @@ export default function DeliveryCartPage({
         setFeeQuoteError(null);
       })
       .catch(() => {
+        if (pricingMode === "cities" && cityName === OTHER_CITY_VALUE) {
+          applyOtherCityFee();
+          return;
+        }
         if (pricingMode === "cities" && cityName) {
           applyCityFee(cityName);
           return;
@@ -640,6 +672,29 @@ export default function DeliveryCartPage({
                 </span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                applyOtherCityFee();
+                if ((deliveryAddress || "").trim().length >= 5) {
+                  requestFeeQuote(deliveryAddress || "", OTHER_CITY_VALUE);
+                }
+              }}
+              className={`w-full flex items-center justify-between rounded-2xl border border-dashed px-4 py-3 text-sm transition ${
+                selectedCity === OTHER_CITY_VALUE
+                  ? "border-[var(--d-accent-dark)] bg-[var(--d-bg-soft)] text-[var(--d-text-strong)]"
+                  : "border-[var(--d-border)] bg-[var(--d-card-solid)] text-[var(--d-text-muted)]"
+              }`}
+            >
+              <span className="font-medium">
+                {preferEnglish ? "My city isn't listed" : "Minha cidade não está na lista"}
+              </span>
+              <span
+                className={`text-xs ${selectedCity === OTHER_CITY_VALUE ? "text-[var(--d-accent-dark)]" : ""}`}
+              >
+                {preferEnglish ? "Fee to confirm" : "Frete a confirmar"}
+              </span>
+            </button>
           </div>
         </div>
       )}
