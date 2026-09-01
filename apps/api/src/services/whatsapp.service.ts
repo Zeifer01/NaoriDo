@@ -506,10 +506,14 @@ export async function handleIncomingWebhook(
   const activeKey: WhatsAppMessageKey = open ? "auto_reply" : "closed_hours";
   if (!isWhatsAppMessageEnabled(branch.settings, activeKey)) return;
 
+  // Atomic check-and-set: a plain GET-then-SETEX has a race window where two
+  // webhook deliveries for the same customer (Evolution API retry, or two
+  // messages arriving within milliseconds of each other) can both pass the
+  // GET before either SETEX lands, sending the greeting twice. SET ... NX is
+  // a single atomic operation, so only the first request can ever claim it.
   const dedupeKey = `wa:auto_reply:${instanceName}:${phone}`;
-  const alreadyReplied = await redis.get(dedupeKey);
-  if (alreadyReplied) return;
-  await redis.setex(dedupeKey, 300, "1");
+  const acquired = await redis.set(dedupeKey, "1", "EX", 300, "NX");
+  if (acquired !== "OK") return;
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
 

@@ -41,16 +41,27 @@ const whatsapp = new Hono<AppEnv>();
 
 // POST /webhook — Evolution API calls this when messages arrive
 whatsapp.post("/webhook", async (c) => {
+  let body: Record<string, unknown>;
   try {
-    const body = await c.req.json<Record<string, unknown>>();
-    logger.info("Webhook body", { body: JSON.stringify(body).slice(0, 500) });
-    const instanceName = (body.instance as string) || "";
-    const event = (body.event as string) || "";
-    const data = (body.data as Record<string, unknown>) || {};
-    await handleIncomingWebhook(instanceName, event, data);
+    body = await c.req.json<Record<string, unknown>>();
   } catch (err) {
     logger.error("Webhook error", { err: (err as Error).message });
+    return c.json({ success: true });
   }
+
+  logger.info("Webhook body", { body: JSON.stringify(body).slice(0, 500) });
+  const instanceName = (body.instance as string) || "";
+  const event = (body.event as string) || "";
+  const data = (body.data as Record<string, unknown>) || {};
+
+  // Respond immediately — processing (redis dedupe + the WhatsApp send call)
+  // happens in the background. Awaiting it here risks Evolution API timing
+  // out and retrying the same webhook delivery, which used to cause the
+  // auto-reply greeting to be sent more than once for a single message.
+  void handleIncomingWebhook(instanceName, event, data).catch((err) => {
+    logger.error("Webhook error", { err: (err as Error).message });
+  });
+
   return c.json({ success: true });
 });
 
