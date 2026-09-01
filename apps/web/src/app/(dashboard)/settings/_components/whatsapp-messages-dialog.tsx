@@ -18,6 +18,7 @@ import {
   useUpdateWhatsAppSettings,
   type WhatsAppMessageKey,
   type WhatsAppMessageTemplates,
+  type WhatsAppMessageEnabled,
 } from "@/hooks/use-whatsapp";
 
 const MESSAGE_LABELS: Record<WhatsAppMessageKey, string> = {
@@ -135,31 +136,48 @@ export const DEFAULT_WHATSAPP_TEMPLATES: WhatsAppMessageTemplates = {
   ].join("\n"),
 };
 
+const DEFAULT_MESSAGE_ENABLED: WhatsAppMessageEnabled = {
+  order_created: true,
+  order_edited: true,
+  delivery_fee_updated: true,
+  status_confirmed: true,
+  status_preparing: true,
+  status_ready: true,
+  status_completed: true,
+  status_cancelled: true,
+  auto_reply: true,
+  closed_hours: true,
+};
+
 type WhatsAppMessagesDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: WhatsAppMessageTemplates;
+  enabled: WhatsAppMessageEnabled;
 };
 
 export function WhatsAppMessagesDialog({
   open,
   onOpenChange,
   templates,
+  enabled,
 }: WhatsAppMessagesDialogProps) {
   const updateSettings = useUpdateWhatsAppSettings();
   const [draft, setDraft] = useState<WhatsAppMessageTemplates>(templates);
+  const [enabledDraft, setEnabledDraft] = useState<WhatsAppMessageEnabled>(enabled);
   const [activeKey, setActiveKey] = useState<WhatsAppMessageKey>("order_created");
 
   useEffect(() => {
     if (open) {
       setDraft({ ...DEFAULT_WHATSAPP_TEMPLATES, ...templates });
+      setEnabledDraft({ ...DEFAULT_MESSAGE_ENABLED, ...enabled });
       setActiveKey("order_created");
     }
-  }, [open, templates]);
+  }, [open, templates, enabled]);
 
   const handleSave = async () => {
     try {
-      await updateSettings.mutateAsync({ messageTemplates: draft });
+      await updateSettings.mutateAsync({ messageTemplates: draft, messageEnabled: enabledDraft });
       toast.success("Mensagens automáticas salvas");
       onOpenChange(false);
     } catch (err: any) {
@@ -190,21 +208,45 @@ export function WhatsAppMessagesDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 min-h-0 flex-1 overflow-hidden md:flex-row">
-          <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto md:min-w-[180px] shrink-0">
+          <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto md:min-w-[220px] shrink-0">
             {MESSAGE_KEYS.map((key) => (
-              <button
+              <div
                 key={key}
-                type="button"
-                onClick={() => setActiveKey(key)}
                 className={cn(
-                  "rounded-md px-3 py-2 text-left text-sm whitespace-nowrap transition-colors",
+                  "flex items-center gap-2 rounded-md pl-3 pr-2 py-2 text-sm whitespace-nowrap transition-colors",
                   activeKey === key
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted text-muted-foreground",
                 )}
               >
-                {MESSAGE_LABELS[key]}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveKey(key)}
+                  className="flex-1 text-left"
+                >
+                  {MESSAGE_LABELS[key]}
+                </button>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enabledDraft[key]}
+                  title={enabledDraft[key] ? "Ativada" : "Desativada"}
+                  onClick={() =>
+                    setEnabledDraft((current) => ({ ...current, [key]: !current[key] }))
+                  }
+                  className={cn(
+                    "relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                    enabledDraft[key] ? "bg-emerald-500" : "bg-muted-foreground/30",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none block h-3 w-3 rounded-full bg-background shadow ring-0 transition-transform",
+                      enabledDraft[key] ? "translate-x-3" : "translate-x-0",
+                    )}
+                  />
+                </button>
+              </div>
             ))}
           </div>
 
@@ -221,6 +263,12 @@ export function WhatsAppMessagesDialog({
                 Restaurar
               </Button>
             </div>
+            {!enabledDraft[activeKey] && (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                Desativada — não é enviada automaticamente. Use o interruptor ao lado do nome, na
+                lista, para reativar.
+              </p>
+            )}
             <textarea
               id="whatsapp-message-template"
               value={draft[activeKey]}
@@ -294,6 +342,12 @@ export function WhatsAppMessagesDialog({
                 </>
               )}
               <p>Deixe uma linha em branco entre os blocos para criar espaçamento no WhatsApp.</p>
+              <p>
+                O interruptor ao lado de cada mensagem controla só o envio{" "}
+                <strong>automático</strong>. Mensagens de status/frete que também podem ser
+                enviadas manualmente pela tela de Comandas continuam disponíveis lá mesmo
+                desativadas aqui.
+              </p>
             </div>
           </div>
         </div>

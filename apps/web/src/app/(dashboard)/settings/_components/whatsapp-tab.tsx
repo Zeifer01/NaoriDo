@@ -447,6 +447,7 @@ export function WhatsAppTab() {
               open={messagesDialogOpen}
               onOpenChange={setMessagesDialogOpen}
               templates={status.messageTemplates ?? DEFAULT_WHATSAPP_TEMPLATES}
+              enabled={status.messageEnabled}
             />
           </CardContent>
         </Card>

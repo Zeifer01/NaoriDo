@@ -7,7 +7,9 @@ import {
   getWhatsAppMessageTemplates,
   getWhatsAppPhoneCountryCode,
   isWhatsAppAutoStatusNotifyEnabled,
+  isWhatsAppMessageEnabled,
   renderWhatsAppTemplate,
+  WHATSAPP_MESSAGE_KEYS,
   type WhatsAppMessageKey,
   type WhatsAppMessageTemplates,
 } from "../lib/whatsapp-messages.js";
@@ -139,6 +141,7 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
   defaultEtaMinutes: number;
   phoneCountryCode: string;
   messageTemplates: WhatsAppMessageTemplates;
+  messageEnabled: Record<WhatsAppMessageKey, boolean>;
 }> {
   const instanceName = getBranchInstanceName(branch);
   const notificationsEnabled = branchNotificationsEnabled(branch);
@@ -149,6 +152,9 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
   const defaultEtaMinutes = getWhatsAppDefaultEtaMinutes(branch.settings);
   const phoneCountryCode = getWhatsAppPhoneCountryCode(branch.settings);
   const messageTemplates = getWhatsAppMessageTemplates(branch.settings);
+  const messageEnabled = Object.fromEntries(
+    WHATSAPP_MESSAGE_KEYS.map((key) => [key, isWhatsAppMessageEnabled(branch.settings, key)]),
+  ) as Record<WhatsAppMessageKey, boolean>;
 
   if (!isWhatsAppConfigured()) {
     return {
@@ -163,6 +169,7 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
       defaultEtaMinutes,
       phoneCountryCode,
       messageTemplates,
+      messageEnabled,
     };
   }
 
@@ -179,6 +186,7 @@ export async function getWhatsAppStatusForBranch(branch: BranchLike): Promise<{
     defaultEtaMinutes,
     phoneCountryCode,
     messageTemplates,
+    messageEnabled,
   };
 }
 
@@ -395,6 +403,7 @@ export async function notifyOrderEdited(
     .where(eq(schema.branches.id, branchId))
     .limit(1);
   if (!branch) return;
+  if (!isWhatsAppMessageEnabled(branch.settings, "order_edited")) return;
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
@@ -415,6 +424,8 @@ export async function notifyDeliveryOrderCreated(
   branch: BranchLike,
   order: OrderLike & { delivery_fee_status?: string | null; delivery_fee?: number | null },
 ): Promise<void> {
+  if (!isWhatsAppMessageEnabled(branch.settings, "order_created")) return;
+
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";
   const currency = branch.currency || "BRL";
@@ -491,13 +502,16 @@ export async function handleIncomingWebhook(
   const settings = (branch.settings || {}) as Record<string, unknown>;
   if (!settings.whatsapp_auto_reply_enabled) return;
 
+  const { open, todayLabel } = isBranchOpenNow(branch);
+  const activeKey: WhatsAppMessageKey = open ? "auto_reply" : "closed_hours";
+  if (!isWhatsAppMessageEnabled(branch.settings, activeKey)) return;
+
   const dedupeKey = `wa:auto_reply:${instanceName}:${phone}`;
   const alreadyReplied = await redis.get(dedupeKey);
   if (alreadyReplied) return;
   await redis.setex(dedupeKey, 300, "1");
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
-  const { open, todayLabel } = isBranchOpenNow(branch);
 
   const message = open
     ? renderWhatsAppTemplate(templates.auto_reply, {
@@ -638,6 +652,7 @@ export async function notifyDeliveryOrderStatusUpdated(
 
   const templateKey = getStatusMessageKey(newStatus, { skipConfirmed });
   if (!templateKey) return;
+  if (!isWhatsAppMessageEnabled(branch.settings, templateKey)) return;
 
   const templates = getWhatsAppMessageTemplates(branch.settings);
   const customer = order.customer_name?.trim() || "Cliente";

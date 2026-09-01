@@ -168,6 +168,12 @@ const messageTemplatesSchema = z.object(
   ) as Record<WhatsAppMessageKey, z.ZodString>,
 );
 
+const messageEnabledSchema = z.object(
+  Object.fromEntries(
+    WHATSAPP_MESSAGE_KEYS.map((key) => [key, z.boolean()]),
+  ) as Record<WhatsAppMessageKey, z.ZodBoolean>,
+);
+
 const updateSettingsSchema = z
   .object({
     notificationsEnabled: z.boolean().optional(),
@@ -186,6 +192,7 @@ const updateSettingsSchema = z
       .optional()
       .transform((v) => (v == null ? v : v.replace(/\D/g, ""))),
     messageTemplates: messageTemplatesSchema.partial().optional(),
+    messageEnabled: messageEnabledSchema.partial().optional(),
   })
   .refine(
     (data) =>
@@ -195,7 +202,8 @@ const updateSettingsSchema = z
       data.kitchenGroupJid !== undefined ||
       data.defaultEtaMinutes !== undefined ||
       data.phoneCountryCode !== undefined ||
-      data.messageTemplates !== undefined,
+      data.messageTemplates !== undefined ||
+      data.messageEnabled !== undefined,
     { message: "Informe ao menos uma configuração para atualizar" },
   );
 
@@ -218,6 +226,8 @@ whatsapp.patch(
     const currentSettings = (branch.settings || {}) as Record<string, unknown>;
     const currentTemplates =
       (currentSettings.whatsapp_message_templates as Record<string, string> | undefined) || {};
+    const currentEnabled =
+      (currentSettings.whatsapp_message_enabled as Record<string, boolean> | undefined) || {};
 
     const mergedTemplates = body.messageTemplates
       ? {
@@ -225,6 +235,13 @@ whatsapp.patch(
           ...body.messageTemplates,
         }
       : currentTemplates;
+
+    const mergedEnabled = body.messageEnabled
+      ? {
+          ...currentEnabled,
+          ...body.messageEnabled,
+        }
+      : currentEnabled;
 
     const merged = {
       ...currentSettings,
@@ -251,6 +268,7 @@ whatsapp.patch(
         ? { whatsapp_phone_country_code: body.phoneCountryCode }
         : {}),
       ...(body.messageTemplates ? { whatsapp_message_templates: mergedTemplates } : {}),
+      ...(body.messageEnabled ? { whatsapp_message_enabled: mergedEnabled } : {}),
     };
 
     const [updated] = await db
@@ -271,6 +289,7 @@ whatsapp.patch(
         defaultEtaMinutes: status.defaultEtaMinutes,
         phoneCountryCode: status.phoneCountryCode,
         messageTemplates: status.messageTemplates,
+        messageEnabled: status.messageEnabled,
       },
     });
   },

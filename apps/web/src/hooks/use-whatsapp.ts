@@ -16,6 +16,7 @@ export type WhatsAppMessageKey =
   | "closed_hours";
 
 export type WhatsAppMessageTemplates = Record<WhatsAppMessageKey, string>;
+export type WhatsAppMessageEnabled = Record<WhatsAppMessageKey, boolean>;
 
 export type WhatsAppStatus = {
   configured: boolean;
@@ -29,6 +30,7 @@ export type WhatsAppStatus = {
   defaultEtaMinutes: number;
   phoneCountryCode: string;
   messageTemplates: WhatsAppMessageTemplates;
+  messageEnabled: WhatsAppMessageEnabled;
 };
 
 export function useWhatsAppStatus(options?: { pollWhileConnecting?: boolean }) {
@@ -80,6 +82,7 @@ export function useUpdateWhatsAppSettings() {
       defaultEtaMinutes?: number;
       phoneCountryCode?: string;
       messageTemplates?: Partial<WhatsAppMessageTemplates>;
+      messageEnabled?: Partial<WhatsAppMessageEnabled>;
     }) =>
       apiFetch<{
         notificationsEnabled: boolean;
@@ -89,6 +92,7 @@ export function useUpdateWhatsAppSettings() {
         defaultEtaMinutes: number;
         phoneCountryCode: string;
         messageTemplates: WhatsAppMessageTemplates;
+        messageEnabled: WhatsAppMessageEnabled;
       }>("/api/whatsapp/settings", {
         method: "PATCH",
         body: JSON.stringify(data),

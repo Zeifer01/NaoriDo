@@ -165,6 +165,22 @@ export function getWhatsAppDefaultEtaMinutes(settings?: unknown): number {
   return 30;
 }
 
+/**
+ * Per-message-type on/off, layered UNDER the coarser toggles above
+ * (`whatsapp_auto_reply_enabled`, `whatsapp_auto_status_notify`): a message
+ * key only actually sends when both its category toggle AND this per-key
+ * toggle allow it. Unset key = enabled (default), so nothing changes for
+ * branches that never touch this setting. Only applies to AUTOMATIC sends —
+ * staff-triggered manual notifications (Comandas "notificar cliente") are
+ * never blocked by this.
+ */
+export function isWhatsAppMessageEnabled(settings: unknown, key: WhatsAppMessageKey): boolean {
+  const raw = (settings || {}) as Record<string, unknown>;
+  const map = raw.whatsapp_message_enabled;
+  if (!map || typeof map !== "object") return true;
+  return (map as Record<string, unknown>)[key] !== false;
+}
+
 /** When false, status changes do not auto-message the customer (manual notify only). */
 export function isWhatsAppAutoStatusNotifyEnabled(settings?: unknown): boolean {
   const raw = (settings || {}) as Record<string, unknown>;
