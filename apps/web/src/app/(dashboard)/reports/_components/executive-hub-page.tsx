@@ -188,8 +188,9 @@ export function ExecutiveHubPage() {
                     type="monotone"
                     dataKey="revenueCents"
                     name="Atual"
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary) / 0.15)"
+                    stroke="var(--primary)"
+                    fill="var(--primary)"
+                    fillOpacity={0.15}
                     strokeWidth={2}
                   />
                 </AreaChart>

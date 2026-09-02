@@ -141,7 +141,7 @@ function ReportsFinanceiroContent() {
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 100)}`} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number) => [formatCurrency(v), "Receita"]} />
-                  <Bar dataKey="revenueCents" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenueCents" fill="var(--primary)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -155,7 +155,7 @@ function ReportsFinanceiroContent() {
                   <XAxis dataKey="hour" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 100)}`} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(v: number) => [formatCurrency(v), "Receita"]} />
-                  <Bar dataKey="revenueCents" fill="hsl(var(--primary) / 0.7)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenueCents" fill="var(--primary)" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
