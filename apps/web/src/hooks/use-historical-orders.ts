@@ -21,9 +21,34 @@ export interface HistoricalOrdersSummary {
   averageOrderValue: number;
 }
 
+export interface HistoricalMonthPoint {
+  month: number;
+  orders: number;
+  revenue: number;
+}
+
+export interface HistoricalPaymentShare {
+  name: string;
+  value: number;
+}
+
+export interface HistoricalFulfillmentCount {
+  name: "pickup" | "delivery" | "unknown";
+  count: number;
+}
+
+export interface HistoricalItemMention {
+  name: string;
+  mentions: number;
+}
+
 export interface HistoricalOrdersData {
   orders: HistoricalOrderRow[];
   summary: HistoricalOrdersSummary;
+  monthly: HistoricalMonthPoint[];
+  paymentMethods: HistoricalPaymentShare[];
+  fulfillment: HistoricalFulfillmentCount[];
+  topItems: HistoricalItemMention[];
 }
 
 /** Reads the standalone `historical_orders` table (imported WhatsApp order history). */

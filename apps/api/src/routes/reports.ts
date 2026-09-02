@@ -11,6 +11,7 @@ import { requirePermission } from "../middleware/rbac.js";
 import { requireFeature } from "../middleware/feature.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
 import { startOfDayInTimezone, resolveTenantTimezone, tzLiteral } from "../lib/timezone.js";
+import { rankItemMentions } from "../lib/historical-item-mentions.js";
 
 const reports = new Hono<AppEnv>();
 
@@ -440,11 +441,50 @@ reports.get(
     const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
     const averageOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
+    // Monthly evolution (Jan-Dec of the selected year).
+    const monthly = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, orders: 0, revenue: 0 }));
+    for (const o of orders) {
+      const m = monthly[new Date(o.order_date).getUTCMonth()];
+      m.orders += 1;
+      m.revenue += o.total;
+    }
+
+    // Payment method share (percent, for the donut chart).
+    const paymentCounts = new Map<string, number>();
+    for (const o of orders) {
+      const key = o.payment_method ?? "não informado";
+      paymentCounts.set(key, (paymentCounts.get(key) ?? 0) + 1);
+    }
+    const paymentMethods = [...paymentCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({
+        name,
+        value: totalOrders > 0 ? Math.round((count / totalOrders) * 1000) / 10 : 0,
+      }));
+
+    // Fulfillment breakdown (pickup vs delivery vs unknown).
+    const fulfillmentCounts = new Map<string, number>();
+    for (const o of orders) {
+      fulfillmentCounts.set(o.fulfillment, (fulfillmentCounts.get(o.fulfillment) ?? 0) + 1);
+    }
+    const fulfillment = [...fulfillmentCounts.entries()].map(([name, count]) => ({
+      name,
+      count,
+    }));
+
+    // Best-effort item/complemento frequency, parsed from the raw ticket text (see caveat in
+    // historical-item-mentions.ts) — no structured order_items table exists for this data.
+    const topItems = rankItemMentions(orders, 20);
+
     return c.json({
       success: true,
       data: {
         orders,
         summary: { totalOrders, totalRevenue, averageOrderValue },
+        monthly,
+        paymentMethods,
+        fulfillment,
+        topItems,
       },
     });
   },

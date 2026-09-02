@@ -5,6 +5,10 @@ import { formatCurrency, cn } from "@/lib/utils";
 import { useHistoricalOrders, type HistoricalOrderRow } from "@/hooks/use-historical-orders";
 import { ReportsV2Nav } from "../_components/reports-v2-shell";
 import { ReportsV2Gate } from "../_components/reports-v2-gate";
+import { PaymentMethodsChart } from "../_components/payment-methods-chart";
+import { HistoricalMonthlyChart } from "./_components/historical-monthly-chart";
+import { TopItemMentionsList } from "./_components/top-item-mentions-list";
+import { FulfillmentBreakdownCard } from "./_components/fulfillment-breakdown-card";
 import {
   ReportPrintChrome,
   ReportPrintFooter,
@@ -127,84 +131,103 @@ function ReportsRetroativosContent() {
           </div>
         </div>
 
-        <div className="rounded-xl border bg-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-xs text-muted-foreground uppercase tracking-wide">
-                <tr>
-                  <th className="text-left font-medium px-3 py-2">Data</th>
-                  <th className="text-left font-medium px-3 py-2">Cliente</th>
-                  <th className="text-left font-medium px-3 py-2">Contato</th>
-                  <th className="text-left font-medium px-3 py-2">Itens</th>
-                  <th className="text-left font-medium px-3 py-2">Pagamento</th>
-                  <th className="text-right font-medium px-3 py-2">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {isLoading &&
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={6} className="px-3 py-3">
-                        <div className="h-4 bg-muted animate-pulse rounded" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <HistoricalMonthlyChart monthly={data?.monthly ?? []} isLoading={isLoading} />
+          </div>
+          <PaymentMethodsChart paymentMethods={data?.paymentMethods ?? []} isLoading={isLoading} />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TopItemMentionsList
+            topItems={data?.topItems ?? []}
+            totalOrders={data?.summary.totalOrders ?? 0}
+            isLoading={isLoading}
+          />
+          <FulfillmentBreakdownCard fulfillment={data?.fulfillment ?? []} isLoading={isLoading} />
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold mb-2 print:hidden">Lista de pedidos</h2>
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs text-muted-foreground uppercase tracking-wide">
+                  <tr>
+                    <th className="text-left font-medium px-3 py-2">Data</th>
+                    <th className="text-left font-medium px-3 py-2">Cliente</th>
+                    <th className="text-left font-medium px-3 py-2">Contato</th>
+                    <th className="text-left font-medium px-3 py-2">Itens</th>
+                    <th className="text-left font-medium px-3 py-2">Pagamento</th>
+                    <th className="text-right font-medium px-3 py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {isLoading &&
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={6} className="px-3 py-3">
+                          <div className="h-4 bg-muted animate-pulse rounded" />
+                        </td>
+                      </tr>
+                    ))}
+                  {!isLoading && shown.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                        Nenhum pedido retroativo encontrado em {year}.
+                      </td>
+                    </tr>
+                  )}
+                  {shown.map((o) => (
+                    <tr key={o.id} className="align-top">
+                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                        {new Date(o.order_date).toLocaleDateString("pt-BR")}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{o.customer_name}</td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        <div className="flex flex-col gap-0.5">
+                          <span
+                            className={cn(
+                              "text-[11px] w-fit px-1.5 py-0.5 rounded font-medium",
+                              o.fulfillment === "pickup"
+                                ? "bg-sky-100 text-sky-800"
+                                : o.fulfillment === "delivery"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {FULFILLMENT_LABEL[o.fulfillment]}
+                          </span>
+                          {o.phone && <span>{o.phone}</span>}
+                          {o.address && <span>{o.address}</span>}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground max-w-xs whitespace-pre-line">
+                        {o.items_text || "—"}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {o.payment_method ? (PAYMENT_LABEL[o.payment_method] ?? o.payment_method) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {formatCurrency(o.total)}
                       </td>
                     </tr>
                   ))}
-                {!isLoading && shown.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                      Nenhum pedido retroativo encontrado em {year}.
-                    </td>
-                  </tr>
-                )}
-                {shown.map((o) => (
-                  <tr key={o.id} className="align-top">
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                      {new Date(o.order_date).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td className="px-3 py-2 font-medium">{o.customer_name}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      <div className="flex flex-col gap-0.5">
-                        <span
-                          className={cn(
-                            "text-[11px] w-fit px-1.5 py-0.5 rounded font-medium",
-                            o.fulfillment === "pickup"
-                              ? "bg-sky-100 text-sky-800"
-                              : o.fulfillment === "delivery"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {FULFILLMENT_LABEL[o.fulfillment]}
-                        </span>
-                        {o.phone && <span>{o.phone}</span>}
-                        {o.address && <span>{o.address}</span>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground max-w-xs whitespace-pre-line">
-                      {o.items_text || "—"}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {o.payment_method ? (PAYMENT_LABEL[o.payment_method] ?? o.payment_method) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">
-                      {formatCurrency(o.total)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {visible < orders.length && (
-            <div className="p-3 border-t flex justify-center print:hidden">
-              <button
-                type="button"
-                onClick={() => setVisible((v) => v + PAGE_SIZE)}
-                className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
-              >
-                Carregar mais ({orders.length - visible} restantes)
-              </button>
+                </tbody>
+              </table>
             </div>
-          )}
+            {visible < orders.length && (
+              <div className="p-3 border-t flex justify-center print:hidden">
+                <button
+                  type="button"
+                  onClick={() => setVisible((v) => v + PAGE_SIZE)}
+                  className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
+                >
+                  Carregar mais ({orders.length - visible} restantes)
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <ReportPrintFooter title="Pedidos Retroativos" />
       </div>
