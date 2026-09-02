@@ -96,6 +96,14 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.bulk_order_actions_toggle`.
    */
   bulk_order_actions_toggle: boolean;
+  /**
+   * Shows the "Pedidos Retroativos" Reports tab, which reads from the
+   * separate `historical_orders` table (imported from a pre-launch WhatsApp
+   * order history) — never the live `orders`/`customers` tables. Default
+   * `false` — no other org sees this tab.
+   * Enable per org via `organizations.settings.historical_orders_report`.
+   */
+  historical_orders_report: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -113,6 +121,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   reports_placed_orders_toggle: false,
   pos_customer_info_optional: false,
   bulk_order_actions_toggle: false,
+  historical_orders_report: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -186,6 +195,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     reports_placed_orders_toggle: s.reports_placed_orders_toggle === true,
     pos_customer_info_optional: s.pos_customer_info_optional === true,
     bulk_order_actions_toggle: s.bulk_order_actions_toggle === true,
+    historical_orders_report: s.historical_orders_report === true,
   };
 }
 
@@ -226,6 +236,11 @@ export function hasPosCustomerInfoOptional(settings: unknown): boolean {
 /** True when the org's Orders tab shows the admin-only bulk complete-and-charge button. */
 export function hasBulkOrderActionsToggle(settings: unknown): boolean {
   return getOrgUxFlags(settings).bulk_order_actions_toggle;
+}
+
+/** True when the org's Reports nav shows the "Pedidos Retroativos" (imported WhatsApp history) tab. */
+export function hasHistoricalOrdersReport(settings: unknown): boolean {
+  return getOrgUxFlags(settings).historical_orders_report;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

@@ -1,10 +1,10 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
-import { eq, and, ne, gte, lte, sql, desc, inArray, count, sum } from "drizzle-orm";
+import { eq, and, ne, gte, lte, lt, sql, desc, inArray, count, sum } from "drizzle-orm";
 import { db, schema } from "@restai/db";
-import { hasReportsPlacedOrdersToggle } from "@restai/config";
-import { reportQuerySchema } from "@restai/validators";
+import { hasReportsPlacedOrdersToggle, hasHistoricalOrdersReport } from "@restai/config";
+import { reportQuerySchema, historicalOrdersQuerySchema } from "@restai/validators";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -394,6 +394,58 @@ reports.get(
     return c.json({
       success: true,
       data: { menuItemsSold, inventoryReport },
+    });
+  },
+);
+
+// GET /historical - "Pedidos Retroativos": pre-launch orders imported from a manual WhatsApp
+// export (Açaí House). Reads the standalone `historical_orders` table only — never touches the
+// live `orders`/`customers` tables, so it can't affect current data. Flag-gated per org.
+reports.get(
+  "/historical",
+  requirePermission("reports:read"),
+  zValidator("query", historicalOrdersQuerySchema),
+  async (c) => {
+    const { year } = c.req.valid("query");
+    const tenant = c.get("tenant") as any;
+
+    const [org] = await db
+      .select({ settings: schema.organizations.settings })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, tenant.organizationId))
+      .limit(1);
+    if (!hasHistoricalOrdersReport(org?.settings)) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Recurso não habilitado" } },
+        404,
+      );
+    }
+
+    const start = new Date(Date.UTC(year, 0, 1));
+    const end = new Date(Date.UTC(year + 1, 0, 1));
+
+    const orders = await db
+      .select()
+      .from(schema.historicalOrders)
+      .where(
+        and(
+          eq(schema.historicalOrders.branch_id, tenant.branchId),
+          gte(schema.historicalOrders.order_date, start),
+          lt(schema.historicalOrders.order_date, end),
+        ),
+      )
+      .orderBy(desc(schema.historicalOrders.order_date));
+
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
+    const averageOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+    return c.json({
+      success: true,
+      data: {
+        orders,
+        summary: { totalOrders, totalRevenue, averageOrderValue },
+      },
     });
   },
 );

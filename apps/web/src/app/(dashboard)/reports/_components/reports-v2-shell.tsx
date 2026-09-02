@@ -17,6 +17,8 @@ const V2_NAV = [
   { href: "/reports/produtos", label: "Pedidos" },
 ];
 
+const V2_NAV_HISTORICAL = { href: "/reports/retroativos", label: "Pedidos Retroativos", exact: false };
+
 export function getDefaultAnalyticsDates() {
   const end = new Date();
   const start = new Date();
@@ -145,12 +147,14 @@ export function useAnalyticsDateState() {
 
 export function ReportsV2Nav() {
   const pathname = usePathname();
-  const { reportsUx, isLoading } = useFeatures();
+  const { reportsUx, isLoading, historicalOrdersReport } = useFeatures();
   if (isLoading || reportsUx !== "v2") return null;
+
+  const items = historicalOrdersReport ? [...V2_NAV, V2_NAV_HISTORICAL] : V2_NAV;
 
   return (
     <nav className="flex flex-wrap gap-1 border-b pb-px mb-2 print:hidden">
-      {V2_NAV.map((item) => {
+      {items.map((item) => {
         const active = item.exact
           ? pathname === item.href
           : pathname === item.href || pathname.startsWith(`${item.href}/`);

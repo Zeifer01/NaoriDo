@@ -415,6 +415,10 @@ export const reportQuerySchema = z.object({
   scope: z.enum(["completed", "placed"]).optional(),
 });
 
+export const historicalOrdersQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+});
+
 // Analytics / BI query (reports v2)
 export const analyticsQuerySchema = z.object({
   startDate: z.string(),
@@ -691,6 +695,7 @@ export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 export type ImportCustomersInput = z.infer<typeof importCustomersSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
+export type HistoricalOrdersQueryInput = z.infer<typeof historicalOrdersQuerySchema>;
 export type AnalyticsQueryInput = z.infer<typeof analyticsQuerySchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 export type UpdateModifierGroupInput = z.infer<typeof updateModifierGroupSchema>;

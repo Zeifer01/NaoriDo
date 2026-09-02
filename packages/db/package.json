@@ -17,6 +17,7 @@
     "import-feira": "bun run src/import-feira.ts",
     "import-inventory": "bun run src/import-inventory.ts",
     "import-payments": "bun run src/import-payments.ts",
+    "import-historical-orders": "bun run src/import-historical-orders.ts",
     "promote-super-admin": "bun run src/promote-super-admin.ts"
   },
   "dependencies": {
