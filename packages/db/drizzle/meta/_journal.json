@@ -120,6 +120,13 @@
       "when": 1788307586731,
       "tag": "0021_historical_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788360413840,
+      "tag": "0022_material_expenses",
+      "breakpoints": true
     }
   ]
 }

@@ -114,7 +114,7 @@ function ReportsFinanceiroContent() {
         )}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {(data?.metrics ?? []).slice(0, 8).map((m) => (
+          {(data?.metrics ?? []).slice(0, 10).map((m) => (
             <div key={m.id} className="rounded-xl border bg-card p-4 space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {m.label}
@@ -179,6 +179,50 @@ function ReportsFinanceiroContent() {
             )}
           </ul>
         </div>
+
+        {data?.expenses && (
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-xl border bg-card p-4">
+              <h2 className="text-sm font-semibold mb-1">Gastos por categoria</h2>
+              <p className="text-xs text-muted-foreground mb-3">
+                Copos, luvas, frutas e demais materiais registrados no período
+              </p>
+              <ul className="space-y-2">
+                {data.expenses.byCategory.map((c) => (
+                  <li key={c.category} className="flex items-center justify-between text-sm">
+                    <span>{c.category}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {formatCurrency(c.amountCents)} · {c.share}%
+                    </span>
+                  </li>
+                ))}
+                {data.expenses.byCategory.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Sem gastos registrados no período.</p>
+                )}
+              </ul>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <h2 className="text-sm font-semibold mb-1">Maiores gastos</h2>
+              <p className="text-xs text-muted-foreground mb-3">Os 10 maiores lançamentos do período</p>
+              <ul className="space-y-2">
+                {data.expenses.topExpenses.map((e, i) => (
+                  <li key={i} className="flex items-center justify-between text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate">{e.description}</p>
+                      <p className="text-xs text-muted-foreground">{e.category}</p>
+                    </div>
+                    <span className="tabular-nums font-medium shrink-0 ml-2">
+                      {formatCurrency(e.amountCents)}
+                    </span>
+                  </li>
+                ))}
+                {data.expenses.topExpenses.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Sem gastos registrados no período.</p>
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
 
         <ReportPrintFooter title="Financeiro" />
       </div>

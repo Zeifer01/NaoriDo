@@ -104,6 +104,12 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.historical_orders_report`.
    */
   historical_orders_report: boolean;
+  /**
+   * Shows the "Gastos" (material expenses ledger) nav item and its Reports
+   * "Financeiro" expenses section. Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.material_expenses`.
+   */
+  material_expenses: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -122,6 +128,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   pos_customer_info_optional: false,
   bulk_order_actions_toggle: false,
   historical_orders_report: false,
+  material_expenses: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -196,6 +203,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     pos_customer_info_optional: s.pos_customer_info_optional === true,
     bulk_order_actions_toggle: s.bulk_order_actions_toggle === true,
     historical_orders_report: s.historical_orders_report === true,
+    material_expenses: s.material_expenses === true,
   };
 }
 
@@ -241,6 +249,11 @@ export function hasBulkOrderActionsToggle(settings: unknown): boolean {
 /** True when the org's Reports nav shows the "Pedidos Retroativos" (imported WhatsApp history) tab. */
 export function hasHistoricalOrdersReport(settings: unknown): boolean {
   return getOrgUxFlags(settings).historical_orders_report;
+}
+
+/** True when the org's "Gastos" (material expenses ledger) nav item and reports section are shown. */
+export function hasMaterialExpenses(settings: unknown): boolean {
+  return getOrgUxFlags(settings).material_expenses;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

@@ -143,6 +143,17 @@ export interface FinanceAnalytics {
   paymentMethods: { method: string; amountCents: number; share: number; tipCents: number }[];
   byHour: { hour: number; revenueCents: number; orders: number }[];
   byWeekday: { weekday: number; label: string; revenueCents: number; orders: number }[];
+  /**
+   * Material expenses (cups, gloves, fruit, etc.) in the period — only
+   * populated for orgs with the `material_expenses` UX flag (Açaí House).
+   * `undefined` for every other org, never a zeroed-out object.
+   */
+  expenses?: {
+    totalCents: number;
+    profitCents: number;
+    byCategory: { category: string; amountCents: number; share: number }[];
+    topExpenses: { description: string; category: string; amountCents: number; date: string }[];
+  };
 }
 
 export type RfmSegment =

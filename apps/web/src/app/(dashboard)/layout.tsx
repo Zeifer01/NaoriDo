@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   ContactRound,
   History,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
@@ -87,6 +88,7 @@ const navGroups: NavGroup[] = [
     label: "Gestão",
     items: [
       { href: "/inventory", label: "Inventário", icon: Package, feature: "inventory" },
+      { href: "/expenses", label: "Gastos", icon: Receipt },
       { href: "/staff", label: "Equipe", icon: Users },
       { href: "/payments", label: "Pagamentos", icon: CreditCard },
     ],
@@ -187,7 +189,7 @@ export default function DashboardLayout({
   const { data: org } = useOrgSettings();
   const { data: branches } = useBranches();
   const { data: branchSettings } = useBranchSettings();
-  const { has: hasFeature, kitchenLabel } = useFeatures();
+  const { has: hasFeature, kitchenLabel, materialExpenses } = useFeatures();
   const setCurrency = useCurrencyStore((s) => s.setCurrency);
   const availableBranches = branches ?? [];
   const canSwitchBranch = availableBranches.length > 1;
@@ -294,10 +296,15 @@ export default function DashboardLayout({
     onControlPlane,
     kitchenLabel,
   );
-  const filteredNavGroups = tablesEnabled
+  const navGroupsWithTables = tablesEnabled
     ? baseNavGroups
     : baseNavGroups
         .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/tables") }))
+        .filter((g) => g.items.length > 0);
+  const filteredNavGroups = materialExpenses
+    ? navGroupsWithTables
+    : navGroupsWithTables
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/expenses") }))
         .filter((g) => g.items.length > 0);
   const allFilteredItems = filteredNavGroups.flatMap((g) => g.items);
   const mobileNavItems = allFilteredItems.slice(0, 5);

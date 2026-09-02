@@ -13,7 +13,7 @@ export function ImageUploadButton({
 }: {
   currentUrl?: string | null;
   onUploaded: (url: string) => void;
-  uploadType?: "menu" | "category";
+  uploadType?: "menu" | "category" | "expense";
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadImage = useUploadImage();

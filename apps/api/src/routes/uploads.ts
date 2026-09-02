@@ -12,7 +12,7 @@ const ALLOWED_TYPES = new Set([
   "image/gif",
 ]);
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_UPLOAD_TYPES = new Set(["menu", "logo", "category"]);
+const ALLOWED_UPLOAD_TYPES = new Set(["menu", "logo", "category", "expense"]);
 
 function extFromMime(mime: string): string {
   switch (mime) {

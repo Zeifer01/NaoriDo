@@ -1,5 +1,6 @@
-import { and, eq, sum, inArray } from "drizzle-orm";
+import { and, eq, gte, lte, desc, sum, inArray } from "drizzle-orm";
 import { db, schema } from "@restai/db";
+import { hasMaterialExpenses } from "@restai/config";
 import type {
   AnalyticsPeriod,
   AnalyticsScope,
@@ -11,6 +12,62 @@ import {
   getCompletedOrderIds,
   loadOrderTotals,
 } from "./sales.js";
+
+async function getExpensesForPeriod(
+  scope: AnalyticsScope,
+  period: AnalyticsPeriod,
+  revenueCents: number,
+): Promise<FinanceAnalytics["expenses"]> {
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, scope.organizationId))
+    .limit(1);
+  if (!hasMaterialExpenses(org?.settings)) return undefined;
+
+  const start = new Date(period.start);
+  const end = new Date(period.end);
+  end.setHours(23, 59, 59, 999);
+
+  const conditions = [
+    eq(schema.materialExpenses.organization_id, scope.organizationId),
+    gte(schema.materialExpenses.expense_date, start),
+    lte(schema.materialExpenses.expense_date, end),
+  ];
+  if (scope.branchId) conditions.push(eq(schema.materialExpenses.branch_id, scope.branchId));
+
+  const rows = await db
+    .select()
+    .from(schema.materialExpenses)
+    .where(and(...conditions))
+    .orderBy(desc(schema.materialExpenses.amount));
+
+  const totalCents = rows.reduce((s, r) => s + r.amount, 0);
+
+  const byCategoryMap = new Map<string, number>();
+  for (const r of rows) byCategoryMap.set(r.category, (byCategoryMap.get(r.category) ?? 0) + r.amount);
+  const byCategory = [...byCategoryMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, amountCents]) => ({
+      category,
+      amountCents,
+      share: totalCents > 0 ? Math.round((amountCents / totalCents) * 1000) / 10 : 0,
+    }));
+
+  const topExpenses = rows.slice(0, 10).map((r) => ({
+    description: r.description,
+    category: r.category,
+    amountCents: r.amount,
+    date: r.expense_date.toISOString(),
+  }));
+
+  return {
+    totalCents,
+    profitCents: revenueCents - totalCents,
+    byCategory,
+    topExpenses,
+  };
+}
 
 export async function getFinanceAnalytics(params: {
   scope: AnalyticsScope;
@@ -92,6 +149,14 @@ export async function getFinanceAnalytics(params: {
     metric("finance.tax", "Impostos", totals.totalTax, "cents", prev?.totalTax),
   ];
 
+  const expenses = await getExpensesForPeriod(params.scope, params.period, totals.totalRevenue);
+  if (expenses) {
+    metrics.push(
+      metric("finance.expenses", "Gastos com materiais", expenses.totalCents, "cents"),
+      metric("finance.profit", "Lucro estimado", expenses.profitCents, "cents"),
+    );
+  }
+
   return {
     period: params.period,
     comparePeriod: params.comparePeriod,
@@ -100,5 +165,6 @@ export async function getFinanceAnalytics(params: {
     paymentMethods,
     byHour: sales.byHour,
     byWeekday: sales.byWeekday,
+    expenses,
   };
 }

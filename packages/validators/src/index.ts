@@ -419,6 +419,33 @@ export const historicalOrdersQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
 });
 
+// Material expenses (Açaí House "Gastos")
+export const createExpenseSchema = z.object({
+  category: z.string().min(1).max(60),
+  description: z.string().min(1).max(255),
+  amount: z.number().int().min(1),
+  vendor: z.string().max(255).optional(),
+  notes: z.string().max(2000).optional(),
+  receiptUrl: z.string().url().max(500).optional(),
+  expenseDate: z.string().optional(),
+});
+
+export const updateExpenseSchema = z.object({
+  category: z.string().min(1).max(60).optional(),
+  description: z.string().min(1).max(255).optional(),
+  amount: z.number().int().min(1).optional(),
+  vendor: z.string().max(255).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  receiptUrl: z.string().url().max(500).nullable().optional(),
+  expenseDate: z.string().optional(),
+});
+
+export const expenseQuerySchema = z.object({
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  category: z.string().optional(),
+});
+
 // Analytics / BI query (reports v2)
 export const analyticsQuerySchema = z.object({
   startDate: z.string(),
@@ -696,6 +723,9 @@ export type ImportCustomersInput = z.infer<typeof importCustomersSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
 export type HistoricalOrdersQueryInput = z.infer<typeof historicalOrdersQuerySchema>;
+export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
+export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
+export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;
 export type AnalyticsQueryInput = z.infer<typeof analyticsQuerySchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
 export type UpdateModifierGroupInput = z.infer<typeof updateModifierGroupSchema>;

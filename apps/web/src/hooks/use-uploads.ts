@@ -4,7 +4,7 @@ import { useAuthStore } from "@/stores/auth-store";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-type UploadType = "menu" | "logo" | "category";
+type UploadType = "menu" | "logo" | "category" | "expense";
 
 export function useUploadImage() {
   return useMutation({

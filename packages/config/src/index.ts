@@ -53,6 +53,7 @@ export const PERMISSIONS = {
     "staff:*", "inventory:*", "loyalty:*",
     "customers:*",
     "payments:*", "reports:*", "invoices:*",
+    "expenses:*",
     "settings:*",
     /** Deliberately separate from orders:* so branch_manager/cashier can't see it. */
     "audit:read",
@@ -65,6 +66,7 @@ export const PERMISSIONS = {
     "customers:*",
     "payments:*", "reports:read",
     "invoices:*", "settings:read",
+    "expenses:*",
   ],
   cashier: [
     "orders:read", "orders:create", "orders:update",
