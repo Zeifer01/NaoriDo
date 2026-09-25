@@ -31,6 +31,7 @@ function loyaltyModifiersChargeCents(modifiers: CartModifier[]): number {
     groupId: "",
     price: m.price,
     outsideCup: m.outsideCup,
+    paidOnly: m.paidOnly,
   }));
   return calcSequentialFreeChargeCents(priced, LOYALTY_FREE_COMPLEMENTOS);
 }

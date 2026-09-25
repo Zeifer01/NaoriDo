@@ -1,6 +1,6 @@
 import { eq, and, inArray, sql, isNull } from "drizzle-orm";
 import { db, schema, type DbOrTx } from "@restai/db";
-import { getDeliveryFeeCents, getPickupFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcSequentialFreeChargeCents, calcSequentialFreeSnapshotPrices, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
+import { getDeliveryFeeCents, getPickupFeeCents, calcModifiersChargeCents, calcModifierSnapshotPrices, calcSequentialFreeChargeCents, calcSequentialFreeSnapshotPrices, isPaidOnlyModifier, calcItemTotalCents, hasSimplifiedOrderStatus, getSimplifiedInitialOrderStatus, hasLoyaltyStickerCard } from "@restai/config";
 import { allocateOrderNumber, resetBranchOrderSequence, archiveCurrentSession } from "../lib/order-number.js";
 import { logger } from "../lib/logger.js";
 import { awardPoints } from "./loyalty.service.js";
@@ -221,6 +221,8 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
       groupId: m.groupId,
       price: m.price,
       outsideCup: m.outsideCup,
+      // Premium extras (no free allowance in their group) are never covered by the loyalty card.
+      paidOnly: isPaidOnlyModifier(m.price, m.freeQuantity),
     }));
 
     const applyLoyaltyDiscount = orgHasLoyaltyStickerCard && item.loyaltyDiscount === true;
@@ -228,7 +230,8 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
     // Loyalty sticker card: cup is free + the first LOYALTY_FREE_COMPLEMENTOS
     // complementos the staff added (in that order) are free, ACROSS all
     // groups combined — from the next one on, charge its real price, even
-    // if it's a pricier recheio/mousse. Sequential, NOT price-sorted: unlike
+    // if it's a pricier recheio/mousse. Premium extras (paidOnly) are always
+    // charged and don't use up a free slot. Sequential, NOT price-sorted: unlike
     // the menu's normal free_quantity (which frees the priciest slots
     // first), the card doesn't get to "pick" the 3 most expensive items.
     const modifierPricePerUnit = applyLoyaltyDiscount

@@ -17,6 +17,17 @@ export interface PricedModifier {
   groupId: string;
   price: number; // cents
   outsideCup?: boolean;
+  /**
+   * Paid-only extra (e.g. premium recheio): has no free allowance of its own
+   * in the menu. Ordinal rewards (loyalty card) never cover it — it always
+   * charges its own price and doesn't use up one of the free slots.
+   */
+  paidOnly?: boolean;
+}
+
+/** A modifier is "paid-only" when its group gives no free allowance and it has a price. */
+export function isPaidOnlyModifier(priceCents: number, groupFreeQuantity: number): boolean {
+  return priceCents > 0 && groupFreeQuantity <= 0;
 }
 
 export interface ModifierGroupFreeConfig {
@@ -130,19 +141,31 @@ export function calcModifiersChargeCents(
  * customer picked first", not "whichever N are worth the most" — e.g. the
  * loyalty sticker card: first 3 complementos are free, the 4th onward costs
  * whatever it costs, even if it's a pricier recheio/mousse.
+ *
+ * Entries flagged `paidOnly` (premium extras with no free allowance) are the
+ * exception: they always charge their own price and do NOT use up a free slot,
+ * so the card's free slots go to the regular complementos.
  */
 export function calcSequentialFreeSnapshotPrices(
   selected: PricedModifier[],
   freeCount: number,
 ): ModifierPriceSnapshot[] {
-  return selected.map((m, i) => ({
-    id: m.id,
-    groupId: m.groupId,
-    listPrice: m.price,
-    effectivePrice: i < freeCount ? 0 : m.price,
-    outsideCup: m.outsideCup === true,
-    outsideCupFee: 0,
-  }));
+  let freeUsed = 0;
+  return selected.map((m) => {
+    let effectivePrice = m.price;
+    if (!m.paidOnly) {
+      effectivePrice = freeUsed < freeCount ? 0 : m.price;
+      freeUsed += 1;
+    }
+    return {
+      id: m.id,
+      groupId: m.groupId,
+      listPrice: m.price,
+      effectivePrice,
+      outsideCup: m.outsideCup === true,
+      outsideCupFee: 0,
+    };
+  });
 }
 
 export function calcSequentialFreeChargeCents(

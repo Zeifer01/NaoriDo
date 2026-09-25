@@ -4,6 +4,7 @@ import {
   calcModifierSnapshotPrices,
   calcSequentialFreeChargeCents,
   calcSequentialFreeSnapshotPrices,
+  isPaidOnlyModifier,
   formatModifierDisplayName,
   isLegacyOutsideCupGroupName,
 } from "@restai/config";
@@ -133,6 +134,46 @@ describe("calcSequentialFreeChargeCents (loyalty sticker card)", () => {
 
   test("empty selection charges nothing", () => {
     expect(calcSequentialFreeChargeCents([], 3)).toBe(0);
+  });
+
+  test("premium (paidOnly) is always charged, even when picked among the first 3", () => {
+    // Real case (turno41-12): premium picked 2nd used to come out free.
+    const charge = calcSequentialFreeChargeCents(
+      [
+        { id: "banana", groupId: "g1", price: 100 },
+        { id: "creme", groupId: "g2", price: 300, paidOnly: true },
+        { id: "granola", groupId: "g1", price: 100 },
+        { id: "morango", groupId: "g1", price: 100 },
+      ],
+      3,
+    );
+    // 3 regular complementos free; premium charged $3.
+    expect(charge).toBe(300);
+  });
+
+  test("premium does not use up a free slot", () => {
+    const snapshots = calcSequentialFreeSnapshotPrices(
+      [
+        { id: "premium", groupId: "g2", price: 300, paidOnly: true },
+        { id: "a", groupId: "g1", price: 100 },
+        { id: "b", groupId: "g1", price: 100 },
+        { id: "c", groupId: "g1", price: 100 },
+        { id: "d", groupId: "g1", price: 100 },
+      ],
+      3,
+    );
+    const byId = Object.fromEntries(snapshots.map((s) => [s.id, s.effectivePrice]));
+    expect(byId).toEqual({ premium: 300, a: 0, b: 0, c: 0, d: 100 });
+  });
+});
+
+describe("isPaidOnlyModifier", () => {
+  test("priced modifier in a group without free allowance is paid-only", () => {
+    expect(isPaidOnlyModifier(300, 0)).toBe(true);
+  });
+  test("regular complemento (group has free allowance) or $0 item is not", () => {
+    expect(isPaidOnlyModifier(100, 3)).toBe(false);
+    expect(isPaidOnlyModifier(0, 0)).toBe(false);
   });
 });
 

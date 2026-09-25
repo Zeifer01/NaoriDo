@@ -18,6 +18,7 @@ import {
   calcModifiersChargeCents,
   calcModifierSnapshotPrices,
   formatModifierDisplayName,
+  isPaidOnlyModifier,
 } from "@restai/config";
 import { useCurrencyStore } from "@/stores/currency-store";
 
@@ -31,6 +32,8 @@ export interface CartModifier {
   price: number;
   /** Mirror storefront: free-slot complement placed outside the cup. */
   outsideCup?: boolean;
+  /** Premium extra with no free allowance in its group — never covered by the loyalty card. */
+  paidOnly?: boolean;
 }
 
 function outsideKey(groupId: string, modId: string, occurrence: number) {
@@ -142,6 +145,7 @@ export function ModifierDialog({
       price: number;
       name: string;
       outsideCup: boolean;
+      paidOnly: boolean;
     }[] = [];
     const groupsCfg: {
       id: string;
@@ -173,6 +177,7 @@ export function ModifierDialog({
           outsideCup:
             group.allow_outside_cup === true &&
             outside[outsideKey(groupId, modId, occ)] === true,
+          paidOnly: isPaidOnlyModifier(mod.price || 0, group.free_quantity ?? 0),
         });
       }
     }
@@ -212,6 +217,7 @@ export function ModifierDialog({
         name: formatModifierDisplayName(m.name, snap?.outsideCup ?? m.outsideCup),
         price: snap?.effectivePrice ?? m.price,
         outsideCup: snap?.outsideCup ?? m.outsideCup,
+        paidOnly: m.paidOnly,
       };
     });
     onAdd(item, quantity, cartMods, notes);
