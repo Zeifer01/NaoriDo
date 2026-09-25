@@ -15,7 +15,16 @@ import {
   quoteDeliveryFeeSchema,
   bulkCompleteOrdersSchema,
 } from "@restai/validators";
-import { ORDER_STATUS_TRANSITIONS, ORDER_ITEM_STATUS_TRANSITIONS, appendCityToAddress, hasBulkOrderActionsToggle } from "@restai/config";
+import {
+  ORDER_STATUS_TRANSITIONS,
+  ORDER_ITEM_STATUS_TRANSITIONS,
+  appendCityToAddress,
+  hasBulkOrderActionsToggle,
+  usesUsPhoneFormat,
+  isValidPhoneForUsBranch,
+  US_PHONE_HINT_PT,
+} from "@restai/config";
+import { getWhatsAppPhoneCountryCode } from "../lib/whatsapp-messages.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -306,6 +315,25 @@ orders.post(
         )
         .limit(1);
       tableSessionId = session?.id || null;
+    }
+
+    // US branches (whatsapp country code 1): reject malformed phones (e.g. 9 digits,
+    // or an address typed in the phone field) that would break WhatsApp notifications.
+    if (body.deliveryPhone?.trim()) {
+      const [branchRow] = await db
+        .select({ settings: schema.branches.settings })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, tenant.branchId))
+        .limit(1);
+      if (
+        usesUsPhoneFormat(getWhatsAppPhoneCountryCode(branchRow?.settings)) &&
+        !isValidPhoneForUsBranch(body.deliveryPhone)
+      ) {
+        return c.json(
+          { success: false, error: { code: "INVALID_PHONE", message: US_PHONE_HINT_PT } },
+          400,
+        );
+      }
     }
 
     let result;

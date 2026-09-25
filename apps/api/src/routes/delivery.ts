@@ -25,7 +25,16 @@ import {
   notifyDeliveryOrderCreated,
 } from "../services/whatsapp.service.js";
 import { quoteDeliveryFeeForAddress } from "../services/delivery-fee.service.js";
-import { isLegacyOutsideCupGroupName, calcItemTotalCents, hasMenuDefaultAllItems } from "@restai/config";
+import {
+  isLegacyOutsideCupGroupName,
+  calcItemTotalCents,
+  hasMenuDefaultAllItems,
+  usesUsPhoneFormat,
+  isValidPhoneForUsBranch,
+  US_PHONE_HINT_EN,
+  US_PHONE_HINT_PT,
+} from "@restai/config";
+import { getWhatsAppPhoneCountryCode } from "../lib/whatsapp-messages.js";
 import { wsManager } from "../ws/manager.js";
 import { orgHasFeature } from "../lib/features.js";
 import { resolveHost } from "../lib/tenant-host.js";
@@ -470,6 +479,27 @@ delivery.post(
     }
 
     const branchSettings = (branch.settings || {}) as Record<string, unknown>;
+
+    // US branches (whatsapp country code 1): the phone must be a real 10-digit
+    // number. A malformed one (e.g. 9 digits) makes the WhatsApp notifications
+    // go nowhere and delays the order. Other branches are unaffected.
+    if (
+      usesUsPhoneFormat(getWhatsAppPhoneCountryCode(branchSettings)) &&
+      body.deliveryPhone?.trim() &&
+      !isValidPhoneForUsBranch(body.deliveryPhone)
+    ) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "INVALID_PHONE",
+            message: deliveryFeeLang(branch) === "en" ? US_PHONE_HINT_EN : US_PHONE_HINT_PT,
+          },
+        },
+        400,
+      );
+    }
+
     if (body.fulfillment === "pickup" && branchSettings.pickup_enabled === false) {
       return c.json(
         {

@@ -7,6 +7,9 @@ export * from "./org-ux";
 // Complemento / modifier pricing with free_quantity
 export * from "./modifier-pricing";
 
+// US phone mask + validation ("(508) 963-4871") for branches with country code 1
+export * from "./phone-us";
+
 // Quantity-break item promo pricing ("leve N por R$X")
 export * from "./item-pricing";
 

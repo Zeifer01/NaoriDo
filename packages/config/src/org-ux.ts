@@ -110,6 +110,13 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.material_expenses`.
    */
   material_expenses: boolean;
+  /**
+   * Shows an availability switch + name/price edit on each modifier (complemento)
+   * in the Menu > Modificadores tab. Applies by name to every group in the branch, so
+   * "acabou a banana" is one click. Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.modifier_quick_edit`.
+   */
+  modifier_quick_edit: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -129,6 +136,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   bulk_order_actions_toggle: false,
   historical_orders_report: false,
   material_expenses: false,
+  modifier_quick_edit: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -204,6 +212,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     bulk_order_actions_toggle: s.bulk_order_actions_toggle === true,
     historical_orders_report: s.historical_orders_report === true,
     material_expenses: s.material_expenses === true,
+    modifier_quick_edit: s.modifier_quick_edit === true,
   };
 }
 
@@ -254,6 +263,11 @@ export function hasHistoricalOrdersReport(settings: unknown): boolean {
 /** True when the org's "Gastos" (material expenses ledger) nav item and reports section are shown. */
 export function hasMaterialExpenses(settings: unknown): boolean {
   return getOrgUxFlags(settings).material_expenses;
+}
+
+/** True when the Modificadores tab shows the availability switch + quick edit per complemento. */
+export function hasModifierQuickEdit(settings: unknown): boolean {
+  return getOrgUxFlags(settings).modifier_quick_edit;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

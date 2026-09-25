@@ -58,6 +58,8 @@ interface UseFeaturesResult {
   historicalOrdersReport: boolean;
   /** True when the "Gastos" (material expenses ledger) nav item and reports section are shown. */
   materialExpenses: boolean;
+  /** True when the Modificadores tab shows the availability switch + quick edit per complemento. */
+  modifierQuickEdit: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -151,6 +153,7 @@ export function useFeatures(): UseFeaturesResult {
       bulkOrderActionsToggle: ux.bulk_order_actions_toggle,
       historicalOrdersReport: ux.historical_orders_report,
       materialExpenses: ux.material_expenses,
+      modifierQuickEdit: ux.modifier_quick_edit,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

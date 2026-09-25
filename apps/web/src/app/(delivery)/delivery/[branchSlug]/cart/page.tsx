@@ -29,6 +29,9 @@ import {
   formatModifierDisplayName,
   appendCityToAddress,
   OTHER_CITY_VALUE,
+  formatUsPhone,
+  isValidPhoneForUsBranch,
+  US_PHONE_HINT_EN,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
@@ -939,11 +942,22 @@ export default function DeliveryCartPage({
             id="deliveryPhone"
             className={deliveryClasses.input}
             placeholder={preferEnglish ? "(508) 555-1234" : "(11) 99999-9999"}
-            {...register("deliveryPhone", { required: true })}
+            inputMode="tel"
+            // US branches (USD): force the standard "(508) 963-4871" format, 10 digits.
+            {...register("deliveryPhone", {
+              required: true,
+              validate: (v) => !preferEnglish || isValidPhoneForUsBranch(v),
+              onChange: (e) => {
+                if (!preferEnglish) return;
+                const masked = formatUsPhone(e.target.value);
+                e.target.value = masked;
+                setValue("deliveryPhone", masked, { shouldValidate: true });
+              },
+            })}
           />
           {errors.deliveryPhone && (
             <p className={deliveryClasses.error}>
-              {preferEnglish ? "Enter a valid phone" : "Informe um telefone válido"}
+              {preferEnglish ? US_PHONE_HINT_EN : "Informe um telefone válido"}
             </p>
           )}
         </div>

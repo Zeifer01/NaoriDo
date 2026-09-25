@@ -18,7 +18,16 @@ import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
 import { useFeatures } from "@/hooks/use-features";
-import { appendCityToAddress, getDeliveryFeeCents, calcItemTotalCents, calcSequentialFreeChargeCents } from "@restai/config";
+import {
+  appendCityToAddress,
+  getDeliveryFeeCents,
+  calcItemTotalCents,
+  calcSequentialFreeChargeCents,
+  formatPhoneForUsBranch,
+  isValidPhoneForUsBranch,
+  usesUsPhoneFormat,
+  US_PHONE_HINT_PT,
+} from "@restai/config";
 
 // Loyalty sticker card (Açaí House): cup free + the first 3 complementos
 // added (in that order) are free — the 4th onward costs its real price,
@@ -101,6 +110,11 @@ export default function PosPage() {
 
   const allItems: any[] = menuItems ?? [];
 
+  // US branches (country code 1): phone must be a 10-digit "(508) 963-4871".
+  const usPhone = usesUsPhoneFormat(
+    (branchSettings as any)?.settings?.whatsapp_phone_country_code as string | undefined,
+  );
+
   const resetCustomerFields = () => {
     setCustomerName("");
     setCustomerPhone("");
@@ -120,7 +134,9 @@ export default function PosPage() {
   const handleSelectCustomer = (c: PosCustomerSuggestion) => {
     setSelectedCustomerId(c.id);
     setCustomerName(c.name || "");
-    setCustomerPhone(c.phone || "");
+    // Mask valid saved numbers (US or international); an invalid one is kept as-is so it's visible and gets flagged on submit.
+    const savedPhone = c.phone || "";
+    setCustomerPhone(usPhone ? formatPhoneForUsBranch(savedPhone) : savedPhone);
     setDeliveryAddress(formatCustomerAddress(c));
     setCustomerNotes(c.notes || "");
   };
@@ -212,6 +228,10 @@ export default function PosPage() {
     }
     if (orderType === "delivery" && deliveryAddress.trim().length < 5) {
       toast.error("Informe o endereço de entrega");
+      return;
+    }
+    if (usPhone && customerPhone.trim() && !isValidPhoneForUsBranch(customerPhone)) {
+      toast.error(US_PHONE_HINT_PT);
       return;
     }
     if (!paymentMethod) {

@@ -12,11 +12,15 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
-import { useModifierGroups, useDeleteModifierGroup } from "@/hooks/use-menu";
+import { formatCurrency, cn } from "@/lib/utils";
+import { useModifierGroups, useDeleteModifierGroup, useBulkUpdateModifiers } from "@/hooks/use-menu";
+import { useFeatures } from "@/hooks/use-features";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ModifierGroupDialog } from "./modifier-group-dialog";
+import { ModifierQuickEditDialog } from "./modifier-quick-edit-dialog";
+
+const nameKey = (name: string) => name.trim().toLowerCase();
 
 function Skeleton({ className }: { className?: string }) {
   return (
@@ -27,6 +31,9 @@ function Skeleton({ className }: { className?: string }) {
 export function ModifierGroupsPainel() {
   const { data: groups, isLoading } = useModifierGroups();
   const deleteGroup = useDeleteModifierGroup();
+  const bulkUpdate = useBulkUpdateModifiers();
+  const { modifierQuickEdit } = useFeatures();
+  const [quickEditMod, setQuickEditMod] = useState<{ name: string; price: number } | null>(null);
 
   const [editGroup, setEditGroup] = useState<any>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -34,6 +41,28 @@ export function ModifierGroupsPainel() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const groupList: any[] = groups ?? [];
+
+  // How many groups of the branch contain a modifier with a given name (quick edit applies to all of them).
+  const groupCountByName = new Map<string, number>();
+  for (const g of groupList) {
+    const seen = new Set<string>();
+    for (const m of g.modifiers ?? []) seen.add(nameKey(m.name));
+    for (const k of seen) groupCountByName.set(k, (groupCountByName.get(k) ?? 0) + 1);
+  }
+
+  const handleToggleAvailability = async (mod: any) => {
+    const next = mod.is_available === false;
+    try {
+      const res = await bulkUpdate.mutateAsync({ name: mod.name, isAvailable: next });
+      toast.success(
+        next
+          ? `"${mod.name}" disponível novamente (${res.groups} grupo${res.groups !== 1 ? "s" : ""})`
+          : `"${mod.name}" indisponível em ${res.groups} grupo${res.groups !== 1 ? "s" : ""}`,
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar");
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
@@ -163,13 +192,63 @@ export function ModifierGroupsPainel() {
                         >
                           <div className="flex items-center gap-2">
                             <GripVertical className="h-3 w-3 text-muted-foreground/50" />
-                            <span>{mod.name}</span>
+                            <span
+                              className={cn(
+                                mod.is_available === false && "line-through text-muted-foreground",
+                              )}
+                            >
+                              {mod.name}
+                            </span>
+                            {mod.is_available === false && (
+                              <Badge variant="secondary" className="text-[9px] px-1.5 py-0">
+                                Indisponível
+                              </Badge>
+                            )}
                           </div>
-                          <span className="text-muted-foreground">
-                            {mod.price > 0
-                              ? `+${formatCurrency(mod.price)}`
-                              : "Grátis"}
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted-foreground">
+                              {mod.price > 0
+                                ? `+${formatCurrency(mod.price)}`
+                                : "Grátis"}
+                            </span>
+                            {modifierQuickEdit && (
+                              <>
+                                <button
+                                  type="button"
+                                  role="switch"
+                                  aria-checked={mod.is_available !== false}
+                                  aria-label={`Disponibilidade de ${mod.name}`}
+                                  title={
+                                    mod.is_available === false
+                                      ? "Indisponível — clique para reativar"
+                                      : "Disponível — clique para desativar"
+                                  }
+                                  disabled={bulkUpdate.isPending}
+                                  onClick={() => handleToggleAvailability(mod)}
+                                  className={cn(
+                                    "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
+                                    mod.is_available === false ? "bg-muted-foreground/30" : "bg-emerald-500",
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                                      mod.is_available === false ? "translate-x-0.5" : "translate-x-[18px]",
+                                    )}
+                                  />
+                                </button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  title="Editar nome / valor"
+                                  onClick={() => setQuickEditMod({ name: mod.name, price: mod.price })}
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -186,6 +265,17 @@ export function ModifierGroupsPainel() {
             );
           })}
         </div>
+      )}
+
+      {modifierQuickEdit && (
+        <ModifierQuickEditDialog
+          open={!!quickEditMod}
+          onOpenChange={(v) => {
+            if (!v) setQuickEditMod(null);
+          }}
+          modifier={quickEditMod}
+          groupCount={quickEditMod ? (groupCountByName.get(nameKey(quickEditMod.name)) ?? 1) : 1}
+        />
       )}
 
       {/* Dialogs */}

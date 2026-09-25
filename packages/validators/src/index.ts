@@ -419,6 +419,20 @@ export const historicalOrdersQuerySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
 });
 
+// Modifier quick edit (Açaí House): change availability / name / price of every
+// modifier with the same name across all groups of the branch.
+export const bulkUpdateModifiersSchema = z
+  .object({
+    name: z.string().min(1).max(255),
+    isAvailable: z.boolean().optional(),
+    newName: z.string().min(1).max(255).optional(),
+    price: z.number().int().min(0).max(1_000_000).optional(),
+  })
+  .refine(
+    (v) => v.isAvailable !== undefined || v.newName !== undefined || v.price !== undefined,
+    { message: "Nada para atualizar" },
+  );
+
 // Material expenses (Açaí House "Gastos")
 export const createExpenseSchema = z.object({
   category: z.string().min(1).max(60),
@@ -723,6 +737,7 @@ export type ImportCustomersInput = z.infer<typeof importCustomersSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 export type ReportQueryInput = z.infer<typeof reportQuerySchema>;
 export type HistoricalOrdersQueryInput = z.infer<typeof historicalOrdersQuerySchema>;
+export type BulkUpdateModifiersInput = z.infer<typeof bulkUpdateModifiersSchema>;
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 export type ExpenseQueryInput = z.infer<typeof expenseQuerySchema>;

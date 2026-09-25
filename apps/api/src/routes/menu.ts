@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, and, inArray, isNotNull, or, gte } from "drizzle-orm";
+import { eq, and, inArray, isNotNull, or, gte, sql } from "drizzle-orm";
+import { hasModifierQuickEdit } from "@restai/config";
 import { db, schema } from "@restai/db";
 import {
   createCategorySchema,
@@ -13,12 +14,14 @@ import {
   createModifierSchema,
   updateModifierGroupSchema,
   updateModifierSchema,
+  bulkUpdateModifiersSchema,
   idParamSchema,
 } from "@restai/validators";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { requireActivePlan } from "../middleware/active-plan.js";
+import { requireOrgUxFlag } from "../middleware/org-ux-flag.js";
 import { notifyItemUnavailable } from "../services/whatsapp.service.js";
 
 const menu = new Hono<AppEnv>();
@@ -926,6 +929,60 @@ menu.patch(
     }
 
     return c.json({ success: true, data: updated });
+  },
+);
+
+// POST /modifiers/bulk-update — quick edit by name across every modifier group of
+// the branch (e.g. "acabou a banana": one call disables it in all cup-size groups).
+// Only for orgs with the modifier_quick_edit flag (Açaí House).
+menu.post(
+  "/modifiers/bulk-update",
+  requireOrgUxFlag(hasModifierQuickEdit, "Edição rápida de complementos"),
+  requirePermission("menu:update"),
+  zValidator("json", bulkUpdateModifiersSchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    const tenant = c.get("tenant") as any;
+
+    const matches = await db
+      .select({ id: schema.modifiers.id, groupId: schema.modifiers.group_id })
+      .from(schema.modifiers)
+      .innerJoin(
+        schema.modifierGroups,
+        eq(schema.modifiers.group_id, schema.modifierGroups.id),
+      )
+      .where(
+        and(
+          eq(schema.modifierGroups.branch_id, tenant.branchId),
+          eq(schema.modifierGroups.organization_id, tenant.organizationId),
+          sql`lower(trim(${schema.modifiers.name})) = ${body.name.trim().toLowerCase()}`,
+        ),
+      );
+
+    if (matches.length === 0) {
+      return c.json(
+        { success: false, error: { code: "NOT_FOUND", message: "Complemento não encontrado" } },
+        404,
+      );
+    }
+
+    const updateData: Record<string, any> = {};
+    if (body.isAvailable !== undefined) updateData.is_available = body.isAvailable;
+    if (body.newName !== undefined) updateData.name = body.newName.trim();
+    if (body.price !== undefined) updateData.price = body.price;
+
+    await db
+      .update(schema.modifiers)
+      .set(updateData)
+      .where(inArray(schema.modifiers.id, matches.map((m) => m.id)));
+
+    return c.json({
+      success: true,
+      data: {
+        updated: matches.length,
+        groups: new Set(matches.map((m) => m.groupId)).size,
+      },
+    });
   },
 );
 

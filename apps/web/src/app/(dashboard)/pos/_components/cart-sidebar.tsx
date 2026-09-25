@@ -31,6 +31,8 @@ import {
   appendCityToAddress,
   calcItemTotalCents,
   calcSequentialFreeChargeCents,
+  formatUsPhone,
+  usesUsPhoneFormat,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { apiFetch } from "@/lib/fetcher";
@@ -199,6 +201,8 @@ export function CartSidebar({
     string,
     unknown
   >;
+  // US branches (country code 1): phone is typed/stored as "(508) 963-4871".
+  const usPhone = usesUsPhoneFormat(branchSettingsObj.whatsapp_phone_country_code as string | undefined);
   const pricing = parseDeliveryPricing(branchSettingsObj);
   const isAutoPricing = pricing.mode === "radius" || pricing.mode === "cities";
   const flatFeeCents = getDeliveryFeeCents(branchSettingsObj);
@@ -440,12 +444,12 @@ export function CartSidebar({
         <div className="relative">
           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Telefone (busca ou novo)"
+            placeholder={usPhone ? "Telefone (508) 963-4871" : "Telefone (busca ou novo)"}
             value={customerPhone}
             onChange={(e) => {
               onClearSelectedCustomer();
               setSearchSource("phone");
-              onCustomerPhoneChange(e.target.value);
+              onCustomerPhoneChange(usPhone ? formatUsPhone(e.target.value) : e.target.value);
               setSuggestionsOpen(true);
             }}
             onFocus={() => {

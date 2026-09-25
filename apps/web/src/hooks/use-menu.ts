@@ -129,6 +129,27 @@ export function useDeleteModifierGroup() {
   });
 }
 
+/**
+ * Quick edit (modifier_quick_edit flag): applies availability / name / price to
+ * every modifier with the same name across all groups of the branch.
+ */
+export function useBulkUpdateModifiers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: {
+      name: string;
+      isAvailable?: boolean;
+      newName?: string;
+      price?: number;
+    }) =>
+      apiFetch<{ updated: number; groups: number }>("/api/menu/modifiers/bulk-update", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["menu"] }),
+  });
+}
+
 // --- Modifiers ---
 
 export function useAddModifier() {
