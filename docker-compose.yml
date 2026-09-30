@@ -47,7 +47,7 @@ services:
           || psql -h postgres -U "$$POSTGRES_USER" -d postgres -c "CREATE DATABASE evolution;"
 
   evolution-api:
-    image: evoapicloud/evolution-api:v2.3.5
+    image: evoapicloud/evolution-api:v2.3.7
     restart: unless-stopped
     environment:
       SERVER_URL: ${EVOLUTION_SERVER_URL:-http://localhost:8085}
