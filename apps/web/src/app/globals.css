@@ -65,7 +65,8 @@
 
 /* Per-branch dashboard color theme.
  * Opt-in: applied only when the dashboard layout sets data-branch-color (org flag
- * branch_color_theme + branch settings.ui_color). Ids mirror packages/config/src/branch-theme.ts. */
+ * branch_color_theme + branch settings.ui_color). Ids mirror packages/config/src/branch-theme.ts.
+ * Soft/pastel on purpose: low chroma so text stays easy to read. */
 [data-branch-color="forest"] {
   --background: oklch(0.965 0.03 152);
   --card: oklch(0.99 0.01 152);
@@ -119,56 +120,56 @@
   --sidebar-primary: oklch(0.35 0.03 255);
 }
 .dark [data-branch-color="forest"] {
-  --background: oklch(0.2 0.045 152);
-  --card: oklch(0.165 0.035 152);
-  --muted: oklch(0.285 0.04 152);
-  --secondary: oklch(0.285 0.04 152);
-  --accent: oklch(0.3 0.045 152);
-  --border: oklch(0.32 0.045 152);
-  --input: oklch(0.32 0.045 152);
-  --sidebar: oklch(0.255 0.06 152);
-  --sidebar-accent: oklch(0.33 0.07 152);
-  --sidebar-border: oklch(0.33 0.06 152);
-  --sidebar-primary: oklch(0.72 0.17 150);
+  --background: oklch(0.225 0.022 152);
+  --card: oklch(0.195 0.018 152);
+  --muted: oklch(0.295 0.022 152);
+  --secondary: oklch(0.295 0.022 152);
+  --accent: oklch(0.31 0.026 152);
+  --border: oklch(0.34 0.026 152);
+  --input: oklch(0.34 0.026 152);
+  --sidebar: oklch(0.275 0.032 152);
+  --sidebar-accent: oklch(0.345 0.04 152);
+  --sidebar-border: oklch(0.345 0.034 152);
+  --sidebar-primary: oklch(0.80 0.07 150);
 }
 .dark [data-branch-color="amber"] {
-  --background: oklch(0.2 0.045 78);
-  --card: oklch(0.165 0.035 78);
-  --muted: oklch(0.285 0.04 78);
-  --secondary: oklch(0.285 0.04 78);
-  --accent: oklch(0.3 0.045 78);
-  --border: oklch(0.32 0.045 78);
-  --input: oklch(0.32 0.045 78);
-  --sidebar: oklch(0.255 0.06 78);
-  --sidebar-accent: oklch(0.33 0.07 78);
-  --sidebar-border: oklch(0.33 0.06 78);
-  --sidebar-primary: oklch(0.80 0.15 80);
+  --background: oklch(0.225 0.022 78);
+  --card: oklch(0.195 0.018 78);
+  --muted: oklch(0.295 0.022 78);
+  --secondary: oklch(0.295 0.022 78);
+  --accent: oklch(0.31 0.026 78);
+  --border: oklch(0.34 0.026 78);
+  --input: oklch(0.34 0.026 78);
+  --sidebar: oklch(0.275 0.032 78);
+  --sidebar-accent: oklch(0.345 0.04 78);
+  --sidebar-border: oklch(0.345 0.034 78);
+  --sidebar-primary: oklch(0.84 0.08 80);
 }
 .dark [data-branch-color="terracotta"] {
-  --background: oklch(0.2 0.045 38);
-  --card: oklch(0.165 0.035 38);
-  --muted: oklch(0.285 0.04 38);
-  --secondary: oklch(0.285 0.04 38);
-  --accent: oklch(0.3 0.045 38);
-  --border: oklch(0.32 0.045 38);
-  --input: oklch(0.32 0.045 38);
-  --sidebar: oklch(0.255 0.06 38);
-  --sidebar-accent: oklch(0.33 0.07 38);
-  --sidebar-border: oklch(0.33 0.06 38);
-  --sidebar-primary: oklch(0.72 0.14 40);
+  --background: oklch(0.225 0.022 38);
+  --card: oklch(0.195 0.018 38);
+  --muted: oklch(0.295 0.022 38);
+  --secondary: oklch(0.295 0.022 38);
+  --accent: oklch(0.31 0.026 38);
+  --border: oklch(0.34 0.026 38);
+  --input: oklch(0.34 0.026 38);
+  --sidebar: oklch(0.275 0.032 38);
+  --sidebar-accent: oklch(0.345 0.04 38);
+  --sidebar-border: oklch(0.345 0.034 38);
+  --sidebar-primary: oklch(0.80 0.07 40);
 }
 .dark [data-branch-color="graphite"] {
-  --background: oklch(0.2 0.013 255);
-  --card: oklch(0.165 0.011 255);
-  --muted: oklch(0.285 0.012 255);
-  --secondary: oklch(0.285 0.012 255);
-  --accent: oklch(0.3 0.013 255);
-  --border: oklch(0.32 0.013 255);
-  --input: oklch(0.32 0.013 255);
-  --sidebar: oklch(0.255 0.018 255);
-  --sidebar-accent: oklch(0.33 0.021 255);
-  --sidebar-border: oklch(0.33 0.018 255);
-  --sidebar-primary: oklch(0.78 0.03 255);
+  --background: oklch(0.225 0.01 255);
+  --card: oklch(0.195 0.008 255);
+  --muted: oklch(0.295 0.01 255);
+  --secondary: oklch(0.295 0.01 255);
+  --accent: oklch(0.31 0.012 255);
+  --border: oklch(0.34 0.012 255);
+  --input: oklch(0.34 0.012 255);
+  --sidebar: oklch(0.275 0.014 255);
+  --sidebar-accent: oklch(0.345 0.018 255);
+  --sidebar-border: oklch(0.345 0.015 255);
+  --sidebar-primary: oklch(0.82 0.02 255);
 }
 
 @theme inline {

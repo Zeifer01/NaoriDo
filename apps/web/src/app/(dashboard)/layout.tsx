@@ -495,8 +495,11 @@ export default function DashboardLayout({
         {/* Active-branch banner (branch color theme) */}
         {branchColor && activeBranchName && (
           <div
-            className="flex h-8 shrink-0 items-center gap-2 px-4 text-xs font-medium text-white"
-            style={{ backgroundColor: BRANCH_COLORS[branchColor].hex }}
+            className="flex h-8 shrink-0 items-center gap-2 px-4 text-xs font-medium"
+            style={{
+              backgroundColor: BRANCH_COLORS[branchColor].hex,
+              color: BRANCH_COLORS[branchColor].ink,
+            }}
           >
             <Building2 className="h-3.5 w-3.5" />
             <span>Você está em:</span>
