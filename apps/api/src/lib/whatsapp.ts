@@ -152,8 +152,8 @@ async function evolutionFetch<T = Record<string, unknown>>(
       stringifyWhatsAppApiMessage(raw) ||
       `Erro na Evolution API (${res.status})`;
     logger.warn(
-      { path, status: res.status, evolutionBody: json },
       "Evolution API request failed",
+      { path, status: res.status, evolutionBody: json },
     );
     throw new WhatsAppError(message, res.status >= 400 && res.status < 600 ? res.status : 502);
   }
@@ -314,8 +314,8 @@ export async function connectInstance(instanceName: string): Promise<{
 
   if (!qrcode && !pairingCode) {
     logger.warn(
-      { instanceName, payload: lastPayload },
       "QR code not returned by Evolution API, recreating instance",
+      { instanceName, payload: lastPayload },
     );
     await resetInstance(instanceName);
     const created = await ensureInstance(instanceName);
@@ -378,7 +378,7 @@ export async function setupWebhook(instanceName: string, webhookUrl: string): Pr
       },
     }),
   });
-  logger.info({ instanceName, webhookUrl }, "Evolution API webhook configured");
+  logger.info("Evolution API webhook configured", { instanceName, webhookUrl });
 }
 
 export async function sendWhatsAppText(
@@ -400,5 +400,5 @@ export async function sendWhatsAppText(
     body: JSON.stringify({ number, text }),
   });
 
-  logger.info({ instanceName, number }, "WhatsApp message sent");
+  logger.info("WhatsApp message sent", { instanceName, number });
 }

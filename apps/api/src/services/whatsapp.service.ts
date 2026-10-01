@@ -205,7 +205,7 @@ async function sendDeliveryMessage(
   const instanceName = getBranchInstanceName(branch);
   const { connected } = await fetchConnectionState(instanceName);
   if (!connected) {
-    logger.warn({ branchId: branch.id, instanceName }, "WhatsApp disconnected, skipping message");
+    logger.warn("WhatsApp disconnected, skipping message", { branchId: branch.id, instanceName });
     return;
   }
 
@@ -214,8 +214,8 @@ async function sendDeliveryMessage(
     await sendWhatsAppText(instanceName, phone, message, { countryCode });
   } catch (err) {
     logger.error(
-      { err, branchId: branch.id, orderId: order.id, phone: formatPhoneForWhatsApp(phone, countryCode) },
       "Failed to send WhatsApp message",
+      { err, branchId: branch.id, orderId: order.id, phone: formatPhoneForWhatsApp(phone, countryCode) },
     );
   }
 }
@@ -495,7 +495,7 @@ export async function handleIncomingWebhook(
   const allBranches = await db.select().from(schema.branches);
   const branch = allBranches.find((b) => getBranchInstanceName(b) === instanceName);
   if (!branch) {
-    logger.warn({ instanceName }, "Webhook: unknown instance");
+    logger.warn("Webhook: unknown instance", { instanceName });
     return;
   }
 
@@ -529,9 +529,9 @@ export async function handleIncomingWebhook(
 
   try {
     await sendWhatsAppText(instanceName, phone, message);
-    logger.info({ instanceName, phone, open }, "Auto-reply sent");
+    logger.info("Auto-reply sent", { instanceName, phone, open });
   } catch (err) {
-    logger.error({ err: err instanceof Error ? err.message : String(err), instanceName, phone }, "Auto-reply failed");
+    logger.error("Auto-reply failed", { err: err instanceof Error ? err.message : String(err), instanceName, phone });
   }
 }
 
@@ -589,7 +589,7 @@ export async function notifyItemUnavailable(
   const instanceName = getBranchInstanceName(branch);
   const { connected } = await fetchConnectionState(instanceName);
   if (!connected) {
-    logger.warn({ branchId: branch.id, instanceName }, "WhatsApp disconnected, skipping unavailability notification");
+    logger.warn("WhatsApp disconnected, skipping unavailability notification", { branchId: branch.id, instanceName });
     return;
   }
 
@@ -629,8 +629,8 @@ export async function notifyItemUnavailable(
     await sendWhatsAppText(instanceName, phone, message);
   } catch (err) {
     logger.error(
-      { err, branchId: branch.id, orderId: order.id },
       "Failed to send item unavailable notification",
+      { err, branchId: branch.id, orderId: order.id },
     );
   }
 }
