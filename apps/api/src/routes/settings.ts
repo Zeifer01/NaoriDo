@@ -130,6 +130,7 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     body.deliveryLabel !== undefined ||
     body.pickupLabel !== undefined ||
     body.paymentMethods !== undefined ||
+    body.uiColor !== undefined ||
     body.businessHours !== undefined;
 
   if (hasSettingsFields) {
@@ -173,6 +174,10 @@ settings.patch("/branch", requirePermission("settings:*"), zValidator("json", up
     if (body.deliveryLabel !== undefined) merged.delivery_label = body.deliveryLabel;
     if (body.pickupLabel !== undefined) merged.pickup_label = body.pickupLabel;
     if (body.paymentMethods !== undefined) merged.payment_methods = body.paymentMethods;
+    if (body.uiColor !== undefined) {
+      if (body.uiColor) merged.ui_color = body.uiColor;
+      else delete merged.ui_color;
+    }
     if (body.businessHours !== undefined) merged.business_hours = body.businessHours;
     updateData.settings = merged;
   }

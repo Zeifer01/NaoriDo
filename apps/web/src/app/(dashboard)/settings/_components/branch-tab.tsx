@@ -13,6 +13,9 @@ import {
   DELIVERY_PAYMENT_METHOD_META,
   parseBusinessHoursConfig,
   WEEKDAY_LABELS_PT,
+  BRANCH_COLOR_IDS,
+  BRANCH_COLORS,
+  getBranchColor,
   type BusinessHoursConfig,
 } from "@restai/config";
 import { cn } from "@/lib/utils";
@@ -58,7 +61,7 @@ export function BranchTab() {
   const { data: branchData, isLoading: branchLoading } = useBranchSettings();
   const updateBranch = useUpdateBranch();
   const initializedRef = useRef(false);
-  const { deliveryFulfillmentToggle, pickupFeeToggle } = useFeatures();
+  const { deliveryFulfillmentToggle, pickupFeeToggle, branchColorTheme } = useFeatures();
 
   const [branchForm, setBranchForm] = useState<{
     name: string;
@@ -94,6 +97,7 @@ export function BranchTab() {
     deliveryLabel: string;
     pickupLabel: string;
     paymentMethods: string[];
+    uiColor: string;
     businessHours: BusinessHoursConfig;
   }>({
     name: "",
@@ -129,6 +133,7 @@ export function BranchTab() {
     deliveryLabel: "",
     pickupLabel: "",
     paymentMethods: ["cash", "card", "pix"],
+    uiColor: "",
     businessHours: parseBusinessHoursConfig(undefined),
   });
 
@@ -174,6 +179,7 @@ export function BranchTab() {
         paymentMethods: Array.isArray(branchData.settings?.payment_methods)
           ? (branchData.settings.payment_methods as string[])
           : ["cash", "card", "pix"],
+        uiColor: getBranchColor(branchData.settings) ?? "",
         businessHours: parseBusinessHoursConfig(branchData.settings),
       });
     }
@@ -218,6 +224,7 @@ export function BranchTab() {
         deliveryLabel: branchForm.deliveryLabel,
         pickupLabel: branchForm.pickupLabel,
         paymentMethods: branchForm.paymentMethods,
+        ...(branchColorTheme ? { uiColor: branchForm.uiColor } : {}),
         businessHours: branchForm.businessHours,
       });
       toast.success("Filial atualizada com sucesso");
@@ -269,6 +276,53 @@ export function BranchTab() {
                 onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
               />
             </div>
+            {branchColorTheme && (
+              <div className="rounded-lg border p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Cor da filial</p>
+                  <p className="text-xs text-muted-foreground">
+                    Pinta o fundo do painel e mostra &quot;Você está em: {branchForm.name || "esta filial"}&quot; no topo, para ninguém confundir a filial ativa. Use uma cor diferente em cada filial.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {BRANCH_COLOR_IDS.map((id) => {
+                    const selected = branchForm.uiColor === id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setBranchForm({ ...branchForm, uiColor: id })}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors",
+                          selected ? "border-foreground bg-muted font-medium" : "hover:bg-muted/50",
+                        )}
+                        aria-pressed={selected}
+                      >
+                        <span
+                          className="h-4 w-4 rounded-full border border-white/30"
+                          style={{ backgroundColor: BRANCH_COLORS[id].hex }}
+                        />
+                        {BRANCH_COLORS[id].label}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setBranchForm({ ...branchForm, uiColor: "" })}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors",
+                      branchForm.uiColor === "" ? "border-foreground bg-muted font-medium" : "hover:bg-muted/50",
+                    )}
+                    aria-pressed={branchForm.uiColor === ""}
+                  >
+                    Sem cor
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A cor só muda depois de clicar em <strong>Salvar Alterações</strong>, no final da página.
+                </p>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Fuso Horário</Label>

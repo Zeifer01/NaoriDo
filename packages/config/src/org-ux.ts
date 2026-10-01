@@ -117,6 +117,14 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.modifier_quick_edit`.
    */
   modifier_quick_edit: boolean;
+  /**
+   * Tints the dashboard per branch (`branches.settings.ui_color`) and shows a
+   * "Você está em: <filial>" banner, so staff can't confuse which branch is
+   * active (Naori Do). Also shows the color picker in Settings > Sede.
+   * Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.branch_color_theme`.
+   */
+  branch_color_theme: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -137,6 +145,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   historical_orders_report: false,
   material_expenses: false,
   modifier_quick_edit: false,
+  branch_color_theme: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -213,6 +222,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     historical_orders_report: s.historical_orders_report === true,
     material_expenses: s.material_expenses === true,
     modifier_quick_edit: s.modifier_quick_edit === true,
+    branch_color_theme: s.branch_color_theme === true,
   };
 }
 
@@ -268,6 +278,11 @@ export function hasMaterialExpenses(settings: unknown): boolean {
 /** True when the Modificadores tab shows the availability switch + quick edit per complemento. */
 export function hasModifierQuickEdit(settings: unknown): boolean {
   return getOrgUxFlags(settings).modifier_quick_edit;
+}
+
+/** True when the dashboard tints itself per branch and shows the active-branch banner. */
+export function hasBranchColorTheme(settings: unknown): boolean {
+  return getOrgUxFlags(settings).branch_color_theme;
 }
 
 /** True when the org has opted into branch-configured (not hardcoded) timezone logic. */

@@ -39,8 +39,11 @@ import { useCurrencyStore } from "@/stores/currency-store";
 import { useFeatures } from "@/hooks/use-features";
 import { NotificationBell } from "@/components/notification-bell";
 import { PlanStatusBanner } from "@/components/plan-status-banner";
+import { toast } from "sonner";
 import type { PlanFeature } from "@restai/config";
 import {
+  BRANCH_COLORS,
+  getBranchColor,
   buildPlatformAppOrigin,
   isLocalHostname,
   isPlatformControlHost,
@@ -189,7 +192,7 @@ export default function DashboardLayout({
   const { data: org } = useOrgSettings();
   const { data: branches } = useBranches();
   const { data: branchSettings } = useBranchSettings();
-  const { has: hasFeature, kitchenLabel, materialExpenses } = useFeatures();
+  const { has: hasFeature, kitchenLabel, materialExpenses, branchColorTheme } = useFeatures();
   const setCurrency = useCurrencyStore((s) => s.setCurrency);
   const availableBranches = branches ?? [];
   const canSwitchBranch = availableBranches.length > 1;
@@ -228,8 +231,12 @@ export default function DashboardLayout({
       if (branchId === selectedBranchId) return;
       setSelectedBranch(branchId);
       queryClient.invalidateQueries();
+      if (branchColorTheme) {
+        const target = availableBranches.find((branch: Branch) => branch.id === branchId);
+        if (target) toast(`Agora em ${target.name}`);
+      }
     },
-    [selectedBranchId, setSelectedBranch, queryClient],
+    [selectedBranchId, setSelectedBranch, queryClient, branchColorTheme, availableBranches],
   );
 
   useEffect(() => {
@@ -289,6 +296,14 @@ export default function DashboardLayout({
   const orgName = onControlPlane ? "Automatizappy" : org?.name || "RestAI";
   const orgLogoUrl = onControlPlane ? null : resolveUploadUrl(org?.logo_url);
 
+  // Per-branch color theme (Naori Do): only when the org flag is on AND this branch has a color.
+  const branchColor =
+    branchColorTheme && !onControlPlane
+      ? getBranchColor((branchSettings as { settings?: unknown } | undefined)?.settings)
+      : null;
+  const activeBranchName =
+    (branchSettings as { name?: string } | undefined)?.name || currentBranch?.name || "";
+
   const tablesEnabled = (branchSettings as any)?.settings?.tables_enabled !== false;
   const baseNavGroups = getFilteredNavGroups(
     user.role,
@@ -310,7 +325,10 @@ export default function DashboardLayout({
   const mobileNavItems = allFilteredItems.slice(0, 5);
 
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div
+      className={cn("h-screen flex overflow-hidden", branchColor && "bg-background text-foreground")}
+      data-branch-color={branchColor ?? undefined}
+    >
       {/* Desktop Sidebar */}
       <aside
         className={cn(
@@ -474,6 +492,17 @@ export default function DashboardLayout({
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Active-branch banner (branch color theme) */}
+        {branchColor && activeBranchName && (
+          <div
+            className="flex h-8 shrink-0 items-center gap-2 px-4 text-xs font-medium text-white"
+            style={{ backgroundColor: BRANCH_COLORS[branchColor].hex }}
+          >
+            <Building2 className="h-3.5 w-3.5" />
+            <span>Você está em:</span>
+            <strong className="text-sm font-bold tracking-wide">{activeBranchName}</strong>
+          </div>
+        )}
         {/* Header */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center justify-between h-14 px-4">

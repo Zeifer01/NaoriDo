@@ -625,6 +625,8 @@ export const updateBranchSettingsSchema = z.object({
   pickupUnavailableMessage: z.string().max(500).optional(),
   deliveryLabel: z.string().max(80).optional(),
   pickupLabel: z.string().max(80).optional(),
+  /** Dashboard color for this branch (see packages/config/src/branch-theme.ts). "" clears it. */
+  uiColor: z.union([z.enum(["forest", "amber", "terracotta", "graphite"]), z.literal("")]).optional(),
   /** Checkout payment methods shown on the public storefront. */
   paymentMethods: z
     .array(z.enum(["cash", "card", "pix", "zelle", "venmo", "cashapp", "transfer", "other"]))

@@ -18,6 +18,7 @@
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --reports-placed-orders-toggle=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --pos-customer-info-optional=true
  *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --bulk-order-actions-toggle=true
+ *   bun run packages/db/src/enable-org-ux.ts --slug=naori-do --branch-color-theme=true
  */
 import { db, schema } from "./index.ts";
 import { eq } from "drizzle-orm";
@@ -43,6 +44,7 @@ const pickupFeeToggle = arg("pickup-fee-toggle");
 const reportsPlacedOrdersToggle = arg("reports-placed-orders-toggle");
 const posCustomerInfoOptional = arg("pos-customer-info-optional");
 const bulkOrderActionsToggle = arg("bulk-order-actions-toggle");
+const branchColorTheme = arg("branch-color-theme");
 const label = arg("label");
 const columns = arg("columns");
 
@@ -51,9 +53,9 @@ if (!slug) {
   process.exit(1);
 }
 
-if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems && !orderSourceFilter && !orderChannelReport && !deliveryFulfillmentToggle && !pickupFeeToggle && !reportsPlacedOrdersToggle && !posCustomerInfoOptional && !bulkOrderActionsToggle) {
+if (!reports && !kitchen && !label && !columns && !orderStatus && !posBarcodes && !useBranchTimezone && !loyaltyStickerCard && !menuDefaultAllItems && !orderSourceFilter && !orderChannelReport && !deliveryFulfillmentToggle && !pickupFeeToggle && !reportsPlacedOrdersToggle && !posCustomerInfoOptional && !bulkOrderActionsToggle && !branchColorTheme) {
   console.error(
-    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --order-source-filter=true, --order-channel-report=true, --delivery-fulfillment-toggle=true, --pickup-fee-toggle=true, --reports-placed-orders-toggle=true, --pos-customer-info-optional=true, --bulk-order-actions-toggle=true, --label=Comandas e/ou --columns=...",
+    "Informe ao menos --reports=v2, --kitchen=v2, --order-status=simplified, --pos-barcodes=true, --use-branch-timezone=true, --loyalty-sticker-card=true, --menu-default-all-items=true, --order-source-filter=true, --order-channel-report=true, --delivery-fulfillment-toggle=true, --pickup-fee-toggle=true, --reports-placed-orders-toggle=true, --pos-customer-info-optional=true, --bulk-order-actions-toggle=true, --branch-color-theme=true, --label=Comandas e/ou --columns=...",
   );
   process.exit(1);
 }
@@ -118,6 +120,11 @@ if (bulkOrderActionsToggle && bulkOrderActionsToggle !== "true" && bulkOrderActi
   process.exit(1);
 }
 
+if (branchColorTheme && branchColorTheme !== "true" && branchColorTheme !== "false") {
+  console.error("--branch-color-theme deve ser true ou false");
+  process.exit(1);
+}
+
 const [org] = await db
   .select()
   .from(schema.organizations)
@@ -160,6 +167,7 @@ const next = {
   ...(reportsPlacedOrdersToggle ? { reports_placed_orders_toggle: reportsPlacedOrdersToggle === "true" } : {}),
   ...(posCustomerInfoOptional ? { pos_customer_info_optional: posCustomerInfoOptional === "true" } : {}),
   ...(bulkOrderActionsToggle ? { bulk_order_actions_toggle: bulkOrderActionsToggle === "true" } : {}),
+  ...(branchColorTheme ? { branch_color_theme: branchColorTheme === "true" } : {}),
   ...(label ? { kitchen_label: label } : {}),
   ...(kitchen_column_labels ? { kitchen_column_labels } : {}),
   ...(orderStatus === "simplified" && !kitchen_column_labels

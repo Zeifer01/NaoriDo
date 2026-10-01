@@ -63,6 +63,114 @@
   --sidebar-ring: oklch(0.439 0 0);
 }
 
+/* Per-branch dashboard color theme.
+ * Opt-in: applied only when the dashboard layout sets data-branch-color (org flag
+ * branch_color_theme + branch settings.ui_color). Ids mirror packages/config/src/branch-theme.ts. */
+[data-branch-color="forest"] {
+  --background: oklch(0.965 0.03 152);
+  --card: oklch(0.99 0.01 152);
+  --muted: oklch(0.93 0.035 152);
+  --secondary: oklch(0.93 0.035 152);
+  --accent: oklch(0.91 0.045 152);
+  --border: oklch(0.87 0.045 152);
+  --input: oklch(0.87 0.045 152);
+  --sidebar: oklch(0.93 0.05 152);
+  --sidebar-accent: oklch(0.89 0.06 152);
+  --sidebar-border: oklch(0.86 0.05 152);
+  --sidebar-primary: oklch(0.45 0.12 150);
+}
+[data-branch-color="amber"] {
+  --background: oklch(0.965 0.03 78);
+  --card: oklch(0.99 0.01 78);
+  --muted: oklch(0.93 0.035 78);
+  --secondary: oklch(0.93 0.035 78);
+  --accent: oklch(0.91 0.045 78);
+  --border: oklch(0.87 0.045 78);
+  --input: oklch(0.87 0.045 78);
+  --sidebar: oklch(0.93 0.05 78);
+  --sidebar-accent: oklch(0.89 0.06 78);
+  --sidebar-border: oklch(0.86 0.05 78);
+  --sidebar-primary: oklch(0.55 0.13 70);
+}
+[data-branch-color="terracotta"] {
+  --background: oklch(0.965 0.03 38);
+  --card: oklch(0.99 0.01 38);
+  --muted: oklch(0.93 0.035 38);
+  --secondary: oklch(0.93 0.035 38);
+  --accent: oklch(0.91 0.045 38);
+  --border: oklch(0.87 0.045 38);
+  --input: oklch(0.87 0.045 38);
+  --sidebar: oklch(0.93 0.05 38);
+  --sidebar-accent: oklch(0.89 0.06 38);
+  --sidebar-border: oklch(0.86 0.05 38);
+  --sidebar-primary: oklch(0.52 0.15 38);
+}
+[data-branch-color="graphite"] {
+  --background: oklch(0.965 0.007 255);
+  --card: oklch(0.99 0.003 255);
+  --muted: oklch(0.93 0.009 255);
+  --secondary: oklch(0.93 0.009 255);
+  --accent: oklch(0.91 0.011 255);
+  --border: oklch(0.87 0.011 255);
+  --input: oklch(0.87 0.011 255);
+  --sidebar: oklch(0.93 0.013 255);
+  --sidebar-accent: oklch(0.89 0.015 255);
+  --sidebar-border: oklch(0.86 0.013 255);
+  --sidebar-primary: oklch(0.35 0.03 255);
+}
+.dark [data-branch-color="forest"] {
+  --background: oklch(0.2 0.045 152);
+  --card: oklch(0.165 0.035 152);
+  --muted: oklch(0.285 0.04 152);
+  --secondary: oklch(0.285 0.04 152);
+  --accent: oklch(0.3 0.045 152);
+  --border: oklch(0.32 0.045 152);
+  --input: oklch(0.32 0.045 152);
+  --sidebar: oklch(0.255 0.06 152);
+  --sidebar-accent: oklch(0.33 0.07 152);
+  --sidebar-border: oklch(0.33 0.06 152);
+  --sidebar-primary: oklch(0.72 0.17 150);
+}
+.dark [data-branch-color="amber"] {
+  --background: oklch(0.2 0.045 78);
+  --card: oklch(0.165 0.035 78);
+  --muted: oklch(0.285 0.04 78);
+  --secondary: oklch(0.285 0.04 78);
+  --accent: oklch(0.3 0.045 78);
+  --border: oklch(0.32 0.045 78);
+  --input: oklch(0.32 0.045 78);
+  --sidebar: oklch(0.255 0.06 78);
+  --sidebar-accent: oklch(0.33 0.07 78);
+  --sidebar-border: oklch(0.33 0.06 78);
+  --sidebar-primary: oklch(0.80 0.15 80);
+}
+.dark [data-branch-color="terracotta"] {
+  --background: oklch(0.2 0.045 38);
+  --card: oklch(0.165 0.035 38);
+  --muted: oklch(0.285 0.04 38);
+  --secondary: oklch(0.285 0.04 38);
+  --accent: oklch(0.3 0.045 38);
+  --border: oklch(0.32 0.045 38);
+  --input: oklch(0.32 0.045 38);
+  --sidebar: oklch(0.255 0.06 38);
+  --sidebar-accent: oklch(0.33 0.07 38);
+  --sidebar-border: oklch(0.33 0.06 38);
+  --sidebar-primary: oklch(0.72 0.14 40);
+}
+.dark [data-branch-color="graphite"] {
+  --background: oklch(0.2 0.013 255);
+  --card: oklch(0.165 0.011 255);
+  --muted: oklch(0.285 0.012 255);
+  --secondary: oklch(0.285 0.012 255);
+  --accent: oklch(0.3 0.013 255);
+  --border: oklch(0.32 0.013 255);
+  --input: oklch(0.32 0.013 255);
+  --sidebar: oklch(0.255 0.018 255);
+  --sidebar-accent: oklch(0.33 0.021 255);
+  --sidebar-border: oklch(0.33 0.018 255);
+  --sidebar-primary: oklch(0.78 0.03 255);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

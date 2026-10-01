@@ -34,6 +34,9 @@ export * from "./order-session";
 // Business hours (horário de funcionamento) — optional, per-branch, per-day
 export * from "./business-hours";
 
+// Per-branch dashboard color theme (tinted background + active-branch banner)
+export * from "./branch-theme";
+
 // Roles hierarchy and permissions
 export const ROLES = {
   super_admin: { level: 0, label: "Super Admin" },
