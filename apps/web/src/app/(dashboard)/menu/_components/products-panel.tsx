@@ -30,6 +30,7 @@ import { ImageUploadButton } from "./image-upload-button";
 import { ReorderPanel } from "./reorder-panel";
 import { PrintLabelDialog } from "./print-label-dialog";
 import { useFeatures } from "@/hooks/use-features";
+import { useBranchSettings } from "@/hooks/use-settings";
 
 function Skeleton({ className }: { className?: string }) {
   return (
@@ -67,6 +68,11 @@ export function ProductsPainel({
   } | null>(null);
   const [labelItem, setLabelItem] = useState<any>(null);
   const { posBarcodes } = useFeatures();
+  const { data: branchData } = useBranchSettings();
+  // Public menu groups "Todos" by category when this is on — Reordenar mirrors that.
+  const groupByCategory =
+    (branchData as { settings?: { menu_group_by_category?: boolean } } | undefined)?.settings
+      ?.menu_group_by_category === true;
 
   const categoryList: any[] = categories ?? [];
   const allItems: any[] = menuItems ?? [];
@@ -357,6 +363,7 @@ export function ProductsPainel({
           <ReorderPanel
             items={visibleItems}
             categories={categoryList}
+            groupByCategory={groupByCategory}
             onSave={handleSaveOrder}
             onCancel={() => setReorderMode(false)}
           />
