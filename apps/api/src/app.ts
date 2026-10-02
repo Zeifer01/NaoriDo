@@ -84,7 +84,12 @@ app.use(
 app.use("*", secureHeaders());
 app.use("*", logger());
 app.onError(errorHandler);
-app.use("*", rateLimiter(100, 60_000, "global"));
+// Static uploads (menu photos, logos) are immutable + cacheable, and one menu page
+// loads dozens of them — they must NOT burn the per-IP API budget, or customers
+// (esp. behind a shared wifi / carrier NAT) get 429s and blank product photos.
+const globalLimiter = rateLimiter(100, 60_000, "global");
+app.use("*", (c, next) => (c.req.path.startsWith("/uploads/") ? next() : globalLimiter(c, next)));
+app.use("/uploads/*", rateLimiter(1500, 60_000, "uploads"));
 app.use("/api/auth/*", rateLimiter(20, 60_000, "auth"));
 app.use("/api/customer/*", rateLimiter(30, 60_000, "customer"));
 app.use("/api/delivery/*/quote-fee", rateLimiter(20, 60_000, "quote-fee"));
