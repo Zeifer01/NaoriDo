@@ -108,8 +108,9 @@ export default function PosPage() {
   const createOrder = useCreateOrder();
   const currency = useCurrencyStore((s) => s.currency);
   const { posBarcodes, loyaltyStickerCard, posCustomerInfoOptional, posQuickCheckout } = useFeatures();
-  // Tablet/phone single-screen checkout (only orgs with the pos_quick_checkout flag).
-  const quickLayout = useTouchLayout(posQuickCheckout);
+  // Tablet/phone checkout layout (only orgs with the pos_quick_checkout flag):
+  // "panel" (tablet sideways), "sheet" (upright/phone) or "sidebar" (everyone else).
+  const layoutMode = useTouchLayout(posQuickCheckout);
 
   const allItems: any[] = menuItems ?? [];
 
@@ -355,7 +356,7 @@ export default function PosPage() {
   };
 
   return (
-    <div className={`flex h-[calc(100vh-8rem)] ${quickLayout ? "flex-col gap-3" : "gap-4"}`}>
+    <div className={`flex h-[calc(100vh-8rem)] ${layoutMode === "sheet" ? "flex-col gap-3" : "gap-4"}`}>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         {posBarcodes && (
           <PosBarcodeScanInput
@@ -380,7 +381,7 @@ export default function PosPage() {
       </div>
 
       <CartSidebar
-        layout={quickLayout ? "quick" : "sidebar"}
+        layout={layoutMode}
         cart={cart}
         orderType={orderType}
         customerName={customerName}

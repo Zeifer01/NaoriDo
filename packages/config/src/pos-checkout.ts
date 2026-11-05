@@ -20,6 +20,16 @@ export interface PosCheckoutState {
   phoneInvalid: boolean;
 }
 
+const ORDER_TAB_FIELDS = new Set(["itens", "forma de pagamento"]);
+
+/** Splits the missing list by tab: customer/address stuff vs items/payment. */
+export function splitPosCheckoutMissing(missing: string[]): { customer: string[]; order: string[] } {
+  return {
+    customer: missing.filter((m) => !ORDER_TAB_FIELDS.has(m)),
+    order: missing.filter((m) => ORDER_TAB_FIELDS.has(m)),
+  };
+}
+
 export function getPosCheckoutMissing(s: PosCheckoutState): string[] {
   const missing: string[] = [];
   if (s.cartCount === 0) missing.push("itens");

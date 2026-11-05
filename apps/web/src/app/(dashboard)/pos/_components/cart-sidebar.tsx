@@ -173,10 +173,11 @@ export function CartSidebar({
   /** True when the org lets PDV orders skip customer name/phone (fair checkout). */
   customerInfoOptional?: boolean;
   /**
-   * "sidebar" (default): the classic side column. "quick": tablet/phone checkout
-   * (bottom bar + single "Finalizar pedido" screen), only for orgs with `pos_quick_checkout`.
+   * "sidebar" (default): the classic side column. "panel" / "sheet": tablet/phone checkout
+   * (fixed Cliente|Pedido panel when held sideways; bottom bar + "Finalizar pedido" screen
+   * otherwise), only for orgs with `pos_quick_checkout`.
    */
-  layout?: "sidebar" | "quick";
+  layout?: "sidebar" | "panel" | "sheet";
   onClearCart: () => void;
   onCreateOrder: () => void;
 }) {
@@ -379,7 +380,7 @@ export function CartSidebar({
     !deliveryNeedsFee &&
     !needsPayment;
 
-  if (layout === "quick") {
+  if (layout !== "sidebar") {
     const lines = cart.map((item) => {
       const modTotal = item.modifiers.reduce((s, m) => s + m.price, 0);
       const rawLineTotal =
@@ -410,6 +411,7 @@ export function CartSidebar({
 
     return (
       <QuickCheckout
+        variant={layout}
         lines={lines}
         totalQty={totalQty}
         orderType={orderType}

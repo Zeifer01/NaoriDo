@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getPosCheckoutMissing, type PosCheckoutState } from "@restai/config";
+import { getPosCheckoutMissing, splitPosCheckoutMissing, type PosCheckoutState } from "@restai/config";
 
 const complete: PosCheckoutState = {
   cartCount: 2,
@@ -59,5 +59,28 @@ describe("getPosCheckoutMissing", () => {
 
   test("empty cart", () => {
     expect(getPosCheckoutMissing({ ...complete, cartCount: 0 })).toEqual(["itens"]);
+  });
+});
+
+describe("splitPosCheckoutMissing (tab warning dots)", () => {
+  test("customer tab gets name/phone/address/city/fee, order tab gets items/payment", () => {
+    expect(
+      splitPosCheckoutMissing([
+        "itens",
+        "nome do cliente",
+        "telefone válido",
+        "endereço",
+        "cidade do frete",
+        "cotação do frete",
+        "forma de pagamento",
+      ]),
+    ).toEqual({
+      customer: ["nome do cliente", "telefone válido", "endereço", "cidade do frete", "cotação do frete"],
+      order: ["itens", "forma de pagamento"],
+    });
+  });
+
+  test("nothing missing → both tabs clean", () => {
+    expect(splitPosCheckoutMissing([])).toEqual({ customer: [], order: [] });
   });
 });
