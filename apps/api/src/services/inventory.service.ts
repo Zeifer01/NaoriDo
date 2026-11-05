@@ -1,5 +1,6 @@
 import { eq, sql, and, inArray, gte } from "drizzle-orm";
 import { db, schema } from "@restai/db";
+import { notifyInventoryLevelChanges, type StockChange } from "./inventory-alert.service.js";
 
 /**
  * Records an inventory movement and updates the item's stock accordingly.
@@ -70,7 +71,7 @@ export async function deductForOrder(params: {
 
   // Check if inventory is enabled for this branch
   const [branchSettings] = await db
-    .select({ settings: schema.branches.settings })
+    .select({ settings: schema.branches.settings, name: schema.branches.name })
     .from(schema.branches)
     .where(eq(schema.branches.id, branchId))
     .limit(1);
@@ -96,6 +97,10 @@ export async function deductForOrder(params: {
     .from(schema.orderItems)
     .where(eq(schema.orderItems.order_id, orderId));
 
+  // Stock before/after per item, so the low-stock alert only fires when a sale
+  // moves an item to a worse level (opt-in per branch via settings.inventory_alert).
+  const stockChanges = new Map<string, StockChange>();
+
   // Wrap all deductions + flag in a transaction
   await db.transaction(async (tx) => {
     for (const orderItem of orderItemsList) {
@@ -107,12 +112,22 @@ export async function deductForOrder(params: {
       for (const ingredient of recipeIngredients) {
         const deductQty = parseFloat(ingredient.quantity_used) * orderItem.quantity;
 
-        await tx
+        const [updatedItem] = await tx
           .update(schema.inventoryItems)
           .set({
             current_stock: sql`(${schema.inventoryItems.current_stock}::numeric - ${deductQty})::numeric`,
           })
-          .where(eq(schema.inventoryItems.id, ingredient.inventory_item_id));
+          .where(eq(schema.inventoryItems.id, ingredient.inventory_item_id))
+          .returning({ current_stock: schema.inventoryItems.current_stock });
+
+        if (updatedItem) {
+          const after = parseFloat(updatedItem.current_stock);
+          const seen = stockChanges.get(ingredient.inventory_item_id);
+          stockChanges.set(ingredient.inventory_item_id, {
+            before: seen ? seen.before : after + deductQty,
+            after,
+          });
+        }
 
         await tx
           .insert(schema.inventoryMovements)
@@ -130,6 +145,15 @@ export async function deductForOrder(params: {
       .update(schema.orders)
       .set({ inventory_deducted: true })
       .where(eq(schema.orders.id, orderId));
+  });
+
+  // After the sale is committed: proactive low-stock WhatsApp alert (opt-in per
+  // branch; never blocks or fails the order).
+  void notifyInventoryLevelChanges({
+    branchId,
+    branchName: branchSettings?.name ?? "Filial",
+    branchSettings: branchSettings?.settings,
+    changes: stockChanges,
   });
 }
 
