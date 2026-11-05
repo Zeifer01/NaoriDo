@@ -18,6 +18,7 @@ import type { OrderTicketInput } from "@/lib/order-ticket";
 import { useCurrencyStore } from "@/stores/currency-store";
 import { useBranchSettings } from "@/hooks/use-settings";
 import { useFeatures } from "@/hooks/use-features";
+import { useTouchLayout } from "@/hooks/use-touch-layout";
 import {
   appendCityToAddress,
   getDeliveryFeeCents,
@@ -106,7 +107,9 @@ export default function PosPage() {
   const { data: menuItems, isLoading: itemsLoading } = useMenuItems(selectedCategory || undefined);
   const createOrder = useCreateOrder();
   const currency = useCurrencyStore((s) => s.currency);
-  const { posBarcodes, loyaltyStickerCard, posCustomerInfoOptional } = useFeatures();
+  const { posBarcodes, loyaltyStickerCard, posCustomerInfoOptional, posQuickCheckout } = useFeatures();
+  // Tablet/phone single-screen checkout (only orgs with the pos_quick_checkout flag).
+  const quickLayout = useTouchLayout(posQuickCheckout);
 
   const allItems: any[] = menuItems ?? [];
 
@@ -352,7 +355,7 @@ export default function PosPage() {
   };
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-8rem)]">
+    <div className={`flex h-[calc(100vh-8rem)] ${quickLayout ? "flex-col gap-3" : "gap-4"}`}>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         {posBarcodes && (
           <PosBarcodeScanInput
@@ -377,6 +380,7 @@ export default function PosPage() {
       </div>
 
       <CartSidebar
+        layout={quickLayout ? "quick" : "sidebar"}
         cart={cart}
         orderType={orderType}
         customerName={customerName}

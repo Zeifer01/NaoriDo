@@ -7,6 +7,9 @@ export * from "./org-ux";
 // Complemento / modifier pricing with free_quantity
 export * from "./modifier-pricing";
 
+// PDV checkout: what's still missing before an order can be created
+export * from "./pos-checkout";
+
 // US phone mask + validation ("(508) 963-4871") for branches with country code 1
 export * from "./phone-us";
 

@@ -60,6 +60,8 @@ interface UseFeaturesResult {
   materialExpenses: boolean;
   /** True when the Modificadores tab shows the availability switch + quick edit per complemento. */
   modifierQuickEdit: boolean;
+  /** True when the PDV uses the single-screen "Finalizar pedido" checkout on tablets/phones. */
+  posQuickCheckout: boolean;
   /** True when the dashboard tints per branch and shows the active-branch banner. */
   branchColorTheme: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
@@ -156,6 +158,7 @@ export function useFeatures(): UseFeaturesResult {
       historicalOrdersReport: ux.historical_orders_report,
       materialExpenses: ux.material_expenses,
       modifierQuickEdit: ux.modifier_quick_edit,
+      posQuickCheckout: ux.pos_quick_checkout,
       branchColorTheme: ux.branch_color_theme,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),

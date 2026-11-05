@@ -33,10 +33,13 @@ import {
   calcSequentialFreeChargeCents,
   formatUsPhone,
   usesUsPhoneFormat,
+  isValidPhoneForUsBranch,
+  getPosCheckoutMissing,
   type DeliveryPaymentMethodId,
 } from "@restai/config";
 import { apiFetch } from "@/lib/fetcher";
 import type { PosCartItem } from "../page";
+import { QuickCheckout } from "./quick-checkout";
 
 // Loyalty sticker card (Açaí House): cup free + the first 3 complementos
 // added (in that order) are free — the 4th onward costs its real price,
@@ -126,6 +129,7 @@ export function CartSidebar({
   onToggleLoyaltyDiscount,
   loyaltyStickerCard = false,
   customerInfoOptional = false,
+  layout = "sidebar",
   onClearCart,
   onCreateOrder,
 }: {
@@ -168,6 +172,11 @@ export function CartSidebar({
   loyaltyStickerCard?: boolean;
   /** True when the org lets PDV orders skip customer name/phone (fair checkout). */
   customerInfoOptional?: boolean;
+  /**
+   * "sidebar" (default): the classic side column. "quick": tablet/phone checkout
+   * (bottom bar + single "Finalizar pedido" screen), only for orgs with `pos_quick_checkout`.
+   */
+  layout?: "sidebar" | "quick";
   onClearCart: () => void;
   onCreateOrder: () => void;
 }) {
@@ -369,6 +378,123 @@ export function CartSidebar({
     !deliveryNeedsCity &&
     !deliveryNeedsFee &&
     !needsPayment;
+
+  if (layout === "quick") {
+    const lines = cart.map((item) => {
+      const modTotal = item.modifiers.reduce((s, m) => s + m.price, 0);
+      const rawLineTotal =
+        calcItemTotalCents(
+          { unitPriceCents: item.unitPrice, promoQuantity: item.promoQuantity, promoPriceCents: item.promoPriceCents },
+          item.quantity,
+        ) + modTotal * item.quantity;
+      const lineTotal = item.loyaltyDiscount
+        ? loyaltyModifiersChargeCents(item.modifiers) * item.quantity
+        : rawLineTotal;
+      return { item, rawLineTotal, lineTotal };
+    });
+    const phoneInvalid =
+      usPhone && customerPhone.trim().length > 0 && !isValidPhoneForUsBranch(customerPhone);
+    const missing = getPosCheckoutMissing({
+      cartCount: cart.length,
+      orderType,
+      customerName,
+      customerInfoOptional,
+      deliveryAddress,
+      needsCity: pricing.mode === "cities",
+      deliveryCity,
+      needsFee: isAutoPricing,
+      feeReady: deliveryFeeCents !== null && !quoting && !(feeError && pricing.mode === "radius"),
+      paymentMethod,
+      phoneInvalid,
+    });
+
+    return (
+      <QuickCheckout
+        lines={lines}
+        totalQty={totalQty}
+        orderType={orderType}
+        customerName={customerName}
+        customerPhone={customerPhone}
+        deliveryAddress={deliveryAddress}
+        deliveryCity={deliveryCity}
+        deliveryFeeStatus={deliveryFeeStatus}
+        customerNotes={customerNotes}
+        orderNotes={orderNotes}
+        paymentMethod={paymentMethod}
+        needsCashChange={needsCashChange}
+        cashChangeFor={cashChangeFor}
+        manualDiscount={manualDiscount}
+        isPending={isPending}
+        customerInfoOptional={customerInfoOptional}
+        loyaltyStickerCard={loyaltyStickerCard}
+        preferEnglish={preferEnglish}
+        currency={currency}
+        usPhone={usPhone}
+        cities={pricing.mode === "cities" ? pricing.cities : []}
+        paymentOptions={paymentOptions.map((id) => ({
+          id,
+          label: deliveryPaymentLabel(id as DeliveryPaymentMethodId, preferEnglish),
+        }))}
+        suggestions={suggestions.map((c) => ({ customer: c, address: formatCustomerAddress(c) }))}
+        showSuggestions={suggestionsOpen && searchEnabled && (suggestions.length > 0 || isFetching)}
+        isFetchingSuggestions={isFetching}
+        wrapRef={wrapRef}
+        subtotal={subtotal}
+        deliveryFeeCents={deliveryFeeShown}
+        manualDiscountCents={manualDiscountCents}
+        total={total}
+        quoting={quoting}
+        feeError={feeError}
+        missing={missing}
+        canCreate={canCreate && !phoneInvalid}
+        onOrderTypeChange={onOrderTypeChange}
+        onNameInput={(value) => {
+          onClearSelectedCustomer();
+          setSearchSource("name");
+          onCustomerNameChange(value);
+          setSuggestionsOpen(true);
+        }}
+        onPhoneInput={(value) => {
+          onClearSelectedCustomer();
+          setSearchSource("phone");
+          onCustomerPhoneChange(usPhone ? formatUsPhone(value) : value);
+          setSuggestionsOpen(true);
+        }}
+        onFocusField={(field) => {
+          setSearchSource(field);
+          setSuggestionsOpen(true);
+        }}
+        onPickSuggestion={(customer) => {
+          onSelectCustomer(customer);
+          setSuggestionsOpen(false);
+        }}
+        onAddressInput={(value) => {
+          onDeliveryAddressChange(value);
+          if (pricing.mode === "radius") {
+            onDeliveryFeeChange({ city: null, feeCents: null, feeStatus: null });
+            setFeeError(null);
+          }
+        }}
+        onPickCity={(cityName) => {
+          applyCityFee(cityName);
+          if (deliveryAddress.trim().length >= 5) {
+            requestFeeQuote(deliveryAddress, cityName);
+          }
+        }}
+        onCustomerNotesChange={onCustomerNotesChange}
+        onOrderNotesChange={onOrderNotesChange}
+        onPaymentMethodChange={onPaymentMethodChange}
+        onNeedsCashChangeChange={onNeedsCashChangeChange}
+        onCashChangeForChange={onCashChangeForChange}
+        onManualDiscountChange={onManualDiscountChange}
+        onUpdateQty={onUpdateQty}
+        onRemove={onRemove}
+        onToggleLoyaltyDiscount={onToggleLoyaltyDiscount}
+        onClearCart={onClearCart}
+        onCreateOrder={onCreateOrder}
+      />
+    );
+  }
 
   return (
     <div className="w-80 lg:w-96 flex flex-col border-l pl-4 min-h-0">

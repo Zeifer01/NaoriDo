@@ -118,6 +118,14 @@ export interface OrgUxFlags {
    */
   modifier_quick_edit: boolean;
   /**
+   * Tablet/phone PDV checkout: the product screen keeps only a bottom bar and a single
+   * "Finalizar pedido" screen holds customer, address, city/fee, payment and total in one
+   * view (no scrolling through a narrow sidebar). Desktop/mouse devices keep the sidebar.
+   * Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.pos_quick_checkout`.
+   */
+  pos_quick_checkout: boolean;
+  /**
    * Tints the dashboard per branch (`branches.settings.ui_color`) and shows a
    * "Você está em: <filial>" banner, so staff can't confuse which branch is
    * active (Naori Do). Also shows the color picker in Settings > Sede.
@@ -145,6 +153,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   historical_orders_report: false,
   material_expenses: false,
   modifier_quick_edit: false,
+  pos_quick_checkout: false,
   branch_color_theme: false,
 };
 
@@ -222,6 +231,7 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     historical_orders_report: s.historical_orders_report === true,
     material_expenses: s.material_expenses === true,
     modifier_quick_edit: s.modifier_quick_edit === true,
+    pos_quick_checkout: s.pos_quick_checkout === true,
     branch_color_theme: s.branch_color_theme === true,
   };
 }
@@ -273,6 +283,11 @@ export function hasHistoricalOrdersReport(settings: unknown): boolean {
 /** True when the org's "Gastos" (material expenses ledger) nav item and reports section are shown. */
 export function hasMaterialExpenses(settings: unknown): boolean {
   return getOrgUxFlags(settings).material_expenses;
+}
+
+/** True when the PDV uses the single-screen "Finalizar pedido" checkout on tablets/phones. */
+export function hasPosQuickCheckout(settings: unknown): boolean {
+  return getOrgUxFlags(settings).pos_quick_checkout;
 }
 
 /** True when the Modificadores tab shows the availability switch + quick edit per complemento. */
