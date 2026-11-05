@@ -58,7 +58,17 @@ export function daysOfStockLeft(stock: number, consumptionLast7d: number): numbe
   return Math.max(0, stock / perDay);
 }
 
-const fmt = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
+/** Brazilian format with 2 decimals: 0.45 → "0,45" (so a value just under the minimum never rounds up to it). */
+const fmtQty = (n: number) => (Math.round(n * 100) / 100).toFixed(2).replace(".", ",");
+
+/** Stock is shown rounded DOWN (0.496 → "0,49"), so a value below the minimum is never displayed as equal to it. */
+const fmtStock = (n: number) => (Math.floor(n * 100 + 1e-9) / 100).toFixed(2).replace(".", ",");
+
+function formatDaysLeft(days: number): string {
+  if (days < 1) return "menos de 1 dia";
+  const d = Math.round(days);
+  return `cerca de ${d} dia${d === 1 ? "" : "s"}`;
+}
 
 export function formatLowStockMessage(params: {
   level: Exclude<StockLevel, "ok">;
@@ -70,28 +80,41 @@ export function formatLowStockMessage(params: {
   consumption7d: number;
 }): string {
   const { level, branchName, itemName, unit, stock, minStock, consumption7d } = params;
-  const header =
-    level === "out"
-      ? `🛑 *ACABOU (estimado) — ${branchName}*`
-      : level === "critical"
-        ? `🚨 *URGENTE: acabando — ${branchName}*`
-        : `⚠️ *Estoque baixo — ${branchName}*`;
-
   const days = daysOfStockLeft(stock, consumption7d);
-  const lines = [
-    header,
+  const left = `${fmtStock(Math.max(0, stock))} ${unit}`;
+
+  const lines: string[] = [];
+
+  if (level === "out") {
+    lines.push(
+      `🛑 *${itemName} acabou — ${branchName}*`,
+      "",
+      "Pelas vendas registradas, a quantidade chegou a zero. A venda pode parar.",
+      "",
+      "*O que fazer:*",
+      "1️⃣ Providencie uma nova caixa agora.",
+      "2️⃣ Registre a entrada no sistema: *Inventário → Novo movimento → Compra → quantidade 1*.",
+      "",
+      "Se ainda sobrou açaí na caixa, corrija o valor em *Inventário → Novo movimento → Ajuste*.",
+    );
+    return lines.join("\n");
+  }
+
+  lines.push(
+    level === "critical"
+      ? `🚨 *URGENTE: ${itemName} quase no fim — ${branchName}*`
+      : `⚠️ *${itemName} está acabando — ${branchName}*`,
     "",
-    `${itemName}: *${fmt(Math.max(0, stock))} ${unit}* estimado${
-      days !== null && level !== "out" ? ` (≈ ${fmt(days)} dia${fmt(days) === "1.0" ? "" : "s"} no ritmo atual)` : ""
-    }`,
-  ];
-  if (consumption7d > 0) lines.push(`Consumo dos últimos 7 dias: ${fmt(consumption7d)} ${unit}`);
-  if (minStock > 0) lines.push(`Mínimo definido: ${fmt(minStock)} ${unit}`);
+    `Restam cerca de *${left}*${days !== null ? ` — dura ${formatDaysLeft(days)} no ritmo da última semana` : ""}.`,
+  );
+  if (minStock > 0) {
+    lines.push(`Este aviso sai quando o estoque fica abaixo de ${fmtQty(minStock)} ${unit}.`);
+  }
   lines.push(
     "",
-    level === "out"
-      ? "👉 Providencie uma nova caixa agora. A venda pode parar."
-      : "👉 Combine com a responsável a retirada de uma nova caixa e registre a entrada em *Inventário → Novo movimento → Compra*.",
+    "*O que fazer:*",
+    "1️⃣ Combine com a responsável a retirada de uma nova caixa.",
+    "2️⃣ Quando ela retirar, registre no sistema: *Inventário → Novo movimento → Compra → quantidade 1*.",
   );
   return lines.join("\n");
 }

@@ -87,26 +87,45 @@ describe("formatLowStockMessage", () => {
     branchName: "Açai House Wonsocket",
     itemName: "Açaí (caixa 10L)",
     unit: "caixa",
-    minStock: 0.6,
+    minStock: 0.5,
     consumption7d: 1.05,
   };
 
-  test("low: warns with days left and how to register the shipment", () => {
-    const msg = formatLowStockMessage({ ...base, level: "low", stock: 0.5 });
-    expect(msg).toContain("Estoque baixo — Açai House Wonsocket");
-    expect(msg).toContain("*0.5 caixa*");
-    expect(msg).toContain("≈ 3.3 dias");
-    expect(msg).toContain("Inventário → Novo movimento → Compra");
+  test("low: direct, step-by-step, pt-BR decimals", () => {
+    const msg = formatLowStockMessage({ ...base, level: "low", stock: 0.4 });
+    expect(msg).toContain("Açaí (caixa 10L) está acabando — Açai House Wonsocket");
+    expect(msg).toContain("*0,40 caixa*");
+    expect(msg).toContain("dura cerca de 3 dias");
+    expect(msg).toContain("abaixo de 0,50 caixa");
+    expect(msg).toContain("1️⃣ Combine com a responsável a retirada de uma nova caixa");
+    expect(msg).toContain("Inventário → Novo movimento → Compra → quantidade 1");
+  });
+
+  test("never shows a stock equal to the minimum when it is below it (0.45 / 0.496)", () => {
+    expect(formatLowStockMessage({ ...base, level: "low", stock: 0.45 })).toContain("*0,45 caixa*");
+    const near = formatLowStockMessage({ ...base, level: "low", stock: 0.496 });
+    expect(near).toContain("*0,49 caixa*");
+    expect(near).not.toContain("*0,50 caixa*");
+  });
+
+  test("floating point does not drop a cent (0.29 stays 0,29)", () => {
+    expect(formatLowStockMessage({ ...base, level: "critical", stock: 0.29 })).toContain("*0,29 caixa*");
   });
 
   test("critical is flagged as urgent", () => {
     expect(formatLowStockMessage({ ...base, level: "critical", stock: 0.2 })).toContain("URGENTE");
   });
 
-  test("out never shows a negative stock or days left", () => {
+  test("less than one day left", () => {
+    expect(formatLowStockMessage({ ...base, level: "critical", stock: 0.1 })).toContain("menos de 1 dia");
+  });
+
+  test("out: no days estimate, no negative stock, explains how to fix a wrong estimate", () => {
     const msg = formatLowStockMessage({ ...base, level: "out", stock: -0.3 });
-    expect(msg).toContain("ACABOU");
-    expect(msg).toContain("*0.0 caixa*");
-    expect(msg).not.toContain("≈"); // no "days left" estimate once it's out
+    expect(msg).toContain("acabou — Açai House Wonsocket");
+    expect(msg).not.toContain("-");
+    expect(msg).not.toContain("dura");
+    expect(msg).toContain("Se ainda sobrou açaí na caixa");
+    expect(msg).toContain("Ajuste");
   });
 });
