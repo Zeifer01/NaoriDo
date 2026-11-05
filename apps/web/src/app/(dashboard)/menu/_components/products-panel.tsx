@@ -244,7 +244,7 @@ export function ProductsPainel({
                         : "hover:bg-muted text-foreground"
                     }`}
                   >
-                    <span className="truncate pr-1">{cat.name}</span>
+                    <span className="truncate pr-1 pointer-coarse:pr-14">{cat.name}</span>
                     <span
                       className={`text-xs tabular-nums shrink-0 ${
                         isActive
@@ -255,9 +255,9 @@ export function ProductsPainel({
                       {count}
                     </span>
                   </button>
-                  {/* Edit/delete buttons on hover */}
+                  {/* Edit/delete buttons: on hover (mouse) or always visible on touch devices */}
                   <div
-                    className={`absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ${
+                    className={`absolute right-8 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity ${
                       isActive ? "right-10" : ""
                     }`}
                   >
@@ -424,9 +424,9 @@ export function ProductsPainel({
                       </Badge>
                     )}
                     {/* Actions overlay */}
-                    <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity">
                       <button
-                        className="p-1.5 rounded-md bg-background/80 hover:bg-background transition-colors"
+                        className="p-1.5 pointer-coarse:p-2.5 rounded-md bg-background/80 hover:bg-background transition-colors"
                         onClick={() => handleToggleAvailability(item)}
                         title={
                           available
@@ -441,7 +441,7 @@ export function ProductsPainel({
                         )}
                       </button>
                       <button
-                        className="p-1.5 rounded-md bg-background/80 hover:bg-background transition-colors"
+                        className="p-1.5 pointer-coarse:p-2.5 rounded-md bg-background/80 hover:bg-background transition-colors"
                         onClick={() => {
                           setEditingProduct(item);
                           setProdDialogOpen(true);
@@ -451,7 +451,7 @@ export function ProductsPainel({
                       </button>
                       {posBarcodes && item.barcode && (
                         <button
-                          className="p-1.5 rounded-md bg-background/80 hover:bg-background transition-colors"
+                          className="p-1.5 pointer-coarse:p-2.5 rounded-md bg-background/80 hover:bg-background transition-colors"
                           title="Imprimir etiqueta"
                           onClick={() => setLabelItem(item)}
                         >
@@ -459,7 +459,7 @@ export function ProductsPainel({
                         </button>
                       )}
                       <button
-                        className="p-1.5 rounded-md bg-background/80 hover:bg-background transition-colors"
+                        className="p-1.5 pointer-coarse:p-2.5 rounded-md bg-background/80 hover:bg-background transition-colors"
                         onClick={() =>
                           setConfirmDelete({
                             type: "product",
@@ -472,7 +472,7 @@ export function ProductsPainel({
                       </button>
                     </div>
                     {/* Image upload overlay */}
-                    <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100 transition-opacity">
                       <div className="bg-background/80 rounded-md px-2 py-1">
                         <ImageUploadButton
                           currentUrl={imageUrl}
