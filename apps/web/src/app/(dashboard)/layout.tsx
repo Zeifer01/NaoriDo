@@ -30,6 +30,7 @@ import {
   ContactRound,
   History,
   Receipt,
+  Truck,
 } from "lucide-react";
 import { Button } from "@restai/ui/components/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
@@ -81,6 +82,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/pos", label: "Caixa", icon: Smartphone },
       { href: "/orders", label: "Pedidos", icon: ClipboardList },
+      { href: "/entregas", label: "Entregas", icon: Truck },
       { href: "/tables", label: "Mesas", icon: Grid3X3 },
       { href: "/kitchen", label: "Cozinha", icon: ChefHat },
       { href: "/connections", label: "Conexões", icon: Wifi, feature: "whatsapp" },
@@ -132,9 +134,11 @@ const roleNavAccess: Record<string, Set<string>> = {
           href !== "/audit/exclusoes",
       ),
   ),
-  cashier: new Set(["/", "/pos", "/orders", "/payments", "/customers"]),
-  waiter: new Set(["/", "/pos", "/orders", "/tables", "/connections", "/kitchen"]),
+  cashier: new Set(["/", "/pos", "/orders", "/entregas", "/payments", "/customers"]),
+  waiter: new Set(["/", "/pos", "/orders", "/entregas", "/tables", "/connections", "/kitchen"]),
   kitchen: new Set(["/", "/kitchen"]),
+  // Delivery driver: only the "Entregas" screen (org flag `delivery_dispatch`).
+  driver: new Set(["/entregas"]),
 };
 
 function getFilteredNavGroups(
@@ -192,7 +196,8 @@ export default function DashboardLayout({
   const { data: org } = useOrgSettings();
   const { data: branches } = useBranches();
   const { data: branchSettings } = useBranchSettings();
-  const { has: hasFeature, kitchenLabel, materialExpenses, branchColorTheme } = useFeatures();
+  const { has: hasFeature, kitchenLabel, materialExpenses, branchColorTheme, deliveryDispatch } =
+    useFeatures();
   const setCurrency = useCurrencyStore((s) => s.setCurrency);
   const availableBranches = branches ?? [];
   const canSwitchBranch = availableBranches.length > 1;
@@ -244,6 +249,13 @@ export default function DashboardLayout({
       router.push("/login");
     }
   }, [isAuthenticated, router]);
+
+  // Delivery drivers only have the "Entregas" screen.
+  useEffect(() => {
+    if (user?.role === "driver" && !pathname.startsWith("/entregas")) {
+      router.replace("/entregas");
+    }
+  }, [user?.role, pathname, router]);
 
   // Control plane: skip tenant branch auto-select noise.
   useEffect(() => {
@@ -316,10 +328,15 @@ export default function DashboardLayout({
     : baseNavGroups
         .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/tables") }))
         .filter((g) => g.items.length > 0);
-  const filteredNavGroups = materialExpenses
+  const navGroupsWithExpenses = materialExpenses
     ? navGroupsWithTables
     : navGroupsWithTables
         .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/expenses") }))
+        .filter((g) => g.items.length > 0);
+  const filteredNavGroups = deliveryDispatch
+    ? navGroupsWithExpenses
+    : navGroupsWithExpenses
+        .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/entregas") }))
         .filter((g) => g.items.length > 0);
   const allFilteredItems = filteredNavGroups.flatMap((g) => g.items);
   const mobileNavItems = allFilteredItems.slice(0, 5);

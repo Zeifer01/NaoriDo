@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq, and, desc, gte, lte, inArray, isNull } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import { createUserSchema, idParamSchema } from "@restai/validators";
+import { hasDeliveryDispatch } from "@restai/config";
 import { z } from "zod";
 import { authMiddleware } from "../middleware/auth.js";
 import { tenantMiddleware, requireBranch } from "../middleware/tenant.js";
@@ -12,6 +13,24 @@ import { requireActivePlan } from "../middleware/active-plan.js";
 import { hashPassword } from "../lib/hash.js";
 
 const staff = new Hono<AppEnv>();
+
+/**
+ * The "driver" (Entregador) role only exists for orgs with the `delivery_dispatch` flag
+ * (Açaí House) — every other org keeps the same role list as before.
+ */
+async function rejectDriverRoleWithoutFlag(c: any, organizationId: string, role: string | undefined) {
+  if (role !== "driver") return null;
+  const [org] = await db
+    .select({ settings: schema.organizations.settings })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, organizationId))
+    .limit(1);
+  if (hasDeliveryDispatch(org?.settings)) return null;
+  return c.json(
+    { success: false, error: { code: "BAD_REQUEST", message: "A função Entregador não está habilitada para esta organização" } },
+    400,
+  );
+}
 
 staff.use("*", authMiddleware);
 staff.use("*", tenantMiddleware);
@@ -88,6 +107,9 @@ staff.post(
     const body = c.req.valid("json");
     const tenant = c.get("tenant") as any;
 
+    const blocked = await rejectDriverRoleWithoutFlag(c, tenant.organizationId, body.role);
+    if (blocked) return blocked;
+
     // Check email uniqueness
     const [existing] = await db
       .select({ id: schema.users.id })
@@ -146,7 +168,7 @@ staff.patch(
     "json",
     z.object({
       name: z.string().min(2).max(255).optional(),
-      role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen"]).optional(),
+      role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen", "driver"]).optional(),
       isActive: z.boolean().optional(),
       branchIds: z.array(z.string().uuid()).optional(),
     }),
@@ -155,6 +177,9 @@ staff.patch(
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
     const tenant = c.get("tenant") as any;
+
+    const blocked = await rejectDriverRoleWithoutFlag(c, tenant.organizationId, body.role);
+    if (blocked) return blocked;
 
     // Verify user belongs to this org
     const [user] = await db

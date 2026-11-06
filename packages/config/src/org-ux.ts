@@ -133,6 +133,14 @@ export interface OrgUxFlags {
    * Enable per org via `organizations.settings.branch_color_theme`.
    */
   branch_color_theme: boolean;
+  /**
+   * "Entregas" screen: ready delivery orders wait in a queue, drivers (role `driver`, or any
+   * staff) claim them, get a suggested route that weighs wait time + distance, navigate
+   * stop by stop and mark each delivered with cash received and tip. Also shows the
+   * "Entregador" role in Staff. Default `false` — no other org sees this.
+   * Enable per org via `organizations.settings.delivery_dispatch`.
+   */
+  delivery_dispatch: boolean;
 }
 
 export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
@@ -155,6 +163,7 @@ export const DEFAULT_ORG_UX_FLAGS: OrgUxFlags = {
   modifier_quick_edit: false,
   pos_quick_checkout: false,
   branch_color_theme: false,
+  delivery_dispatch: false,
 };
 
 export const DEFAULT_KITCHEN_LABEL = "Cozinha";
@@ -233,7 +242,13 @@ export function getOrgUxFlags(settings: unknown): OrgUxFlags {
     modifier_quick_edit: s.modifier_quick_edit === true,
     pos_quick_checkout: s.pos_quick_checkout === true,
     branch_color_theme: s.branch_color_theme === true,
+    delivery_dispatch: s.delivery_dispatch === true,
   };
+}
+
+/** True when the org uses the "Entregas" screen (driver queue, suggested route, delivered + tip). */
+export function hasDeliveryDispatch(settings: unknown): boolean {
+  return getOrgUxFlags(settings).delivery_dispatch;
 }
 
 export function hasPosBarcodes(settings: unknown): boolean {

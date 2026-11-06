@@ -13,6 +13,7 @@ import {
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
 import { useCreateStaff } from "@/hooks/use-staff";
 import { useBranches } from "@/hooks/use-settings";
+import { useFeatures } from "@/hooks/use-features";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
@@ -34,6 +35,7 @@ export function CreateStaffDialog({ open, onOpenChange }: CreateStaffDialogProps
 
   const createStaff = useCreateStaff();
   const { data: branchesData } = useBranches();
+  const { deliveryDispatch } = useFeatures();
   const branches = branchesData ?? [];
 
   const handleCreate = async () => {
@@ -102,6 +104,7 @@ export function CreateStaffDialog({ open, onOpenChange }: CreateStaffDialogProps
                 <SelectItem value="cashier">Caixa</SelectItem>
                 <SelectItem value="waiter">Garçom</SelectItem>
                 <SelectItem value="kitchen">Cozinha</SelectItem>
+                {deliveryDispatch && <SelectItem value="driver">Entregador</SelectItem>}
               </SelectContent>
             </Select>
           </div>

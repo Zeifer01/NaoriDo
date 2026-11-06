@@ -5,6 +5,7 @@ export * from "./auth";
 export * from "./tables";
 export * from "./menu";
 export * from "./orders";
+export * from "./deliveries";
 export * from "./order-deletion-log";
 export * from "./historical-orders";
 export * from "./expenses";

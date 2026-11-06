@@ -64,6 +64,8 @@ interface UseFeaturesResult {
   posQuickCheckout: boolean;
   /** True when the dashboard tints per branch and shows the active-branch banner. */
   branchColorTheme: boolean;
+  /** True when the "Entregas" screen (driver queue + route + delivered/tip) and the Entregador role are enabled. */
+  deliveryDispatch: boolean;
   /** True when Açai-style 3-step order status UX is enabled. */
   simplifiedOrderStatus: boolean;
   /** Nav/page label for kitchen board (default "Cozinha"). */
@@ -160,6 +162,7 @@ export function useFeatures(): UseFeaturesResult {
       modifierQuickEdit: ux.modifier_quick_edit,
       posQuickCheckout: ux.pos_quick_checkout,
       branchColorTheme: ux.branch_color_theme,
+      deliveryDispatch: ux.delivery_dispatch,
       simplifiedOrderStatus,
       kitchenLabel: getKitchenLabel(raw.settings),
       kitchenColumnLabels: getKitchenColumnLabels(raw.settings),

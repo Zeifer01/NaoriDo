@@ -96,6 +96,7 @@ function isStaffAppPath(pathname: string): boolean {
     "/pos",
     "/kitchen",
     "/orders",
+    "/entregas",
     "/tables",
     "/reports",
     "/settings",

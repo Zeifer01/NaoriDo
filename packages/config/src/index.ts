@@ -7,6 +7,9 @@ export * from "./org-ux";
 // Complemento / modifier pricing with free_quantity
 export * from "./modifier-pricing";
 
+// Delivery dispatch: route suggestion (wait time + distance) for the "Entregas" screen
+export * from "./delivery-route";
+
 // PDV checkout: what's still missing before an order can be created
 export * from "./pos-checkout";
 
@@ -48,6 +51,7 @@ export const ROLES = {
   cashier: { level: 3, label: "Caixa" },
   waiter: { level: 4, label: "Garçom" },
   kitchen: { level: 5, label: "Cozinha" },
+  driver: { level: 6, label: "Entregador" },
 } as const;
 
 export type Role = keyof typeof ROLES;
@@ -64,6 +68,7 @@ export const PERMISSIONS = {
     "payments:*", "reports:*", "invoices:*",
     "expenses:*",
     "settings:*",
+    "deliveries:*",
     /** Deliberately separate from orders:* so branch_manager/cashier can't see it. */
     "audit:read",
   ],
@@ -76,23 +81,34 @@ export const PERMISSIONS = {
     "payments:*", "reports:read",
     "invoices:*", "settings:read",
     "expenses:*",
+    "deliveries:*",
   ],
   cashier: [
     "orders:read", "orders:create", "orders:update",
     "menu:read",
     "payments:*", "customers:*",
     "invoices:create", "invoices:read",
+    "deliveries:view", "deliveries:manage",
   ],
   waiter: [
     "tables:read", "tables:update",
     "orders:create", "orders:read", "orders:update",
     "menu:read",
     "customers:read",
+    "deliveries:view", "deliveries:manage",
   ],
   kitchen: [
     "orders:read",
     "orders:update",
     "orders:update_item_status",
+  ],
+  /**
+   * Delivery driver: sees ONLY the "Entregas" screen (claim ready orders, run the route,
+   * mark delivered + tip). No access to orders, customers, payments or reports.
+   * Routes are additionally gated by the org flag `delivery_dispatch`.
+   */
+  driver: [
+    "deliveries:view", "deliveries:drive",
   ],
 } as const;
 

@@ -12,6 +12,7 @@ const roleLabels: Record<string, string> = {
   cashier: "Caixa",
   waiter: "Garçom",
   kitchen: "Cozinha",
+  driver: "Entregador",
 };
 
 const roleBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
@@ -20,6 +21,7 @@ const roleBadgeVariant: Record<string, "default" | "secondary" | "outline"> = {
   cashier: "secondary",
   waiter: "secondary",
   kitchen: "outline",
+  driver: "outline",
 };
 
 function Skeleton({ className }: { className?: string }) {

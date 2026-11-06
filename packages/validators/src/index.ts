@@ -40,7 +40,7 @@ export const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   name: z.string().min(2).max(255),
-  role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen"]),
+  role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen", "driver"]),
   branchIds: z.array(z.string().uuid()).min(1, "É necessário atribuir pelo menos uma filial"),
 });
 
@@ -433,6 +433,38 @@ export const bulkUpdateModifiersSchema = z
     { message: "Nada para atualizar" },
   );
 
+// Delivery dispatch (Açaí House "Entregas")
+export const deliveryOrderIdsSchema = z.object({
+  orderIds: z.array(z.string().uuid()).min(1).max(20),
+  /** Staff assigning on behalf of a driver (requires deliveries:manage). */
+  driverUserId: z.string().uuid().optional(),
+  /** Driver's current position, used as the route start when available. */
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+});
+
+export const deliveryReorderSchema = z.object({
+  orderIds: z.array(z.string().uuid()).min(1).max(30),
+});
+
+export const deliveryReplanSchema = z.object({
+  /** Driver's current position (browser geolocation) — used as the route start. */
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
+});
+
+export const deliveryDeliveredSchema = z.object({
+  /** Driver collected the order total in cash (only meaningful for cash orders). */
+  cashCollected: z.boolean().default(false),
+  tipCents: z.number().int().min(0).max(100_000).default(0),
+  tipMethod: z.enum(["cash", "card", "zelle", "venmo", "cashapp"]).optional(),
+});
+
+export const deliverySettingsSchema = z.object({
+  /** Wait limit (minutes) after which an order is prioritised in the route. */
+  waitLimitMinutes: z.number().int().min(10).max(180),
+});
+
 // Material expenses (Açaí House "Gastos")
 export const createExpenseSchema = z.object({
   category: z.string().min(1).max(60),
@@ -537,13 +569,13 @@ export const superAdminCreateUserSchema = z.object({
   email: z.string().email("E-mail inválido"),
   password: z.string().min(8).max(255),
   name: z.string().min(2).max(255),
-  role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen"]).default("org_admin"),
+  role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen", "driver"]).default("org_admin"),
   branchIds: z.array(z.string().uuid()).default([]),
 });
 
 export const superAdminUpdateUserSchema = z.object({
   name: z.string().min(2).max(255).optional(),
-  role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen"]).optional(),
+  role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen", "driver"]).optional(),
   isActive: z.boolean().optional(),
   branchIds: z.array(z.string().uuid()).optional(),
 });

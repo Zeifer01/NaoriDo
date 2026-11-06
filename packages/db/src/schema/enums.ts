@@ -14,6 +14,8 @@ export const userRoleEnum = pgEnum("user_role", [
   "cashier",
   "waiter",
   "kitchen",
+  /** Delivery driver — only sees the "Entregas" screen (org flag `delivery_dispatch`). */
+  "driver",
 ]);
 
 export const tableStatusEnum = pgEnum("table_status", [

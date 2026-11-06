@@ -32,6 +32,7 @@ import { uploads } from "./routes/uploads.js";
 import { coupons } from "./routes/coupons.js";
 import { expenses } from "./routes/expenses.js";
 import { delivery } from "./routes/delivery.js";
+import { deliveries } from "./routes/deliveries.js";
 import { whatsapp } from "./routes/whatsapp.js";
 import { superAdmin } from "./routes/super-admin.js";
 import { publicHost } from "./routes/public-host.js";
@@ -152,6 +153,7 @@ app.route("/api/uploads", uploads);
 app.route("/api/coupons", coupons);
 app.route("/api/expenses", expenses);
 app.route("/api/delivery", delivery);
+app.route("/api/deliveries", deliveries);
 app.route("/api/whatsapp", whatsapp);
 app.route("/api/super-admin", superAdmin);
 

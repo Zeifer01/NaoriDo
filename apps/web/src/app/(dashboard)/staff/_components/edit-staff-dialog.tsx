@@ -13,6 +13,7 @@ import {
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@restai/ui/components/select";
 import { useUpdateStaff } from "@/hooks/use-staff";
 import { useBranches } from "@/hooks/use-settings";
+import { useFeatures } from "@/hooks/use-features";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
 
@@ -26,6 +27,7 @@ export function EditStaffDialog({ open, onOpenChange, member }: EditStaffDialogP
   const [editForm, setEditForm] = useState({ name: "", role: "waiter", branchIds: [] as string[] });
   const updateStaff = useUpdateStaff();
   const { data: branchesData } = useBranches();
+  const { deliveryDispatch } = useFeatures();
   const branches = branchesData ?? [];
 
   useEffect(() => {
@@ -84,6 +86,7 @@ export function EditStaffDialog({ open, onOpenChange, member }: EditStaffDialogP
                 <SelectItem value="cashier">Caixa</SelectItem>
                 <SelectItem value="waiter">Garçom</SelectItem>
                 <SelectItem value="kitchen">Cozinha</SelectItem>
+                {deliveryDispatch && <SelectItem value="driver">Entregador</SelectItem>}
               </SelectContent>
             </Select>
           </div>
