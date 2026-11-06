@@ -174,3 +174,61 @@ export function useUpdateDeliverySettings() {
     onSuccess: invalidate,
   });
 }
+
+// ── Relatórios > Entregadores ─────────────────────────────────────
+
+export interface DeliverySummary {
+  deliveries: number;
+  valueCents: number;
+  feeCents: number;
+  avgTicketCents: number;
+  avgTotalMinutes: number | null;
+  medianTotalMinutes: number | null;
+  avgToPickupMinutes: number | null;
+  avgOnRoadMinutes: number | null;
+  withinLimitPct: number | null;
+  timeExcluded: number;
+  cashCollectedCents: number;
+  tipsCents: number;
+  tippedPct: number;
+  avgTipCents: number;
+}
+
+export interface DriverReportStats extends DeliverySummary {
+  driverId: string;
+  driverName: string;
+  tipsByMethod: Record<string, number>;
+}
+
+export interface DeliveryReport {
+  period: { start: string; end: string };
+  limitMinutes: number;
+  summary: DeliverySummary;
+  previous: DeliverySummary | null;
+  drivers: DriverReportStats[];
+  daily: Array<{ date: string; total: number } & Record<string, number | string>>;
+  byHour: Array<{ hour: string; deliveries: number }>;
+  byWeekday: Array<{ label: string; deliveries: number }>;
+  byCity: Array<{ city: string; deliveries: number; valueCents: number; avgMinutes: number | null }>;
+  tipsByMethod: Record<string, number>;
+  slowest: Array<{
+    orderNumber: string;
+    driverName: string;
+    address: string | null;
+    city: string | null;
+    totalMinutes: number;
+    date: string;
+  }>;
+}
+
+export function useDeliveryReport(params: { startDate: string; endDate: string; orgWide?: boolean } | null) {
+  return useQuery({
+    queryKey: ["deliveries", "report", params],
+    queryFn: () => {
+      const q = new URLSearchParams({ startDate: params!.startDate, endDate: params!.endDate });
+      if (params!.orgWide) q.set("orgWide", "true");
+      return apiFetch<DeliveryReport>(`/api/deliveries/report?${q.toString()}`);
+    },
+    enabled: !!params?.startDate && !!params?.endDate,
+  });
+}

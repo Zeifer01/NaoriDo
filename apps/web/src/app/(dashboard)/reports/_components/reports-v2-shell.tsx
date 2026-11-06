@@ -18,6 +18,7 @@ const V2_NAV = [
 ];
 
 const V2_NAV_HISTORICAL = { href: "/reports/retroativos", label: "Pedidos Retroativos", exact: false };
+const V2_NAV_DRIVERS = { href: "/reports/entregadores", label: "Entregadores", exact: false };
 
 export function getDefaultAnalyticsDates() {
   const end = new Date();
@@ -147,10 +148,14 @@ export function useAnalyticsDateState() {
 
 export function ReportsV2Nav() {
   const pathname = usePathname();
-  const { reportsUx, isLoading, historicalOrdersReport } = useFeatures();
+  const { reportsUx, isLoading, historicalOrdersReport, deliveryDispatch } = useFeatures();
   if (isLoading || reportsUx !== "v2") return null;
 
-  const items = historicalOrdersReport ? [...V2_NAV, V2_NAV_HISTORICAL] : V2_NAV;
+  const items = [
+    ...V2_NAV,
+    ...(deliveryDispatch ? [V2_NAV_DRIVERS] : []),
+    ...(historicalOrdersReport ? [V2_NAV_HISTORICAL] : []),
+  ];
 
   return (
     <nav className="flex flex-wrap gap-1 border-b pb-px mb-2 print:hidden">

@@ -5,6 +5,7 @@ import type {
   FinanceAnalytics,
   ProductAnalytics,
 } from "@restai/types";
+import type { DeliveryReport } from "@/hooks/use-deliveries";
 import { downloadCsvSections } from "./export-csv";
 import { downloadXlsxWorkbook, type XlsxSheet } from "./export-xlsx";
 
@@ -485,6 +486,79 @@ export function exportProductsXlsx(data: ProductAnalytics, meta: ReportExportMet
 }
 
 /** Trigger browser print dialog — user can "Save as PDF". */
+// ── Entregadores ──────────────────────────────────────────────────
+
+const DRIVER_HEADERS = [
+  "Entregador",
+  "Entregas",
+  "Valor das entregas",
+  "Ticket médio",
+  "Tempo médio total (min)",
+  "Mediana (min)",
+  "Pedido até a saída (min)",
+  "Na rua (min)",
+  "Dentro do limite %",
+  "Dinheiro recebido",
+  "Gorjetas",
+  "Entregas com gorjeta %",
+];
+
+function driverRows(data: DeliveryReport): (string | number)[][] {
+  return data.drivers.map((d) => [
+    d.driverName,
+    d.deliveries,
+    centsToNumber(d.valueCents),
+    centsToNumber(d.avgTicketCents),
+    d.avgTotalMinutes ?? "",
+    d.medianTotalMinutes ?? "",
+    d.avgToPickupMinutes ?? "",
+    d.avgOnRoadMinutes ?? "",
+    d.withinLimitPct ?? "",
+    centsToNumber(d.cashCollectedCents),
+    centsToNumber(d.tipsCents),
+    d.tippedPct,
+  ]);
+}
+
+export function exportDriversCsv(data: DeliveryReport, meta: ReportExportMeta) {
+  downloadCsvSections(fileBase(meta, "entregadores"), [
+    { title: metaPreamble(meta).join(" | "), headers: DRIVER_HEADERS, rows: driverRows(data) },
+    {
+      title: "Por dia",
+      headers: ["Data", "Entregas"],
+      rows: data.daily.map((d) => [d.date, d.total]),
+    },
+    {
+      title: "Por cidade",
+      headers: ["Cidade", "Entregas", "Valor", "Tempo médio (min)"],
+      rows: data.byCity.map((c) => [c.city, c.deliveries, centsToNumber(c.valueCents), c.avgMinutes ?? ""]),
+    },
+    {
+      title: "Entregas mais demoradas",
+      headers: ["Pedido", "Entregador", "Endereço", "Cidade", "Minutos", "Data"],
+      rows: data.slowest.map((s) => [s.orderNumber, s.driverName, s.address ?? "", s.city ?? "", s.totalMinutes, s.date]),
+    },
+  ]);
+}
+
+export function exportDriversXlsx(data: DeliveryReport, meta: ReportExportMeta) {
+  downloadXlsxWorkbook(fileBase(meta, "entregadores"), [
+    metaSheet(meta),
+    { name: "Entregadores", headers: DRIVER_HEADERS, rows: driverRows(data), colWidths: [22, 10, 16, 14, 18, 12, 20, 12, 16, 16, 12, 18] },
+    { name: "Por dia", headers: ["Data", "Entregas"], rows: data.daily.map((d) => [d.date, d.total]) },
+    {
+      name: "Por cidade",
+      headers: ["Cidade", "Entregas", "Valor", "Tempo médio (min)"],
+      rows: data.byCity.map((c) => [c.city, c.deliveries, centsToNumber(c.valueCents), c.avgMinutes ?? ""]),
+    },
+    {
+      name: "Mais demoradas",
+      headers: ["Pedido", "Entregador", "Endereço", "Cidade", "Minutos", "Data"],
+      rows: data.slowest.map((x) => [x.orderNumber, x.driverName, x.address ?? "", x.city ?? "", x.totalMinutes, x.date]),
+    },
+  ]);
+}
+
 export function printReportAsPdf(): void {
   if (typeof window === "undefined") return;
   // Allow React to paint print-only chrome before the dialog opens.

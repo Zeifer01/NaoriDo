@@ -3,7 +3,7 @@ import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, notInArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   PERMISSIONS,
@@ -30,6 +30,8 @@ import { requireOrgUxFlag } from "../middleware/org-ux-flag.js";
 import { geocodeAddress } from "../lib/geocode.js";
 import { startOfDayInTimezone } from "../lib/timezone.js";
 import { handleOrderCompletion } from "../services/order.service.js";
+import { buildDeliveryReport, type DeliveryReportRow } from "../services/delivery-report.js";
+import { parsePeriodEnd, parsePeriodStart } from "../services/analytics/period.js";
 import { wsManager } from "../ws/manager.js";
 import { logger } from "../lib/logger.js";
 
@@ -793,6 +795,79 @@ deliveries.get("/drivers", requirePermission("deliveries:manage"), async (c) => 
     .filter((d) => (seen.has(d.id) ? false : (seen.add(d.id), true)));
   return c.json({ success: true, data: drivers });
 });
+
+// ── GET /report — Relatórios > Entregadores ───────────────────────
+
+const reportQuerySchema = z.object({
+  startDate: z.string().min(4),
+  endDate: z.string().min(4),
+  /** All branches of the organization instead of the selected one. */
+  orgWide: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+});
+
+deliveries.get(
+  "/report",
+  requirePermission("reports:read"),
+  zValidator("query", reportQuerySchema),
+  async (c) => {
+    const tenant = c.get("tenant") as any;
+    const { startDate, endDate, orgWide } = c.req.valid("query");
+
+    const branch = await loadBranch(tenant.branchId);
+    const timeZone = branch?.timezone || "America/New_York";
+    const limitMinutes = waitLimitOf(branch);
+
+    const from = parsePeriodStart(startDate, timeZone);
+    const to = parsePeriodEnd(endDate, timeZone);
+    // previous period of the same length, right before this one
+    const prevTo = new Date(from.getTime() - 1);
+    const prevFrom = new Date(prevTo.getTime() - (to.getTime() - from.getTime()));
+
+    const fetchRows = async (a: Date, b: Date): Promise<DeliveryReportRow[]> => {
+      const rows = await db
+        .select({
+          driverId: schema.deliveryAssignments.driver_user_id,
+          driverName: schema.users.name,
+          orderId: schema.orders.id,
+          orderNumber: schema.orders.order_number,
+          orderCreatedAt: schema.orders.created_at,
+          claimedAt: schema.deliveryAssignments.claimed_at,
+          deliveredAt: schema.deliveryAssignments.delivered_at,
+          totalCents: schema.orders.total,
+          deliveryFeeCents: schema.orders.delivery_fee,
+          city: schema.orders.delivery_city,
+          address: schema.orders.delivery_address,
+          paymentMethod: schema.orders.payment_method,
+          cashCollectedCents: schema.deliveryAssignments.cash_collected,
+          tipCents: schema.deliveryAssignments.tip_cents,
+          tipMethod: schema.deliveryAssignments.tip_method,
+        })
+        .from(schema.deliveryAssignments)
+        .innerJoin(schema.orders, eq(schema.orders.id, schema.deliveryAssignments.order_id))
+        .innerJoin(schema.users, eq(schema.users.id, schema.deliveryAssignments.driver_user_id))
+        .where(
+          and(
+            eq(schema.deliveryAssignments.organization_id, tenant.organizationId),
+            orgWide ? undefined : eq(schema.deliveryAssignments.branch_id, tenant.branchId),
+            isNotNull(schema.deliveryAssignments.delivered_at),
+            gte(schema.deliveryAssignments.delivered_at, a),
+            lte(schema.deliveryAssignments.delivered_at, b),
+          ),
+        );
+      return rows.map((r) => ({ ...r, deliveredAt: r.deliveredAt as Date }));
+    };
+
+    const [rows, previousRows] = await Promise.all([fetchRows(from, to), fetchRows(prevFrom, prevTo)]);
+
+    return c.json({
+      success: true,
+      data: buildDeliveryReport({ rows, previousRows, start: startDate, end: endDate, limitMinutes, timeZone }),
+    });
+  },
+);
 
 // ── PATCH /settings — wait limit ──────────────────────────────────
 
