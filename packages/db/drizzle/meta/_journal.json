@@ -134,6 +134,13 @@
       "when": 1788450000000,
       "tag": "0023_delivery_dispatch",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788536400000,
+      "tag": "0024_user_is_driver",
+      "breakpoints": true
     }
   ]
 }

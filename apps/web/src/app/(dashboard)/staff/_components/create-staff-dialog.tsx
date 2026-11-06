@@ -30,6 +30,7 @@ export function CreateStaffDialog({ open, onOpenChange }: CreateStaffDialogProps
     email: "",
     password: "",
     role: "waiter",
+    isDriver: false,
     branchIds: selectedBranchId ? [selectedBranchId] : [] as string[],
   });
 
@@ -49,11 +50,12 @@ export function CreateStaffDialog({ open, onOpenChange }: CreateStaffDialogProps
         email: form.email,
         password: form.password,
         role: form.role,
+        ...(deliveryDispatch && form.role !== "driver" ? { isDriver: form.isDriver } : {}),
         branchIds: form.branchIds,
       });
       toast.success("Membro da equipe criado");
       onOpenChange(false);
-      setForm({ name: "", email: "", password: "", role: "waiter", branchIds: selectedBranchId ? [selectedBranchId] : [] });
+      setForm({ name: "", email: "", password: "", role: "waiter", isDriver: false, branchIds: selectedBranchId ? [selectedBranchId] : [] });
     } catch (err: any) {
       toast.error(err.message || "Erro ao criar membro da equipe");
     }
@@ -104,10 +106,26 @@ export function CreateStaffDialog({ open, onOpenChange }: CreateStaffDialogProps
                 <SelectItem value="cashier">Caixa</SelectItem>
                 <SelectItem value="waiter">Garçom</SelectItem>
                 <SelectItem value="kitchen">Cozinha</SelectItem>
-                {deliveryDispatch && <SelectItem value="driver">Entregador</SelectItem>}
+                {deliveryDispatch && <SelectItem value="driver">Entregador (só vê Entregas)</SelectItem>}
               </SelectContent>
             </Select>
           </div>
+          {deliveryDispatch && form.role !== "driver" && (
+            <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={form.isDriver}
+                onChange={(e) => setForm({ ...form, isDriver: e.target.checked })}
+              />
+              <span className="text-sm">
+                <span className="font-medium">Também faz entregas</span>
+                <span className="block text-xs text-muted-foreground">
+                  Aparece na lista de entregadores e pode pegar pedidos na tela Entregas, sem mudar a função acima.
+                </span>
+              </span>
+            </label>
+          )}
           <div className="space-y-2">
             <Label>Filiais atribuídas *</Label>
             <div className="border rounded-md max-h-40 overflow-y-auto">

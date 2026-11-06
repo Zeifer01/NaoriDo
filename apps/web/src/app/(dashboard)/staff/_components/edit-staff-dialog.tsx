@@ -24,7 +24,7 @@ interface EditStaffDialogProps {
 }
 
 export function EditStaffDialog({ open, onOpenChange, member }: EditStaffDialogProps) {
-  const [editForm, setEditForm] = useState({ name: "", role: "waiter", branchIds: [] as string[] });
+  const [editForm, setEditForm] = useState({ name: "", role: "waiter", isDriver: false, branchIds: [] as string[] });
   const updateStaff = useUpdateStaff();
   const { data: branchesData } = useBranches();
   const { deliveryDispatch } = useFeatures();
@@ -35,6 +35,7 @@ export function EditStaffDialog({ open, onOpenChange, member }: EditStaffDialogP
       setEditForm({
         name: member.name,
         role: member.role,
+        isDriver: member.isDriver === true,
         branchIds: member.branches?.map((b: any) => b.id) ?? [],
       });
     }
@@ -50,6 +51,7 @@ export function EditStaffDialog({ open, onOpenChange, member }: EditStaffDialogP
         id: member.id,
         name: editForm.name,
         role: editForm.role,
+        ...(deliveryDispatch && editForm.role !== "driver" ? { isDriver: editForm.isDriver } : {}),
         branchIds: editForm.branchIds,
       });
       toast.success("Membro da equipe atualizado");
@@ -86,10 +88,26 @@ export function EditStaffDialog({ open, onOpenChange, member }: EditStaffDialogP
                 <SelectItem value="cashier">Caixa</SelectItem>
                 <SelectItem value="waiter">Garçom</SelectItem>
                 <SelectItem value="kitchen">Cozinha</SelectItem>
-                {deliveryDispatch && <SelectItem value="driver">Entregador</SelectItem>}
+                {deliveryDispatch && <SelectItem value="driver">Entregador (só vê Entregas)</SelectItem>}
               </SelectContent>
             </Select>
           </div>
+          {deliveryDispatch && editForm.role !== "driver" && (
+            <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={editForm.isDriver}
+                onChange={(e) => setEditForm({ ...editForm, isDriver: e.target.checked })}
+              />
+              <span className="text-sm">
+                <span className="font-medium">Também faz entregas</span>
+                <span className="block text-xs text-muted-foreground">
+                  Aparece na lista de entregadores e pode pegar pedidos na tela Entregas, sem mudar a função acima.
+                </span>
+              </span>
+            </label>
+          )}
           <div className="space-y-2">
             <Label>Filiais atribuídas *</Label>
             <div className="border rounded-md max-h-40 overflow-y-auto">

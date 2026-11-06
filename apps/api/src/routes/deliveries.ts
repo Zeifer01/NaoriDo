@@ -1,8 +1,9 @@
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "../types.js";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { and, desc, eq, gte, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@restai/db";
 import {
   PERMISSIONS,
@@ -45,6 +46,29 @@ deliveries.use("*", tenantMiddleware);
 deliveries.use("*", requireBranch);
 deliveries.use("*", requireActivePlan);
 deliveries.use("*", requireOrgUxFlag(hasDeliveryDispatch, "Entregas"));
+// "Também faz entregas": any role can be marked as a driver on the user (Equipe). The JWT
+// doesn't carry it, so load it once per request.
+deliveries.use("*", async (c, next) => {
+  const user = c.get("user") as any;
+  if (user?.sub && user.role !== "customer") {
+    const [row] = await db
+      .select({ isDriver: schema.users.is_driver })
+      .from(schema.users)
+      .where(eq(schema.users.id, user.sub))
+      .limit(1);
+    c.set("user", { ...user, isDriver: row?.isDriver === true } as any);
+  }
+  return next();
+});
+
+/** Only people who can run deliveries (driver role, owners/managers, or marked "também faz entregas"). */
+const requireDriver = createMiddleware<AppEnv>(async (c, next) => {
+  if (userCan(c.get("user"), "deliveries:drive")) return next();
+  return c.json(
+    { success: false, error: { code: "FORBIDDEN", message: "Sem permissão para fazer entregas" } },
+    403,
+  );
+});
 
 /** Ready/pending orders older than this are not shown (stale leftovers). */
 const QUEUE_WINDOW_HOURS = 18;
@@ -55,6 +79,7 @@ const orderIdParam = z.object({ orderId: z.string().uuid() });
 // ── helpers ───────────────────────────────────────────────────────
 
 function userCan(user: any, permission: string): boolean {
+  if (permission === "deliveries:drive" && user?.isDriver === true) return true;
   const perms = PERMISSIONS[user?.role as keyof typeof PERMISSIONS] as readonly string[] | undefined;
   if (!perms) return false;
   if (perms.includes("*")) return true;
@@ -476,7 +501,7 @@ deliveries.post(
 
 deliveries.post(
   "/reorder",
-  requirePermission("deliveries:drive"),
+  requireDriver,
   zValidator("json", deliveryReorderSchema),
   async (c) => {
     const user = c.get("user") as any;
@@ -506,7 +531,7 @@ deliveries.post(
 
 deliveries.post(
   "/replan",
-  requirePermission("deliveries:drive"),
+  requireDriver,
   zValidator("json", deliveryReplanSchema),
   async (c) => {
     const user = c.get("user") as any;
@@ -722,18 +747,33 @@ deliveries.get("/drivers", requirePermission("deliveries:manage"), async (c) => 
   const tenant = c.get("tenant") as any;
   const recentSince = new Date(Date.now() - 60 * 24 * 3600 * 1000);
 
-  const dedicated = await db
-    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role })
+  // Role "Entregador" or marked "também faz entregas", on this branch (owners work every branch).
+  const candidates = await db
+    .select({ id: schema.users.id, name: schema.users.name, role: schema.users.role, isDriver: schema.users.is_driver })
     .from(schema.users)
-    .innerJoin(schema.userBranches, eq(schema.userBranches.user_id, schema.users.id))
     .where(
       and(
         eq(schema.users.organization_id, tenant.organizationId),
         eq(schema.users.is_active, true),
-        eq(schema.users.role, "driver"),
-        eq(schema.userBranches.branch_id, tenant.branchId),
+        or(eq(schema.users.role, "driver"), eq(schema.users.is_driver, true)),
       ),
     );
+  const links = candidates.length
+    ? await db
+        .select({ userId: schema.userBranches.user_id })
+        .from(schema.userBranches)
+        .where(
+          and(
+            eq(schema.userBranches.branch_id, tenant.branchId),
+            inArray(
+              schema.userBranches.user_id,
+              candidates.map((d) => d.id),
+            ),
+          ),
+        )
+    : [];
+  const onBranch = new Set(links.map((l) => l.userId));
+  const dedicated = candidates.filter((d) => d.role === "org_admin" || d.role === "super_admin" || onBranch.has(d.id));
 
   const recent = await db
     .selectDistinct({ id: schema.users.id, name: schema.users.name, role: schema.users.role })
@@ -748,7 +788,9 @@ deliveries.get("/drivers", requirePermission("deliveries:manage"), async (c) => 
     );
 
   const seen = new Set<string>();
-  const drivers = [...dedicated, ...recent].filter((d) => (seen.has(d.id) ? false : (seen.add(d.id), true)));
+  const drivers = [...dedicated, ...recent]
+    .map((d) => ({ id: d.id, name: d.name, role: d.role }))
+    .filter((d) => (seen.has(d.id) ? false : (seen.add(d.id), true)));
   return c.json({ success: true, data: drivers });
 });
 

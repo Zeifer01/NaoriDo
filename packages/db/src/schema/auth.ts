@@ -21,6 +21,12 @@ export const users = pgTable("users", {
   name: varchar("name", { length: 255 }).notNull(),
   role: userRoleEnum("role").notNull(),
   is_active: boolean("is_active").default(true).notNull(),
+  /**
+   * "Também faz entregas": lets any role (e.g. an owner who also delivers) appear in the
+   * delivery driver list and take deliveries, without changing the role. Only used by orgs
+   * with the `delivery_dispatch` flag.
+   */
+  is_driver: boolean("is_driver").default(false).notNull(),
   created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

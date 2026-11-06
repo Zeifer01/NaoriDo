@@ -17,6 +17,7 @@ export function useCreateStaff() {
       password: string;
       name: string;
       role: string;
+      isDriver?: boolean;
       branchIds: string[];
     }) => apiFetch("/api/staff", {
       method: "POST",
@@ -29,7 +30,7 @@ export function useCreateStaff() {
 export function useUpdateStaff() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; role?: string; isActive?: boolean; branchIds?: string[] }) =>
+    mutationFn: ({ id, ...data }: { id: string; name?: string; role?: string; isActive?: boolean; isDriver?: boolean; branchIds?: string[] }) =>
       apiFetch(`/api/staff/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),

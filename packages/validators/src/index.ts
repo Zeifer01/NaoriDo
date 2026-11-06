@@ -41,6 +41,8 @@ export const createUserSchema = z.object({
   password: z.string().min(8),
   name: z.string().min(2).max(255),
   role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen", "driver"]),
+  /** "Também faz entregas" (orgs with the delivery_dispatch flag). */
+  isDriver: z.boolean().optional(),
   branchIds: z.array(z.string().uuid()).min(1, "É necessário atribuir pelo menos uma filial"),
 });
 

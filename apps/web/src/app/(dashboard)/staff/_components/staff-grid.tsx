@@ -133,6 +133,11 @@ export function StaffGrid({
                       <Badge variant={roleBadgeVariant[member.role] || "outline"}>
                         {roleLabels[member.role] || member.role}
                       </Badge>
+                      {member.isDriver && member.role !== "driver" && (
+                        <Badge variant="outline" className="text-[10px]">
+                          + Entregador
+                        </Badge>
+                      )}
                       {isInactive && (
                         <Badge variant="destructive" className="text-[10px]">
                           Inativo

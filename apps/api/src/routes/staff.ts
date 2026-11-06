@@ -18,8 +18,13 @@ const staff = new Hono<AppEnv>();
  * The "driver" (Entregador) role only exists for orgs with the `delivery_dispatch` flag
  * (Açaí House) — every other org keeps the same role list as before.
  */
-async function rejectDriverRoleWithoutFlag(c: any, organizationId: string, role: string | undefined) {
-  if (role !== "driver") return null;
+async function rejectDriverRoleWithoutFlag(
+  c: any,
+  organizationId: string,
+  role: string | undefined,
+  isDriver?: boolean,
+) {
+  if (role !== "driver" && isDriver !== true) return null;
   const [org] = await db
     .select({ settings: schema.organizations.settings })
     .from(schema.organizations)
@@ -55,6 +60,7 @@ staff.get("/", requirePermission("staff:read"), async (c) => {
       name: schema.users.name,
       role: schema.users.role,
       is_active: schema.users.is_active,
+      is_driver: schema.users.is_driver,
       created_at: schema.users.created_at,
     })
     .from(schema.users)
@@ -91,6 +97,7 @@ staff.get("/", requirePermission("staff:read"), async (c) => {
     email: u.email,
     role: u.role,
     isActive: u.is_active,
+    isDriver: u.is_driver,
     createdAt: u.created_at,
     branches: branchesByUser.get(u.id) || [],
   }));
@@ -107,7 +114,7 @@ staff.post(
     const body = c.req.valid("json");
     const tenant = c.get("tenant") as any;
 
-    const blocked = await rejectDriverRoleWithoutFlag(c, tenant.organizationId, body.role);
+    const blocked = await rejectDriverRoleWithoutFlag(c, tenant.organizationId, body.role, body.isDriver);
     if (blocked) return blocked;
 
     // Check email uniqueness
@@ -133,6 +140,7 @@ staff.post(
         password_hash: passwordHash,
         name: body.name,
         role: body.role,
+        is_driver: body.isDriver === true,
       })
       .returning();
 
@@ -170,6 +178,7 @@ staff.patch(
       name: z.string().min(2).max(255).optional(),
       role: z.enum(["org_admin", "branch_manager", "cashier", "waiter", "kitchen", "driver"]).optional(),
       isActive: z.boolean().optional(),
+      isDriver: z.boolean().optional(),
       branchIds: z.array(z.string().uuid()).optional(),
     }),
   ),
@@ -178,7 +187,7 @@ staff.patch(
     const body = c.req.valid("json");
     const tenant = c.get("tenant") as any;
 
-    const blocked = await rejectDriverRoleWithoutFlag(c, tenant.organizationId, body.role);
+    const blocked = await rejectDriverRoleWithoutFlag(c, tenant.organizationId, body.role, body.isDriver);
     if (blocked) return blocked;
 
     // Verify user belongs to this org
@@ -204,6 +213,7 @@ staff.patch(
     if (body.name !== undefined) updateData.name = body.name;
     if (body.role !== undefined) updateData.role = body.role;
     if (body.isActive !== undefined) updateData.is_active = body.isActive;
+    if (body.isDriver !== undefined) updateData.is_driver = body.isDriver;
 
     if (Object.keys(updateData).length > 0) {
       await db
